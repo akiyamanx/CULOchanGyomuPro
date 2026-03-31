@@ -1,0 +1,165 @@
+/* [CULOchanGyomuPro統合] v1.3 2026-03-31 - maintenance-map-ap v2.5からコピー */
+/* ============================================
+ * メンテナンスマップ v2.1 - expense-styles.css
+ * 交通費精算書タブ専用スタイル
+ * v2.1新規作成 - CULOchanSEISANsho統合
+ * 親CSSの変数(--primary等)を活用して統一感を維持
+ * ============================================ */
+
+:root {
+    --exp-accent: #0d7377;
+    --exp-accent-light: #14919b;
+    --exp-accent-bg: #e6f7f7;
+    --exp-accent-glow: rgba(13, 115, 119, 0.15);
+}
+
+.exp-panel { padding: 8px 4px 24px; }
+
+.exp-section {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 12px;
+    margin-bottom: 10px;
+    border: 1px solid var(--border);
+}
+
+.exp-section-title {
+    font-size: 13px; font-weight: 700; color: var(--exp-accent);
+    margin-bottom: 10px; padding-bottom: 6px;
+    border-bottom: 2px solid var(--exp-accent);
+}
+
+.exp-form-grid { display: flex; gap: 8px; margin-bottom: 6px; }
+.exp-field { flex: 1; min-width: 0; }
+.exp-field-sm { flex: 0 0 60px; min-width: 60px; }
+.exp-field-grow { flex: 2; }
+
+.exp-field label {
+    display: block; font-size: 11px; font-weight: 600;
+    color: var(--text-light); margin-bottom: 3px;
+}
+
+.exp-field input,
+.exp-field select,
+.exp-field textarea {
+    width: 100%; padding: 8px 10px;
+    border: 1.5px solid var(--border); border-radius: 8px;
+    font-size: 14px; font-family: var(--font);
+    outline: none; background: var(--surface);
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.exp-field input:focus,
+.exp-field textarea:focus {
+    border-color: var(--exp-accent);
+    box-shadow: 0 0 0 3px var(--exp-accent-glow);
+}
+
+.exp-field input[readonly] {
+    background: var(--exp-accent-bg); color: var(--exp-accent); font-weight: 600;
+}
+
+.exp-field textarea { resize: vertical; min-height: 48px; }
+
+.exp-etc-btn {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    width: 100%; padding: 12px; margin-bottom: 10px;
+    background: linear-gradient(135deg, #ff6b35, #f7931e);
+    color: white; border: none; border-radius: var(--radius);
+    font-size: 14px; font-weight: 700; font-family: var(--font);
+    text-decoration: none; cursor: pointer;
+    box-shadow: 0 2px 8px rgba(255, 107, 53, 0.3);
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+.exp-etc-btn:active { transform: scale(0.98); box-shadow: 0 1px 4px rgba(255, 107, 53, 0.2); }
+
+.exp-row {
+    background: var(--bg); border-radius: var(--radius);
+    padding: 12px; margin-bottom: 10px;
+    border-left: 3px solid var(--exp-accent);
+    transition: box-shadow 0.2s;
+}
+.exp-row:last-child { margin-bottom: 0; }
+
+.exp-row-head {
+    display: flex; justify-content: space-between;
+    align-items: center; margin-bottom: 10px;
+}
+
+.exp-row-num {
+    display: flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--exp-accent); color: white;
+    font-size: 13px; font-weight: 700;
+}
+
+.exp-row-del {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--danger); color: white; border: none;
+    font-size: 14px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s;
+}
+.exp-row-del:active { background: #b91c1c; }
+
+.exp-row-total {
+    text-align: right; margin-top: 8px;
+    font-size: 13px; font-weight: 700; color: var(--exp-accent);
+}
+.exp-row-total-val { font-size: 15px; }
+
+.exp-add-row-btn {
+    width: 100%; padding: 10px; margin-top: 10px;
+    background: var(--exp-accent); color: white; border: none;
+    border-radius: var(--radius); font-size: 14px; font-weight: 700;
+    font-family: var(--font); cursor: pointer; transition: background 0.15s;
+}
+.exp-add-row-btn:active { background: var(--exp-accent-light); }
+
+.exp-hint { font-size: 11px; color: var(--text-light); text-align: center; margin-top: 6px; }
+
+.exp-total-card {
+    background: linear-gradient(135deg, var(--exp-accent), var(--exp-accent-light));
+    color: white; padding: 16px; border-radius: var(--radius);
+    text-align: center; margin-bottom: 10px;
+    box-shadow: 0 4px 12px rgba(13, 115, 119, 0.3);
+}
+.exp-total-label { font-size: 12px; opacity: 0.9; }
+.exp-total-amount { font-size: 28px; font-weight: 900; letter-spacing: 1px; margin-top: 4px; }
+
+.exp-actions { display: flex; gap: 8px; margin-bottom: 10px; }
+
+.exp-btn {
+    flex: 1; padding: 11px 8px; border: none;
+    border-radius: var(--radius); font-size: 13px; font-weight: 700;
+    font-family: var(--font); cursor: pointer; transition: transform 0.15s;
+}
+.exp-btn:active { transform: scale(0.97); }
+.exp-btn-pdf { background: var(--success); color: white; }
+.exp-btn-save { background: var(--warning); color: #333; }
+.exp-btn-clear { background: #6c757d; color: white; }
+
+.exp-draft-list { margin-top: 4px; }
+
+.exp-draft-item {
+    display: flex; justify-content: space-between; align-items: center;
+    background: var(--bg); padding: 10px 12px; border-radius: 8px;
+    margin-bottom: 6px; transition: background 0.15s;
+}
+.exp-draft-item:active { background: var(--border); }
+
+.exp-draft-info { flex: 1; cursor: pointer; min-width: 0; }
+
+.exp-draft-title {
+    font-size: 13px; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.exp-draft-date { font-size: 11px; color: var(--text-light); margin-top: 2px; }
+
+.exp-draft-del {
+    background: var(--danger); color: white; border: none;
+    padding: 5px 10px; border-radius: 6px; font-size: 12px;
+    cursor: pointer; flex-shrink: 0; margin-left: 8px;
+}
+.exp-draft-del:active { background: #b91c1c; }

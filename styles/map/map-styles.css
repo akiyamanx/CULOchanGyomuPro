@@ -1,0 +1,412 @@
+/* [CULOchanGyomuPro統合] v1.3 2026-03-31 - maintenance-map-ap v2.5からコピー */
+/* ============================================
+ * メンテナンスマップ v2.0 - styles.css
+ * 全スタイル定義
+ * v2.0新規作成 - 分割ファイル構成対応
+ * ============================================ */
+
+/* --- CSS変数 --- */
+:root {
+    --primary: #1a56db;
+    --primary-light: #3b82f6;
+    --primary-dark: #1e3a8a;
+    --success: #059669;
+    --warning: #d97706;
+    --danger: #dc2626;
+    --bg: #f0f4f8;
+    --surface: #ffffff;
+    --text: #1e293b;
+    --text-light: #64748b;
+    --border: #e2e8f0;
+    --shadow: 0 2px 8px rgba(0,0,0,0.12);
+    --shadow-lg: 0 8px 24px rgba(0,0,0,0.15);
+    --radius: 10px;
+    --font: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* --- リセット --- */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+    height: 100vh;
+    height: 100dvh;
+}
+
+/* --- スプラッシュ画面 --- */
+.splash-overlay {
+    position: fixed; inset: 0; z-index: 9999;
+    background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 40%, #0ea5e9 100%);
+    display: flex; align-items: center; justify-content: center;
+    transition: opacity 0.5s ease;
+}
+.splash-content { text-align: center; color: white; }
+.splash-icon { font-size: 64px; margin-bottom: 16px; animation: bounceIn 0.8s ease; }
+.splash-title { font-size: 28px; font-weight: 900; letter-spacing: 2px; }
+.splash-sub { font-size: 12px; opacity: 0.7; margin-top: 4px; letter-spacing: 3px; }
+.splash-ver { font-size: 11px; opacity: 0.5; margin-top: 8px; }
+.splash-features {
+    display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;
+    margin-top: 24px; font-size: 12px; opacity: 0.8;
+}
+.splash-btn {
+    margin-top: 32px; padding: 14px 48px;
+    background: white; color: var(--primary); border: none;
+    border-radius: 30px; font-size: 16px; font-weight: 700;
+    cursor: pointer; font-family: var(--font);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    transition: transform 0.2s;
+}
+.splash-btn:active { transform: scale(0.95); }
+.splash-credit { font-size: 10px; opacity: 0.4; margin-top: 24px; }
+
+@keyframes bounceIn {
+    0% { transform: scale(0); opacity: 0; }
+    60% { transform: scale(1.2); }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+/* --- ヘッダー --- */
+.map-header {
+    background: var(--primary);
+    color: white;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    position: relative;
+    z-index: 100;
+    flex-wrap: wrap;
+}
+.app-title { font-size: 15px; font-weight: 700; white-space: nowrap; }
+.header-actions { display: flex; gap: 4px; flex-wrap: wrap; }
+.count-badge {
+    background: rgba(255,255,255,0.2);
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+    margin-left: auto;
+}
+
+/* --- ボタン共通 --- */
+.btn {
+    background: rgba(255,255,255,0.9);
+    color: var(--primary);
+    border: none;
+    padding: 6px 10px;
+    border-radius: 16px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    font-family: var(--font);
+    transition: background 0.2s;
+}
+.btn:active { background: rgba(255,255,255,0.7); }
+.btn-pdf { background: var(--success); color: white; }
+.btn-pdf:active { background: #047857; }
+.btn-menu { background: rgba(255,255,255,0.2); color: white; }
+
+/* --- メニューパネル --- */
+.menu-panel {
+    position: absolute;
+    top: 48px; right: 8px;
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    z-index: 200;
+    overflow: hidden;
+}
+.menu-panel button {
+    display: block; width: 100%;
+    padding: 12px 20px;
+    border: none; background: none;
+    font-size: 14px; text-align: left;
+    cursor: pointer; font-family: var(--font);
+    border-bottom: 1px solid var(--border);
+}
+.menu-panel button:last-child { border-bottom: none; }
+.menu-panel button:active { background: var(--bg); }
+
+/* --- 地図 --- */
+#map {
+    width: 100%;
+    height: calc(100vh - 48px);
+    height: calc(100dvh - 48px);
+}
+
+/* --- ルート凡例 --- */
+.legend {
+    position: absolute;
+    bottom: 60px; left: 8px;
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 10px 14px;
+    z-index: 50;
+    max-width: 200px;
+    font-size: 12px;
+}
+.legend-title {
+    font-weight: 700; margin-bottom: 6px;
+    display: flex; align-items: center; justify-content: space-between;
+}
+.legend-close {
+    background: none; border: none; cursor: pointer;
+    font-size: 14px; color: var(--text-light);
+}
+.legend-item {
+    display: flex; align-items: center; gap: 6px;
+    padding: 3px 0; font-size: 12px;
+}
+.legend-color {
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+/* --- 下部パネル --- */
+.bottom-panel {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--surface);
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -4px 16px rgba(0,0,0,0.1);
+    z-index: 150;
+    max-height: 55vh;
+    transition: transform 0.3s ease, max-height 0.3s ease;
+}
+.bottom-panel.collapsed { transform: translateY(calc(100% - 44px)); }
+.panel-handle {
+    display: flex; justify-content: center;
+    padding: 10px; cursor: pointer;
+}
+.handle-bar {
+    width: 40px; height: 4px;
+    background: #cbd5e1; border-radius: 2px;
+}
+.panel-tabs {
+    display: flex; border-bottom: 1px solid var(--border);
+    padding: 0 8px;
+}
+.tab {
+    flex: 1; padding: 8px 4px;
+    border: none; background: none;
+    font-size: 12px; font-weight: 500;
+    cursor: pointer; font-family: var(--font);
+    color: var(--text-light);
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+}
+.tab.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+    font-weight: 700;
+}
+.panel-content { overflow-y: auto; max-height: calc(55vh - 90px); }
+.tab-content { display: none; padding: 8px; }
+.tab-content.active { display: block; }
+
+/* --- 顧客リスト --- */
+.customer-list { padding: 0; }
+.customer-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.customer-item:active { background: var(--bg); }
+.customer-status {
+    width: 10px; height: 10px;
+    border-radius: 50%; flex-shrink: 0;
+}
+.status-pending { background: var(--danger); }
+.status-appointed { background: var(--success); }
+.status-completed { background: #9ca3af; }
+.customer-info { flex: 1; min-width: 0; }
+.customer-name {
+    font-size: 14px; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.customer-address {
+    font-size: 11px; color: var(--text-light);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.customer-route {
+    font-size: 10px; padding: 2px 8px;
+    border-radius: 10px; font-weight: 600;
+    color: white; flex-shrink: 0;
+}
+.customer-count {
+    font-size: 11px; color: var(--text-light);
+    font-weight: 500; flex-shrink: 0;
+}
+.empty-msg {
+    text-align: center; color: var(--text-light);
+    padding: 24px; font-size: 13px;
+}
+
+/* --- ルート管理 --- */
+.route-manager { padding: 4px; }
+.route-section {
+    margin-bottom: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+.route-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 12px;
+    background: var(--bg);
+    font-weight: 600; font-size: 14px;
+    cursor: pointer;
+}
+.route-color-dot {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    border: 2px solid white;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.route-count { margin-left: auto; font-size: 12px; color: var(--text-light); }
+.route-stops { padding: 0 8px 8px; }
+.route-stop {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 8px; font-size: 13px;
+    border-bottom: 1px dashed var(--border);
+}
+.route-stop:last-child { border-bottom: none; }
+.stop-number {
+    width: 22px; height: 22px;
+    border-radius: 50%; background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; flex-shrink: 0;
+}
+
+/* --- 集計 --- */
+.summary-content { padding: 8px; }
+.summary-card {
+    background: var(--bg);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-bottom: 10px;
+}
+.summary-card h3 { font-size: 14px; margin-bottom: 8px; }
+.summary-row {
+    display: flex; justify-content: space-between;
+    font-size: 13px; padding: 3px 0;
+}
+.summary-value { font-weight: 700; }
+
+/* --- モーダル --- */
+.modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 500;
+    padding: 16px;
+}
+.modal {
+    background: var(--surface);
+    border-radius: 16px;
+    padding: 24px;
+    width: 100%; max-width: 420px;
+    max-height: 85vh;
+    overflow-y: auto;
+    box-shadow: var(--shadow-lg);
+}
+.modal h2 { font-size: 18px; margin-bottom: 16px; }
+.modal-row { margin-bottom: 14px; }
+.modal-row label {
+    display: block; font-size: 12px; font-weight: 600;
+    color: var(--text-light); margin-bottom: 4px;
+}
+.modal-row input,
+.modal-row select,
+.modal-row textarea {
+    width: 100%; padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px; font-size: 14px;
+    font-family: var(--font);
+    outline: none;
+    transition: border-color 0.2s;
+}
+.modal-row input:focus,
+.modal-row select:focus,
+.modal-row textarea:focus {
+    border-color: var(--primary);
+}
+.modal-row textarea { resize: vertical; min-height: 60px; }
+.modal-buttons {
+    display: flex; gap: 8px; margin-top: 20px;
+    justify-content: flex-end;
+}
+.modal-cancel, .modal-submit, .modal-delete {
+    padding: 10px 20px;
+    border: none; border-radius: 8px;
+    font-size: 14px; font-weight: 600;
+    cursor: pointer; font-family: var(--font);
+}
+.modal-cancel {
+    background: var(--bg); color: var(--text);
+}
+.modal-submit {
+    background: var(--primary); color: white;
+}
+.modal-delete {
+    background: var(--danger); color: white;
+}
+.confirm-text {
+    text-align: center; font-size: 14px;
+    line-height: 1.8; padding: 8px 0;
+}
+
+/* --- ローディング --- */
+.loading-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 600;
+}
+.loading-content {
+    text-align: center; color: white;
+    font-size: 16px;
+}
+.loading-spinner {
+    width: 48px; height: 48px;
+    border: 4px solid rgba(255,255,255,0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 16px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* --- 吹き出し（InfoWindow） --- */
+.info-window {
+    font-family: var(--font);
+    max-width: 260px;
+}
+.info-window h3 {
+    font-size: 14px; margin-bottom: 4px;
+    color: var(--primary-dark);
+}
+.info-window p {
+    font-size: 12px; color: var(--text-light);
+    margin: 2px 0;
+}
+.info-window .info-actions {
+    display: flex; gap: 6px; margin-top: 8px;
+}
+.info-window .info-btn {
+    padding: 5px 10px; border: none;
+    border-radius: 6px; font-size: 11px;
+    cursor: pointer; font-family: var(--font);
+    font-weight: 600;
+}
+.info-btn-edit { background: var(--primary); color: white; }
+.info-btn-call { background: var(--success); color: white; }
+.info-btn-delete { background: var(--danger); color: white; }
