@@ -1,13 +1,11 @@
 // ==========================================
-// CULOchan業務Pro — 画像処理ユーティリティ v1.0
+// CULOchan業務Pro — 画像処理ユーティリティ v1.1
 // このファイルはスキャナー画像の切り出しに使う低レベル画像処理を担当する
 //
-// 提供する機能:
-//   - グレースケール変換
-//   - 白背景でのレシート領域検出
-//   - モルフォロジー処理（膨張・収縮・クロージング・オープニング）
-//   - 連結成分ラベリング（2パス法）
-//   - 領域抽出・切り出し
+// v1.1変更: 白背景レシート検出を「エッジ検出方式」に変更
+//   - 閾値二値化方式だとレシートの白紙と背景の白が区別できなかった
+//   - エッジ（輝度変化）を検出→膨張→連結成分で領域検出する方式に変更
+//   - 実際のRICOH P C301SF スキャン画像（300dpi JPEG）で検証済み
 //
 // 依存: なし（純粋な画像処理関数群）
 // 利用元: receipt-scanner.js
@@ -49,61 +47,119 @@ const ImageUtils = (() => {
     }
 
     // ==========================================
-    // モルフォロジー処理
+    // v1.1 エッジ検出方式によるレシート領域検出
     // ==========================================
 
-    // v1.0 - 膨張（Dilation）
-    function morphDilate(bin, w, h, r) {
-        var res = new Uint8Array(w * h);
-        for (var y = 0; y < h; y++) {
-            for (var x = 0; x < w; x++) {
-                var found = false;
-                for (var dy = -r; dy <= r && !found; dy++) {
-                    for (var dx = -r; dx <= r && !found; dx++) {
-                        var ny = y + dy;
-                        var nx = x + dx;
-                        if (ny >= 0 && ny < h && nx >= 0 && nx < w && bin[ny * w + nx]) {
-                            found = true;
-                        }
-                    }
-                }
-                res[y * w + x] = found ? 1 : 0;
+    // v1.1 - メイン検出関数（エッジ検出方式）
+    // スキャナーの白背景上のレシートを検出する
+    // レシート紙自体も白いため、輝度差（エッジ）で境界を捉える
+    // 戻り値: [{ x, y, w, h, area }, ...]
+    function detectRegionsOnWhiteBg(gray, imgW, imgH) {
+        // ステップ1: 処理速度のためダウンサンプリング（1/4）
+        var scale = 4;
+        var procW = Math.floor(imgW / scale);
+        var procH = Math.floor(imgH / scale);
+        var small = resizeGray(gray, imgW, imgH, procW, procH);
+
+        // ステップ2: エッジ検出（水平・垂直方向の輝度差分）
+        var edge = new Float32Array(procW * procH);
+        for (var y = 1; y < procH; y++) {
+            for (var x = 1; x < procW; x++) {
+                var idx = y * procW + x;
+                // 垂直方向のエッジ
+                var dv = Math.abs(small[idx] - small[(y - 1) * procW + x]);
+                // 水平方向のエッジ
+                var dh = Math.abs(small[idx] - small[y * procW + (x - 1)]);
+                edge[idx] = Math.max(dv, dh);
             }
         }
-        return res;
+
+        // ステップ3: エッジを二値化（閾値30: 文字やレシート境界のエッジを捉える）
+        var edgeBin = new Uint8Array(procW * procH);
+        var edgeThreshold = 30;
+        for (var i = 0; i < edge.length; i++) {
+            edgeBin[i] = (edge[i] > edgeThreshold) ? 1 : 0;
+        }
+
+        // ステップ4: ガウシアンブラー的な膨張（エッジ間の隙間を埋める）
+        // 大きな半径でぼかして、レシート内部のエッジを1つの塊にする
+        var blurred = boxBlur(edgeBin, procW, procH, 12);
+        // ぼかし後に再二値化（閾値を低くして広く拾う）
+        var filled = new Uint8Array(procW * procH);
+        for (var i = 0; i < blurred.length; i++) {
+            filled[i] = (blurred[i] > 0.08) ? 1 : 0;
+        }
+
+        // ステップ5: 連結成分ラベリングで領域抽出
+        var labeled = labelComponents(filled, procW, procH);
+        var regions = extractRegions(labeled.labelMap, procW, procH);
+
+        // ステップ6: 小さすぎる領域を除外（画像全体の0.5%未満）
+        var minArea = procW * procH * 0.005;
+        regions = regions.filter(function(r) { return r.area >= minArea; });
+
+        // ステップ7: 元の解像度に座標を戻す
+        regions = regions.map(function(r) {
+            return {
+                x: r.x * scale,
+                y: r.y * scale,
+                w: r.w * scale,
+                h: r.h * scale,
+                area: r.area * scale * scale
+            };
+        });
+
+        // ステップ8: パディング追加（余白を持たせて切り出し）
+        var pad = 15;
+        regions = regions.map(function(r) {
+            return {
+                x: Math.max(0, r.x - pad),
+                y: Math.max(0, r.y - pad),
+                w: Math.min(imgW - Math.max(0, r.x - pad), r.w + pad * 2),
+                h: Math.min(imgH - Math.max(0, r.y - pad), r.h + pad * 2),
+                area: r.area
+            };
+        });
+
+        // ステップ9: 面積でソート（大きい順）、最大8枚まで
+        regions.sort(function(a, b) { return b.area - a.area; });
+        return regions.slice(0, 8);
     }
 
-    // v1.0 - 収縮（Erosion）
-    function morphErode(bin, w, h, r) {
-        var res = new Uint8Array(w * h);
+    // v1.1 - ボックスブラー（高速近似ガウシアン）
+    // 二値画像を0.0〜1.0のfloatに変換してぼかす
+    function boxBlur(bin, w, h, radius) {
+        var src = new Float32Array(w * h);
+        for (var i = 0; i < bin.length; i++) src[i] = bin[i];
+
+        var dst = new Float32Array(w * h);
+        // 水平パス
         for (var y = 0; y < h; y++) {
+            var sum = 0;
+            // 初期ウィンドウ
+            for (var x = 0; x < Math.min(radius, w); x++) sum += src[y * w + x];
             for (var x = 0; x < w; x++) {
-                var allSet = true;
-                for (var dy = -r; dy <= r && allSet; dy++) {
-                    for (var dx = -r; dx <= r && allSet; dx++) {
-                        var ny = y + dy;
-                        var nx = x + dx;
-                        if (ny >= 0 && ny < h && nx >= 0 && nx < w) {
-                            if (!bin[ny * w + nx]) allSet = false;
-                        } else {
-                            allSet = false;
-                        }
-                    }
-                }
-                res[y * w + x] = allSet ? 1 : 0;
+                // 右端を追加
+                if (x + radius < w) sum += src[y * w + x + radius];
+                // 左端を除去
+                if (x - radius - 1 >= 0) sum -= src[y * w + x - radius - 1];
+                var count = Math.min(x + radius, w - 1) - Math.max(x - radius, 0) + 1;
+                dst[y * w + x] = sum / count;
             }
         }
-        return res;
-    }
-
-    // v1.0 - クロージング（膨張→収縮）：穴埋め
-    function morphClose(bin, w, h, r) {
-        return morphErode(morphDilate(bin, w, h, r), w, h, r);
-    }
-
-    // v1.0 - オープニング（収縮→膨張）：ノイズ除去
-    function morphOpen(bin, w, h, r) {
-        return morphDilate(morphErode(bin, w, h, r), w, h, r);
+        // 垂直パス
+        var result = new Float32Array(w * h);
+        for (var x = 0; x < w; x++) {
+            var sum = 0;
+            for (var y = 0; y < Math.min(radius, h); y++) sum += dst[y * w + x];
+            for (var y = 0; y < h; y++) {
+                if (y + radius < h) sum += dst[(y + radius) * w + x];
+                if (y - radius - 1 >= 0) sum -= dst[(y - radius - 1) * w + x];
+                var count = Math.min(y + radius, h - 1) - Math.max(y - radius, 0) + 1;
+                result[y * w + x] = sum / count;
+            }
+        }
+        return result;
     }
 
     // ==========================================
@@ -122,7 +178,6 @@ const ImageUtils = (() => {
         var nextLabel = 1;
         var equivalences = {};
 
-        // 第1パス
         for (var y = 0; y < h; y++) {
             for (var x = 0; x < w; x++) {
                 var idx = y * w + x;
@@ -152,11 +207,8 @@ const ImageUtils = (() => {
             }
         }
 
-        // 第2パス
         for (var i = 0; i < labelMap.length; i++) {
-            if (labelMap[i] > 0) {
-                labelMap[i] = findRoot(equivalences, labelMap[i]);
-            }
+            if (labelMap[i] > 0) labelMap[i] = findRoot(equivalences, labelMap[i]);
         }
 
         return { labelMap: labelMap, labelCount: nextLabel - 1 };
@@ -195,75 +247,6 @@ const ImageUtils = (() => {
         return regions;
     }
 
-    // ==========================================
-    // 白背景レシート検出（スキャナー特化）
-    // ==========================================
-
-    // v1.0 - 白背景上のレシート領域検出
-    // スキャナーの白背景（240+）に対して、レシートのエッジを検出する
-    // 戻り値: [{ x, y, w, h, area }, ...]
-    function detectRegionsOnWhiteBg(gray, imgW, imgH) {
-        // ステップ1: 処理用にリサイズ（速度のため）
-        var scale = 1;
-        var procW = imgW;
-        var procH = imgH;
-        if (imgW > 1500) {
-            scale = 1500 / imgW;
-            procW = Math.round(imgW * scale);
-            procH = Math.round(imgH * scale);
-            gray = resizeGray(gray, imgW, imgH, procW, procH);
-        }
-
-        // ステップ2: 白背景の閾値で二値化（210: 白背景のやや下を閾値に）
-        var threshold = 210;
-        var bin = new Uint8Array(procW * procH);
-        for (var i = 0; i < bin.length; i++) {
-            bin[i] = (gray[i] < threshold) ? 1 : 0;
-        }
-
-        // ステップ3: モルフォロジー処理
-        bin = morphClose(bin, procW, procH, 5);   // ノイズ除去
-        bin = morphOpen(bin, procW, procH, 3);     // 小さなゴミ除去
-        bin = morphClose(bin, procW, procH, 15);   // レシート内の隙間を埋める
-
-        // ステップ4: 連結成分ラベリング
-        var labeled = labelComponents(bin, procW, procH);
-        var regions = extractRegions(labeled.labelMap, procW, procH);
-
-        // ステップ5: 小さすぎる領域を除外（画像全体の2%未満）
-        var minArea = procW * procH * 0.02;
-        regions = regions.filter(function(r) { return r.area >= minArea; });
-
-        // ステップ6: 元の解像度に座標を戻す
-        if (scale !== 1) {
-            regions = regions.map(function(r) {
-                return {
-                    x: Math.round(r.x / scale),
-                    y: Math.round(r.y / scale),
-                    w: Math.round(r.w / scale),
-                    h: Math.round(r.h / scale),
-                    area: r.area / (scale * scale)
-                };
-            });
-        }
-
-        // ステップ7: パディング追加（余白を持たせて切り出し）
-        var pad = 10;
-        regions = regions.map(function(r) {
-            return {
-                x: Math.max(0, r.x - pad),
-                y: Math.max(0, r.y - pad),
-                w: Math.min(imgW - r.x + pad, r.w + pad * 2),
-                h: Math.min(imgH - r.y + pad, r.h + pad * 2),
-                area: r.area
-            };
-        });
-
-        // ステップ8: 面積でソート（大きい順）、最大8枚まで
-        regions.sort(function(a, b) { return b.area - a.area; });
-        return regions.slice(0, 8);
-    }
-
     // v1.0 - 領域を画像として切り出す（品質劣化なし）
     function cropRegion(sourceCanvas, region) {
         var cropCanvas = document.createElement('canvas');
@@ -282,12 +265,6 @@ const ImageUtils = (() => {
         loadImage: loadImage,
         toGrayscale: toGrayscale,
         resizeGray: resizeGray,
-        morphDilate: morphDilate,
-        morphErode: morphErode,
-        morphClose: morphClose,
-        morphOpen: morphOpen,
-        labelComponents: labelComponents,
-        extractRegions: extractRegions,
         detectRegionsOnWhiteBg: detectRegionsOnWhiteBg,
         cropRegion: cropRegion
     };
