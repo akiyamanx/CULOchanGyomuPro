@@ -89,8 +89,8 @@ body {
     margin-left: auto;
 }
 
-/* --- ボタン共通 --- */
-.btn {
+/* --- ボタン共通（v1.4修正: #tab-mapスコープで他タブへの漏れ防止） --- */
+#tab-map .btn {
     background: rgba(255,255,255,0.9);
     color: var(--primary);
     border: none;
@@ -103,10 +103,10 @@ body {
     font-family: var(--font);
     transition: background 0.2s;
 }
-.btn:active { background: rgba(255,255,255,0.7); }
-.btn-pdf { background: var(--success); color: white; }
-.btn-pdf:active { background: #047857; }
-.btn-menu { background: rgba(255,255,255,0.2); color: white; }
+#tab-map .btn:active { background: rgba(255,255,255,0.7); }
+#tab-map .btn-pdf { background: var(--success); color: white; }
+#tab-map .btn-pdf:active { background: #047857; }
+#tab-map .btn-menu { background: rgba(255,255,255,0.2); color: white; }
 
 /* --- メニューパネル --- */
 .menu-panel {
