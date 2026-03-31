@@ -1,10 +1,10 @@
 // ==========================================
-// CULOchan業務Pro — Service Worker v2.4
+// CULOchan業務Pro — Service Worker v2.5
 // CACHE_NAMEはデプロイごとにインクリメントすること！
-// v2.4 2026-04-01 - キャッシュv15 + mapSwitchTabデバッグ版
+// v2.5 2026-04-01 - キャッシュv16 + countBadge要素追加修正
 // ==========================================
 
-const CACHE_NAME = 'gyomupro-v15';
+const CACHE_NAME = 'gyomupro-v16';
 const ASSETS = [
     './',
     './index.html',
