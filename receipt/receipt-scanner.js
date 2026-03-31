@@ -1,19 +1,12 @@
 // ==========================================
-// CULOchan業務Pro — レシートスキャナー v1.0
+// CULOchan業務Pro — レシートスキャナー v1.1
 // このファイルはスキャナーからのレシート取り込み・検出・AI認識を担当する
-//
-// 処理フロー:
-//   1. スキャン画像の取り込み（ファイル選択）
-//   2. ImageUtils.detectRegionsOnWhiteBg で領域検出
-//   3. ImageUtils.cropRegion で各レシートを切り出し
-//   4. Gemini APIで各レシートをOCR
-//   5. 一覧表示→チェック→A4 PDF出力→保存
+// v1.1変更: Geminiモデル名修正、エラーデバッグ強化
 //
 // 依存: app-core.js, receipt-image-utils.js（ImageUtils）
 // ==========================================
 
 const ReceiptScanner = (() => {
-    // v1.0 - 内部状態
     let _scanImageDataUrl = null;
     let _detectedImages = [];
     let _recognizedReceipts = [];
@@ -121,11 +114,13 @@ const ReceiptScanner = (() => {
 
         var apiKey = getGeminiApiKey();
         if (!apiKey) {
-            alert('Gemini APIキーが未設定です。\n設定→APIキーから登録してください。');
+            alert('Gemini APIキーが未設定です。\nヘッダーの⚙️から設定してください。');
             return;
         }
 
         _recognizedReceipts = [];
+        var failCount = 0;
+
         for (var i = 0; i < _detectedImages.length; i++) {
             AppCore.showLoading('AI読取中... (' + (i + 1) + '/' + _detectedImages.length + ')');
             try {
@@ -137,7 +132,8 @@ const ReceiptScanner = (() => {
                     index: i
                 });
             } catch (err) {
-                console.warn('[Scanner] AI認識失敗 #' + (i + 1) + ':', err);
+                console.warn('[Scanner] AI認識失敗 #' + (i + 1) + ':', err.message);
+                failCount++;
                 _recognizedReceipts.push({
                     imageDataUrl: _detectedImages[i].dataUrl,
                     data: { date: '不明', store: '読取失敗', total: 0, type: 'unknown' },
@@ -145,64 +141,125 @@ const ReceiptScanner = (() => {
                     index: i
                 });
             }
-            // v1.0 - API課金安全策: 500ms間隔（安全ガイド準拠）
+            // v1.0 - API課金安全策: 500ms間隔
             if (i < _detectedImages.length - 1) await sleep(500);
         }
 
         AppCore.hideLoading();
         renderRecognizedReceipts(_recognizedReceipts);
+
+        // v1.1 - 結果サマリー表示
+        var okCount = _recognizedReceipts.length - failCount;
+        if (failCount > 0) {
+            alert('AI読取完了\n成功: ' + okCount + '枚 / 失敗: ' + failCount + '枚');
+        }
     }
 
-    // Gemini APIキー取得（CULOchanKAIKEIproと互換）
+    // Gemini APIキー取得
     function getGeminiApiKey() {
+        var key = localStorage.getItem('gyomupro_gemini_key') || '';
+        if (key) return key;
         var s = JSON.parse(localStorage.getItem('reform_app_settings') || '{}');
-        return s.geminiApiKey || localStorage.getItem('gyomupro_gemini_key') || '';
+        return s.geminiApiKey || '';
     }
 
-    // v1.0 - Gemini API呼び出し（1枚のレシートをOCR）
+    // v1.1 - Gemini API呼び出し（モデル名修正＋デバッグ強化）
     async function callGeminiOcr(imageDataUrl, apiKey) {
         var base64 = imageDataUrl.replace(/^data:image\/[a-z]+;base64,/, '');
         var mimeMatch = imageDataUrl.match(/^data:(image\/[a-z]+);base64,/);
         var mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
 
-        // v1.0 - gemini-2.5-flash-lite（安全ガイド準拠: 安いモデルでテスト）
-        var model = 'gemini-2.5-flash-lite-preview-06-17';
+        // v1.1 - モデル名修正: 安定版エイリアスを使用
+        var model = 'gemini-2.5-flash-lite';
         var endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/'
             + model + ':generateContent?key=' + apiKey;
 
-        var prompt = 'このレシート画像を読み取ってJSON形式で返してください。\n\n'
-            + '【出力形式】JSONのみ（マークダウン記法やバッククォートは不要）\n'
-            + '{"date":"YYYY-MM-DD","store":"店名","total":合計金額,'
-            + '"type":"shopping/parking/highway/other",'
-            + '"items":[{"name":"品名","amount":金額}]}\n\n'
-            + '【ルール】\n'
-            + '- 日付不明なら"unknown"。駐車場=parking、高速=highway\n'
-            + '- 小計・税・合計行はitemsに含めない。金額は税込合計';
+        var prompt = 'このレシート画像を読み取ってください。\n\n'
+            + '以下のJSON形式のみで回答してください。説明文やマークダウンは不要です。\n\n'
+            + '{"date":"YYYY-MM-DD","store":"店名","total":合計金額の数値,'
+            + '"type":"種別","items":[{"name":"品名","amount":金額}]}\n\n'
+            + 'typeの値: shopping（買い物）, parking（駐車場）, highway（高速道路）, other（その他）\n'
+            + '日付が読めない場合はdateを"unknown"にしてください。\n'
+            + '金額は数値のみ（円やカンマなし）。税込合計を使ってください。\n'
+            + '小計・消費税・合計の行はitemsに含めないでください。';
 
         var body = {
             contents: [{ parts: [
                 { inline_data: { mime_type: mimeType, data: base64 } },
                 { text: prompt }
             ]}],
-            generationConfig: { temperature: 0.1, maxOutputTokens: 1024 }
+            generationConfig: {
+                temperature: 0.1,
+                maxOutputTokens: 1024
+            }
         };
+
+        console.log('[Scanner] Gemini API呼び出し: model=' + model);
 
         var res = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body)
         });
-        if (!res.ok) throw new Error('Gemini API エラー: ' + res.status);
+
+        // v1.1 - レスポンスエラーの詳細ログ
+        if (!res.ok) {
+            var errText = '';
+            try { errText = await res.text(); } catch (e) {}
+            console.error('[Scanner] API HTTP エラー:', res.status, errText);
+            throw new Error('Gemini API ' + res.status + ': ' + errText.substring(0, 200));
+        }
 
         var data = await res.json();
-        var text = '';
-        if (data.candidates && data.candidates[0] && data.candidates[0].content) {
-            text = data.candidates[0].content.parts[0].text || '';
-        }
-        text = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+        console.log('[Scanner] APIレスポンス:', JSON.stringify(data).substring(0, 300));
 
-        try { return JSON.parse(text); }
-        catch (e) { return { date: 'unknown', store: '読取エラー', total: 0, type: 'unknown', items: [] }; }
+        // v1.1 - レスポンス解析の強化
+        var text = '';
+        if (data.candidates && data.candidates[0]) {
+            var candidate = data.candidates[0];
+            if (candidate.content && candidate.content.parts) {
+                text = candidate.content.parts.map(function(p) {
+                    return p.text || '';
+                }).join('');
+            }
+            // ブロックされた場合
+            if (candidate.finishReason === 'SAFETY') {
+                console.warn('[Scanner] 安全フィルターでブロックされました');
+                throw new Error('安全フィルターでブロック');
+            }
+        }
+
+        // エラーレスポンスの場合
+        if (data.error) {
+            console.error('[Scanner] APIエラー:', data.error.message);
+            throw new Error(data.error.message);
+        }
+
+        if (!text) {
+            console.warn('[Scanner] 空のレスポンス:', JSON.stringify(data));
+            throw new Error('AIからの応答が空でした');
+        }
+
+        console.log('[Scanner] AI生テキスト:', text.substring(0, 200));
+
+        // v1.1 - JSONパースの強化（様々な形式に対応）
+        // マークダウンのコードブロックを除去
+        text = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+        // 先頭・末尾の余分な文字を除去
+        var jsonStart = text.indexOf('{');
+        var jsonEnd = text.lastIndexOf('}');
+        if (jsonStart >= 0 && jsonEnd > jsonStart) {
+            text = text.substring(jsonStart, jsonEnd + 1);
+        }
+
+        try {
+            var parsed = JSON.parse(text);
+            console.log('[Scanner] パース成功:', parsed.store, '¥' + parsed.total);
+            return parsed;
+        } catch (e) {
+            console.error('[Scanner] JSONパース失敗:', text);
+            throw new Error('JSONパース失敗: ' + text.substring(0, 100));
+        }
     }
 
     // ==========================================
@@ -263,7 +320,6 @@ const ReceiptScanner = (() => {
         if (el) el.style.display = 'none';
     }
 
-    // チェック操作
     function toggleCheck(idx, checked) {
         if (_recognizedReceipts[idx]) _recognizedReceipts[idx].checked = checked;
         var cards = document.querySelectorAll('.receipt-card');
@@ -349,7 +405,6 @@ const ReceiptScanner = (() => {
         renderSavedReceipts();
     }
 
-    // 保存済み一覧表示
     function renderSavedReceipts() {
         var container = document.getElementById('savedReceiptList');
         if (!container) return;
@@ -379,7 +434,6 @@ const ReceiptScanner = (() => {
         container.innerHTML = html;
     }
 
-    // ユーティリティ
     function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
 
     document.addEventListener('DOMContentLoaded', renderSavedReceipts);
