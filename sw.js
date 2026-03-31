@@ -1,5 +1,5 @@
 // ==========================================
-// CULOchan業務Pro — Service Worker v1.7
+// CULOchan業務Pro — Service Worker v1.8
 // このファイルはPWAのキャッシュ管理を担当する
 // CACHE_NAMEはデプロイごとにインクリメントすること！
 // v1.1 2026-03-31 - キャッシュv2 + receipt-image-utils.js追加
@@ -9,9 +9,10 @@
 // v1.5 2026-03-31 - キャッシュv6 + segment-dialog.jsダークテーマ修正
 // v1.6 2026-03-31 - キャッシュv7 + Phase D workspace/route-orderダーク化
 // v1.7 2026-03-31 - キャッシュv8 + .btnスコープ化（精算書ボタン表示修正）
+// v1.8 2026-03-31 - キャッシュv9 + ETC IC名表示修正＋マップ精算書入力欄背景修正
 // ==========================================
 
-const CACHE_NAME = 'gyomupro-v8';
+const CACHE_NAME = 'gyomupro-v9';
 const ASSETS = [
     './',
     './index.html',
