@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="styles/common.css">
     <link rel="stylesheet" href="styles/receipt.css">
     <link rel="stylesheet" href="styles/expense.css">
-    <!-- 外部ライブラリ -->
+    <!-- v1.2追加: 外部ライブラリ（html2canvas + jsPDF） -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
@@ -41,7 +41,7 @@
 
     <!-- メインコンテンツ -->
     <main class="main-content">
-        <!-- レシートスキャナータブ -->
+        <!-- ===== レシートスキャナータブ ===== -->
         <div class="tab-panel active" id="tab-receipt">
             <div class="panel-card">
                 <div class="card-title">📸 レシートスキャナー</div>
@@ -118,20 +118,77 @@
             </div>
         </div>
 
-        <!-- 交通費精算書タブ -->
+        <!-- ===== 交通費精算書タブ v1.2 Phase B-1 ===== -->
         <div class="tab-panel" id="tab-expense">
+            <!-- 基本情報カード -->
             <div class="panel-card">
-                <div class="card-title">🧾 交通費精算書</div>
-                <p class="card-desc">精算書の作成・ETC明細取込・PDF出力</p>
-                <p class="coming-msg">🚧 Phase B で統合予定（既存アプリは動作中）</p>
-                <a href="https://akiyamanx.github.io/CULOchanSEISANsho/" 
-                   target="_blank" class="btn btn-link">
-                    📎 現行の精算書アプリを開く
+                <div class="card-title">📋 基本情報</div>
+                <div class="exp-basic-form">
+                    <div class="exp-basic-row">
+                        <div class="exp-fg">
+                            <label>提出日</label>
+                            <input type="date" class="exp-input" id="expSubmitDate">
+                        </div>
+                        <div class="exp-fg">
+                            <label>SS名</label>
+                            <input type="text" class="exp-input" id="expSSName" value="千葉西SS">
+                        </div>
+                    </div>
+                    <div class="exp-fg">
+                        <label>行先（お客様名）</label>
+                        <textarea class="exp-textarea" id="expDestination" rows="2" 
+                                  placeholder="逗子市&#10;クラフティ北村"></textarea>
+                    </div>
+                    <div class="exp-fg">
+                        <label>氏名</label>
+                        <input type="text" class="exp-input" id="expEmployeeName" value="小出晃也">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 交通費明細カード -->
+            <div class="panel-card">
+                <div class="card-title">🚃 交通費明細</div>
+                <!-- v1.2 ETC利用照会リンク -->
+                <a href="https://www.etc-meisai.jp/" target="_blank" class="btn btn-etc">
+                    🛣️ ETC利用照会サービスを開く
                 </a>
+                <div id="expenseRows"></div>
+                <button class="btn btn-primary" onclick="ExpenseManager.addRow()" style="margin-top:10px;">
+                    ➕ 行を追加
+                </button>
+            </div>
+
+            <!-- 合計表示カード -->
+            <div class="panel-card">
+                <div class="exp-total-display">
+                    <div class="exp-total-label">合計金額</div>
+                    <div class="exp-total-amount" id="expGrandTotal">¥0</div>
+                </div>
+            </div>
+
+            <!-- 操作ボタンカード -->
+            <div class="panel-card">
+                <div class="exp-btn-row">
+                    <button class="btn btn-pdf" onclick="ExpensePdf.generate()">📄 PDF出力</button>
+                    <button class="btn" style="background:var(--bg-card-hover);color:var(--text-secondary);border:1px solid var(--border);" 
+                            onclick="ExpenseManager.clearAll()">🗑️ クリア</button>
+                </div>
+                <div class="exp-btn-row">
+                    <button class="btn btn-save" onclick="ExpenseManager.saveDraft()">💾 下書き保存</button>
+                </div>
+            </div>
+
+            <!-- 下書き一覧カード -->
+            <div class="panel-card">
+                <div class="card-title">📁 下書き一覧</div>
+                <div id="expDraftList">
+                    <p class="empty-msg">下書きはありません</p>
+                </div>
             </div>
         </div>
 
-        <!-- マップタブ -->
+        <!-- ===== マップタブ（Phase C予定） ===== -->
         <div class="tab-panel" id="tab-map">
             <div class="panel-card">
                 <div class="card-title">🗺️ メンテナンスマップ</div>
@@ -185,5 +242,14 @@
     <!-- レシートスキャナーJS -->
     <script src="receipt/receipt-image-utils.js"></script>
     <script src="receipt/receipt-scanner.js"></script>
+    <!-- v1.2追加: 精算書JS -->
+    <script src="expense/expense-manager.js"></script>
+    <script src="expense/expense-pdf.js"></script>
+    <!-- v1.2追加: 精算書初期化 -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            ExpenseManager.init();
+        });
+    </script>
 </body>
 </html>
