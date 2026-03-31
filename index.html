@@ -17,9 +17,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
-    <!-- ヘッダー -->
+    <!-- v1.1 ヘッダー（設定ボタン追加） -->
     <header class="app-header">
         <h1 class="app-title">CULOchan<span class="accent">業務</span>Pro</h1>
+        <button class="settings-btn" onclick="AppCore.openSettings()">⚙️</button>
     </header>
 
     <!-- タブナビゲーション -->
@@ -143,6 +144,35 @@
             </div>
         </div>
     </main>
+
+    <!-- v1.1追加: 設定モーダル -->
+    <div class="modal-overlay" id="settingsModal" style="display:none;" onclick="AppCore.closeSettings(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span class="modal-title">⚙️ 設定</span>
+                <button class="btn-small btn-clear" onclick="AppCore.closeSettings()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="setting-group">
+                    <label class="setting-label">🔑 Gemini APIキー</label>
+                    <p class="setting-hint">レシートのAI読み取りに使用します</p>
+                    <input type="password" id="settingGeminiKey" class="setting-input" 
+                           placeholder="AIza...">
+                    <p class="setting-hint" style="margin-top:8px;">
+                        <a href="https://aistudio.google.com/apikey" target="_blank" 
+                           style="color:var(--accent-light);">
+                            Google AI Studio でAPIキーを取得 →
+                        </a>
+                    </p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-save" onclick="AppCore.saveSettings()">
+                    💾 保存する
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- ローディング -->
     <div class="loading-overlay" id="loading" style="display:none;">
