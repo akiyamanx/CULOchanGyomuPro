@@ -1,4 +1,4 @@
-// [CULOchanGyomuPro統合] v1.3 2026-03-31 - maintenance-map-ap v2.5からコピー
+// [CULOchanGyomuPro統合] v1.4 2026-03-31 - ETC利用照会CSVヘッダー認識修正
 // ============================================
 // メンテナンスマップ v2.2 - etc-reader.js
 // ETC利用明細CSV読込・精算書自動反映モジュール
@@ -44,8 +44,9 @@ const EtcReader = (() => {
             for (let j = 0; j < cols.length; j++) {
                 const c = cols[j];
                 if (c.includes('年月日') || c.includes('利用日') || c.includes('日付')) dateCol = j;
-                if (c.includes('入口') || c.includes('入口IC')) entryCol = j;
-                if (c.includes('出口') || c.includes('出口IC')) exitCol = j;
+                // v1.4修正: ETC利用照会サービスCSVの全角ヘッダー「利用ＩＣ（自）」「利用ＩＣ（至）」に対応
+                if (c.includes('入口') || c.includes('入口IC') || (c.includes('ＩＣ') && c.includes('自'))) entryCol = j;
+                if (c.includes('出口') || c.includes('出口IC') || (c.includes('ＩＣ') && c.includes('至'))) exitCol = j;
                 if (c.includes('利用額') || c.includes('金額') || c.includes('最終額') || c.includes('通行料金')) {
                     amountCol = j;
                 }
