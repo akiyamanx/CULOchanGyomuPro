@@ -1,7 +1,8 @@
 // ==========================================
-// CULOchan業務Pro — 精算書マネージャー v1.0
+// CULOchan業務Pro — 精算書マネージャー v1.1
 // このファイルは交通費精算書の入力・計算・下書き保存/読込/削除を担当する
 // 元CULOchanSEISANshoから移植し、業務Pro用に分割・リファクタリング
+// v1.1追加 - Step2マップ顧客データ連携（日付変更→アポ済み顧客→行先自動入力）
 //
 // 依存: app-core.js
 // ==========================================
@@ -19,6 +20,8 @@ const ExpenseManager = (() => {
         const dateInput = document.getElementById('expSubmitDate');
         if (dateInput) {
             dateInput.value = new Date().toISOString().split('T')[0];
+            // v1.1追加 - 提出日変更時にマップ顧客データ連携
+            dateInput.addEventListener('change', _onSubmitDateChange);
         }
         // v1.0 - 初期行を1行追加
         addRow();
@@ -333,6 +336,111 @@ const ExpenseManager = (() => {
     }
 
     // ==========================================
+    // v1.1追加 - マップ顧客データ連携（Step2: 日付連携）
+    // ==========================================
+
+    // v1.1 - 提出日変更→その月のアポ済み顧客を検索→選択モーダル表示
+    function _onSubmitDateChange() {
+        const dateInput = document.getElementById('expSubmitDate');
+        if (!dateInput || !dateInput.value) return;
+        const ym = dateInput.value.substring(0, 7);
+        const customers = _getMapCustomers(ym);
+        if (customers.length === 0) return;
+        const appointed = customers.filter(c => c.status === 'appointed' && c.appoDate);
+        if (appointed.length === 0) return;
+        _showCustomerPicker(appointed, ym);
+    }
+
+    // v1.1 - localStorageから直接マップ顧客データを読む（ワークスペース非依存で安全）
+    function _getMapCustomers(yearMonth) {
+        try {
+            const data = localStorage.getItem('mm_customers_' + yearMonth);
+            if (data) return JSON.parse(data);
+            const oldData = localStorage.getItem('mm_customers');
+            return oldData ? JSON.parse(oldData) : [];
+        } catch (e) { return []; }
+    }
+
+    // v1.1 - 顧客選択モーダル表示
+    function _showCustomerPicker(customers, yearMonth) {
+        const byDate = {};
+        customers.forEach(c => {
+            const d = c.appoDate || '日付なし';
+            if (!byDate[d]) byDate[d] = [];
+            byDate[d].push(c);
+        });
+        const sortedDates = Object.keys(byDate).sort();
+        let html = '<div class="exp-picker-header">'
+            + '<h3>📍 ' + yearMonth + ' のアポ済みお客様</h3>'
+            + '<p>チェックしたお客様を行先に反映します</p>'
+            + '<button class="exp-picker-select-all" onclick="ExpenseManager.togglePickerAll()">全選択/解除</button>'
+            + '</div><div class="exp-picker-list">';
+        sortedDates.forEach(date => {
+            html += '<div class="exp-picker-date-group">'
+                + '<div class="exp-picker-date-label">📅 ' + date + '</div>';
+            byDate[date].forEach(c => {
+                const label = (c.company || '') + ' ' + (c.address || '');
+                const purpose = c.purpose ? '（' + c.purpose + '）' : '';
+                html += '<label class="exp-picker-item">'
+                    + '<input type="checkbox" class="exp-picker-cb" '
+                    + 'data-company="' + _escAttr(c.company || '') + '" '
+                    + 'data-address="' + _escAttr(c.address || '') + '" '
+                    + 'data-purpose="' + _escAttr(c.purpose || '') + '" '
+                    + 'data-date="' + _escAttr(date) + '" checked>'
+                    + '<span class="exp-picker-label">' + _escHtml(label.trim()) + purpose + '</span>'
+                    + '</label>';
+            });
+            html += '</div>';
+        });
+        html += '</div><div class="exp-picker-actions">'
+            + '<button class="btn btn-primary" onclick="ExpenseManager.applyPicker()">✅ 行先に反映</button>'
+            + '<button class="btn btn-secondary" onclick="ExpenseManager.closePicker()">キャンセル</button>'
+            + '</div>';
+        let modal = document.getElementById('expCustomerPicker');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'expCustomerPicker';
+            modal.className = 'exp-picker-overlay';
+            document.body.appendChild(modal);
+        }
+        modal.innerHTML = '<div class="exp-picker-modal">' + html + '</div>';
+        modal.style.display = 'flex';
+    }
+
+    // v1.1 - 全選択/解除トグル
+    function togglePickerAll() {
+        const cbs = document.querySelectorAll('.exp-picker-cb');
+        const allChecked = Array.from(cbs).every(cb => cb.checked);
+        cbs.forEach(cb => { cb.checked = !allChecked; });
+    }
+
+    // v1.1 - 選択した顧客を行先フィールドに反映
+    function applyPicker() {
+        const cbs = document.querySelectorAll('.exp-picker-cb:checked');
+        if (cbs.length === 0) { alert('お客様を1件以上選択してください'); return; }
+        const lines = [];
+        cbs.forEach(cb => { lines.push(cb.dataset.company || cb.dataset.address); });
+        const dest = document.getElementById('expDestination');
+        if (dest) {
+            if (dest.value.trim()) {
+                if (confirm('既存の行先に追記しますか？\n（キャンセルで上書き）')) {
+                    dest.value = dest.value.trim() + '\n' + lines.join('\n');
+                } else { dest.value = lines.join('\n'); }
+            } else { dest.value = lines.join('\n'); }
+        }
+        closePicker();
+    }
+
+    // v1.1 - モーダルを閉じる
+    function closePicker() {
+        const modal = document.getElementById('expCustomerPicker');
+        if (modal) modal.style.display = 'none';
+    }
+
+    function _escHtml(str) { return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+    function _escAttr(str) { return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+
+    // ==========================================
     // ユーティリティ
     // ==========================================
     function _setVal(id, val) {
@@ -354,6 +462,10 @@ const ExpenseManager = (() => {
         deleteDraft: deleteDraft,
         renderDraftList: renderDraftList,
         clearAll: clearAll,
-        calcGasCost: calcGasCost
+        calcGasCost: calcGasCost,
+        // v1.1追加 - マップ顧客連携
+        togglePickerAll: togglePickerAll,
+        applyPicker: applyPicker,
+        closePicker: closePicker
     };
 })();

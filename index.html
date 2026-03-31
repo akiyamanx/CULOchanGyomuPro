@@ -157,10 +157,16 @@
             <!-- 交通費明細カード -->
             <div class="panel-card">
                 <div class="card-title">🚃 交通費明細</div>
-                <!-- v1.2 ETC利用照会リンク -->
-                <a href="https://www.etc-meisai.jp/" target="_blank" class="btn btn-etc">
-                    🛣️ ETC利用照会サービスを開く
-                </a>
+                <!-- v1.2 ETC利用照会リンク + v1.4 ETC CSV取り込み -->
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+                    <a href="https://www.etc-meisai.jp/" target="_blank" class="btn btn-etc" style="flex:1;min-width:140px;">
+                        🛣️ ETC利用照会を開く
+                    </a>
+                    <label class="btn btn-primary" style="flex:1;min-width:140px;cursor:pointer;text-align:center;">
+                        📥 ETC CSV取り込み
+                        <input type="file" accept=".csv" onchange="ExpenseEtc.handleFile(event)" style="display:none;">
+                    </label>
+                </div>
                 <div id="expenseRows"></div>
                 <button class="btn btn-primary" onclick="ExpenseManager.addRow()" style="margin-top:10px;">
                     ➕ 行を追加
@@ -420,6 +426,8 @@
     <!-- v1.2追加: 精算書JS -->
     <script src="expense/expense-manager.js"></script>
     <script src="expense/expense-pdf.js"></script>
+    <!-- v1.4追加: 精算書ETC取り込み -->
+    <script src="expense/expense-etc.js"></script>
     <!-- v1.3追加: マップモジュール（12ファイル） -->
     <script src="map/map-data-storage.js"></script>
     <script src="map/v1-converter.js"></script>

@@ -1,7 +1,8 @@
 /* ==========================================
- * CULOchan業務Pro — 精算書スタイル v1.0
+ * CULOchan業務Pro — 精算書スタイル v1.1
  * このファイルは精算書タブ(expense)のUI装飾を担当する
  * Phase B-1: CULOchanSEISANshoからの移植
+ * v1.1追加: 顧客ピッカーモーダルCSS（Step2日付連携）
  * ========================================== */
 
 /* --- 経費行 --- */
@@ -257,4 +258,116 @@
 .cell-content {
     white-space: pre-line;
     line-height: 1.3;
+}
+
+/* --- v1.1追加 - 顧客ピッカーモーダル --- */
+.exp-picker-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.exp-picker-modal {
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    max-width: 500px;
+    width: 100%;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.exp-picker-header {
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.exp-picker-header h3 {
+    font-size: 1rem;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.exp-picker-header p {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.exp-picker-select-all {
+    background: var(--bg-secondary);
+    color: var(--accent-light);
+    border: 1px solid var(--border);
+    padding: 4px 12px;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    cursor: pointer;
+}
+
+.exp-picker-list {
+    overflow-y: auto;
+    padding: 8px 16px;
+    flex: 1;
+}
+
+.exp-picker-date-group {
+    margin-bottom: 10px;
+}
+
+.exp-picker-date-label {
+    font-size: 0.8rem;
+    font-weight: bold;
+    color: var(--accent);
+    margin-bottom: 6px;
+}
+
+.exp-picker-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-sm);
+    margin-bottom: 4px;
+    cursor: pointer;
+}
+
+.exp-picker-item:active {
+    background: var(--bg-card-hover);
+}
+
+.exp-picker-cb {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent);
+    flex-shrink: 0;
+}
+
+.exp-picker-label {
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    line-height: 1.3;
+}
+
+.exp-picker-actions {
+    display: flex;
+    gap: 8px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+}
+
+.exp-picker-actions .btn {
+    flex: 1;
+}
+
+.btn-secondary {
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
 }

@@ -1,25 +1,26 @@
-/* [CULOchanGyomuPro統合] v1.3 2026-03-31 - maintenance-map-ap v2.5からコピー */
+/* [CULOchanGyomuPro統合] v1.4 2026-03-31 - ダークテーマ対応CSS変数修正 */
 /* ============================================
  * メンテナンスマップ v2.0 - styles.css
  * 全スタイル定義
  * v2.0新規作成 - 分割ファイル構成対応
  * ============================================ */
 
-/* --- CSS変数 --- */
-:root {
-    --primary: #1a56db;
-    --primary-light: #3b82f6;
-    --primary-dark: #1e3a8a;
-    --success: #059669;
-    --warning: #d97706;
-    --danger: #dc2626;
-    --bg: #f0f4f8;
-    --surface: #ffffff;
-    --text: #1e293b;
-    --text-light: #64748b;
-    --border: #e2e8f0;
-    --shadow: 0 2px 8px rgba(0,0,0,0.12);
-    --shadow-lg: 0 8px 24px rgba(0,0,0,0.15);
+/* --- CSS変数（v1.4 ダークテーマ対応） --- */
+/* v1.4修正: :rootからスコープ化。common.cssのダークテーマに合わせた色に変更 */
+#tab-map {
+    --primary: #3b82f6;
+    --primary-light: #60a5fa;
+    --primary-dark: #2563eb;
+    --success: #06d6a0;
+    --warning: #ffd166;
+    --danger: #ef476f;
+    --bg: #162230;
+    --surface: #1c2d3f;
+    --text: #e8edf2;
+    --text-light: #8fa3b8;
+    --border: #2a3f55;
+    --shadow: 0 2px 8px rgba(0,0,0,0.3);
+    --shadow-lg: 0 8px 24px rgba(0,0,0,0.4);
     --radius: 10px;
     --font: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
 }

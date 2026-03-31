@@ -1,4 +1,4 @@
-/* [CULOchanGyomuPro統合] v1.3 2026-03-31 - maintenance-map-ap v2.5からコピー */
+/* [CULOchanGyomuPro統合] v1.4 2026-03-31 - ダークテーマ対応CSS変数修正 */
 /* ============================================
  * メンテナンスマップ v2.1 - expense-styles.css
  * 交通費精算書タブ専用スタイル
@@ -6,11 +6,12 @@
  * 親CSSの変数(--primary等)を活用して統一感を維持
  * ============================================ */
 
-:root {
-    --exp-accent: #0d7377;
-    --exp-accent-light: #14919b;
-    --exp-accent-bg: #e6f7f7;
-    --exp-accent-glow: rgba(13, 115, 119, 0.15);
+/* v1.4修正: :rootから#tab-mapスコープに変更。ダークテーマ用に--exp-accent-bg調整 */
+#tab-map {
+    --exp-accent: #14b8a6;
+    --exp-accent-light: #2dd4bf;
+    --exp-accent-bg: rgba(20, 184, 166, 0.15);
+    --exp-accent-glow: rgba(20, 184, 166, 0.25);
 }
 
 .exp-panel { padding: 8px 4px 24px; }
