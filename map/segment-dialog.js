@@ -1,4 +1,4 @@
-// [CULOchanGyomuPro統合] v1.3 2026-03-31 - maintenance-map-ap v2.5からコピー
+// [CULOchanGyomuPro統合] v1.4 2026-03-31 - ダークテーマ対応（インラインスタイル色修正）
 // ============================================
 // メンテナンスマップ v2.2.3 - segment-dialog.js
 // 区間別 高速/下道 選択ダイアログ
@@ -35,19 +35,19 @@ const SegmentDialog = (() => {
             overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;';
 
             const dialog = document.createElement('div');
-            dialog.style.cssText = 'background:#fff;border-radius:12px;padding:20px;max-width:380px;width:92%;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 4px 20px rgba(0,0,0,0.3);';
+            dialog.style.cssText = 'background:#1c2d3f;border-radius:12px;padding:20px;max-width:380px;width:92%;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 4px 20px rgba(0,0,0,0.5);color:#e8edf2;';
 
             // ヘッダー
             let headerHtml = `
                 <div style="font-size:18px;font-weight:bold;margin-bottom:4px;">📏 区間別 道路選択</div>
-                <div style="font-size:13px;color:#666;margin-bottom:12px;">各区間をタップで 🚗下道 ⇔ 🛣️高速 切替</div>
+                <div style="font-size:13px;color:#8fa3b8;margin-bottom:12px;">各区間をタップで 🚗下道 ⇔ 🛣️高速 切替</div>
             `;
 
             // 区間リスト（スクロール可能）
             let listHtml = `<div style="overflow-y:auto;flex:1;margin-bottom:12px;">`;
             segList.forEach((seg, idx) => {
                 const isHw = seg.type === 'highway';
-                const bg = isHw ? '#E3F2FD' : '#E8F5E9';
+                const bg = isHw ? 'rgba(33,150,243,0.15)' : 'rgba(76,175,80,0.15)';
                 const border = isHw ? '#2196F3' : '#4CAF50';
                 const icon = isHw ? '🛣️' : '🚗';
                 const label = isHw ? '高速' : '下道';
@@ -63,7 +63,7 @@ const SegmentDialog = (() => {
                             <div style="font-size:13px;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                                 ${seg.fromLabel}
                             </div>
-                            <div style="font-size:11px;color:#888;">↓</div>
+                            <div style="font-size:11px;color:#8fa3b8;">↓</div>
                             <div style="font-size:13px;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                                 ${seg.toLabel}
                             </div>
@@ -77,7 +77,7 @@ const SegmentDialog = (() => {
             // ボタン
             let btnHtml = `
                 <div style="display:flex;gap:8px;">
-                    <button id="segCancel" style="flex:1;padding:12px;border:1px solid #ccc;border-radius:8px;background:#f5f5f5;font-size:14px;cursor:pointer;color:#666;">
+                    <button id="segCancel" style="flex:1;padding:12px;border:1px solid #2a3f55;border-radius:8px;background:#162230;font-size:14px;cursor:pointer;color:#8fa3b8;">
                         キャンセル
                     </button>
                     <button id="segCalc" style="flex:2;padding:12px;border:none;border-radius:8px;background:#1976D2;color:#fff;font-size:16px;font-weight:bold;cursor:pointer;">
@@ -113,13 +113,13 @@ const SegmentDialog = (() => {
 
         if (el.dataset.type === 'general') {
             el.dataset.type = 'highway';
-            el.style.background = '#E3F2FD';
+            el.style.background = 'rgba(33,150,243,0.15)';
             el.style.borderColor = '#2196F3';
             icon.textContent = '🛣️';
             label.textContent = '高速';
         } else {
             el.dataset.type = 'general';
-            el.style.background = '#E8F5E9';
+            el.style.background = 'rgba(76,175,80,0.15)';
             el.style.borderColor = '#4CAF50';
             icon.textContent = '🚗';
             label.textContent = '下道';
