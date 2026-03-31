@@ -12,24 +12,26 @@
     z-index: 600; padding: 16px;
 }
 
+/* v1.4修正: var()にフォールバック値追加（body直下に追加されるモーダル対策） */
 .ro-modal {
-    background: var(--surface); border-radius: 16px;
+    background: var(--surface, #1c2d3f); border-radius: 16px;
     padding: 20px; width: 100%; max-width: 400px;
     max-height: 80vh; overflow-y: auto;
-    box-shadow: var(--shadow-lg);
+    box-shadow: var(--shadow-lg, 0 8px 24px rgba(0,0,0,0.4));
+    color: var(--text, #e8edf2);
 }
 
-.ro-modal h3 { font-size: 16px; margin-bottom: 4px; }
-.ro-hint { font-size: 11px; color: var(--text-light); margin-bottom: 12px; }
+.ro-modal h3 { font-size: 16px; margin-bottom: 4px; color: var(--text, #e8edf2); }
+.ro-hint { font-size: 11px; color: var(--text-light, #8fa3b8); margin-bottom: 12px; }
 
 .ro-actions { display: flex; gap: 8px; margin-top: 16px; }
 .ro-btn {
     flex: 1; padding: 11px; border: none; border-radius: 8px;
     font-size: 14px; font-weight: 700; cursor: pointer;
-    font-family: var(--font);
+    font-family: var(--font, 'Noto Sans JP', sans-serif);
 }
-.ro-btn-cancel { background: var(--bg); color: var(--text); }
-.ro-btn-save { background: var(--primary); color: white; }
+.ro-btn-cancel { background: var(--bg, #162230); color: var(--text, #e8edf2); }
+.ro-btn-save { background: var(--primary, #3b82f6); color: white; }
 
 /* v2.2.2復活 - ドラッグ&ドロップ用スタイル */
 /* v1.4修正: ダークテーマ対応 */
@@ -135,22 +137,23 @@
 }
 
 /* v2.2追加 - ETC明細リスト */
+/* v1.4修正: var()にフォールバック値追加 */
 .etc-list { max-height: 300px; overflow-y: auto; margin-bottom: 12px; }
 
-.etc-item { padding: 8px; border-bottom: 1px solid var(--border); }
+.etc-item { padding: 8px; border-bottom: 1px solid var(--border, #2a3f55); }
 .etc-item label {
     display: flex; align-items: center; gap: 8px;
     cursor: pointer; font-size: 13px;
 }
 .etc-check { width: 18px; height: 18px; flex-shrink: 0; }
 .etc-info { flex: 1; min-width: 0; }
-.etc-date { font-size: 11px; color: var(--text-light); display: block; }
-.etc-route { font-size: 13px; font-weight: 500; }
-.etc-amount { font-weight: 700; color: var(--primary); white-space: nowrap; }
+.etc-date { font-size: 11px; color: var(--text-light, #8fa3b8); display: block; }
+.etc-route { font-size: 13px; font-weight: 500; color: var(--text, #e8edf2); }
+.etc-amount { font-weight: 700; color: var(--primary, #3b82f6); white-space: nowrap; }
 
 /* v2.2追加 - 距離計算ボタン */
 .route-dist-btn {
-    background: var(--success); color: white;
+    background: var(--success, #06d6a0); color: white;
     border: none; border-radius: 6px;
     padding: 3px 8px; font-size: 12px;
     cursor: pointer; margin-left: 2px;
