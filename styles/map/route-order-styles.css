@@ -1,4 +1,4 @@
-/* [CULOchanGyomuPro統合] v1.3 2026-03-31 - maintenance-map-ap v2.5からコピー */
+/* [CULOchanGyomuPro統合] v1.4 2026-03-31 - ダークテーマ対応 */
 /* ============================================
  * メンテナンスマップ v2.2.2 - route-order-styles.css
  * 訪問順ドラッグ&ドロップ・区間エディタのスタイル
@@ -32,13 +32,14 @@
 .ro-btn-save { background: var(--primary); color: white; }
 
 /* v2.2.2復活 - ドラッグ&ドロップ用スタイル */
+/* v1.4修正: ダークテーマ対応 */
 .ro-item {
     display: flex;
     align-items: center;
     gap: 8px;
     padding: 10px 12px;
-    background: white;
-    border: 1px solid #e2e8f0;
+    background: #162230;
+    border: 1px solid #2a3f55;
     border-radius: 8px;
     margin-bottom: 6px;
     cursor: grab;
@@ -49,8 +50,8 @@
 
 .ro-item.ro-dragging {
     opacity: 0.5;
-    background: #dbeafe;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    background: rgba(59, 130, 246, 0.2);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     transform: scale(1.02);
 }
 
@@ -69,7 +70,7 @@
 }
 
 .ro-grip {
-    color: #94a3b8;
+    color: #8fa3b8;
     font-size: 16px;
     cursor: grab;
 }
@@ -78,9 +79,11 @@
     flex: 1;
     font-size: 14px;
     font-weight: 500;
+    color: #e8edf2;
 }
 
 /* v2.2.2追加 - ポップアップ内訪問順ボタン */
+/* v1.4修正: ダークテーマ対応 */
 .info-visit-order {
     display: flex;
     align-items: center;
@@ -88,9 +91,10 @@
     gap: 8px;
     margin: 8px 0;
     padding: 6px 8px;
-    background: #f0f9ff;
+    background: rgba(59, 130, 246, 0.1);
     border-radius: 6px;
     font-size: 13px;
+    color: #e8edf2;
 }
 
 .info-btn-order {
@@ -126,8 +130,8 @@
 }
 
 .seg-btn-active {
-    border-color: var(--primary); background: #e0e7ff;
-    color: var(--primary);
+    border-color: var(--primary); background: rgba(59, 130, 246, 0.2);
+    color: #60a5fa;
 }
 
 /* v2.2追加 - ETC明細リスト */
