@@ -1,1 +1,260 @@
-/* Phase B で追加予定 */
+/* ==========================================
+ * CULOchan業務Pro — 精算書スタイル v1.0
+ * このファイルは精算書タブ(expense)のUI装飾を担当する
+ * Phase B-1: CULOchanSEISANshoからの移植
+ * ========================================== */
+
+/* --- 経費行 --- */
+.exp-row {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    padding: 12px;
+    margin-bottom: 10px;
+    border: 1px solid var(--border);
+}
+
+.exp-row-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.exp-row-num {
+    background: var(--accent);
+    color: #fff;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 0.85rem;
+}
+
+.exp-row-del {
+    background: var(--danger);
+    color: #fff;
+    border: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.exp-row-del:active {
+    opacity: 0.8;
+}
+
+/* --- フォーム行 --- */
+.exp-form-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+}
+
+/* --- フォームグループ --- */
+.exp-fg {
+    flex: 1;
+    min-width: 100px;
+}
+
+.exp-fg-sm {
+    flex: 0 0 60px;
+    min-width: 60px;
+}
+
+.exp-fg label {
+    display: block;
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    margin-bottom: 3px;
+}
+
+/* --- 入力フィールド --- */
+.exp-input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+.exp-input:focus {
+    border-color: var(--accent);
+}
+
+.exp-input::placeholder {
+    color: var(--text-muted);
+}
+
+.exp-input:read-only {
+    background: var(--bg-card-hover);
+    color: var(--text-secondary);
+}
+
+/* --- ヒントテキスト --- */
+.exp-hint-green {
+    font-size: 0.65rem;
+    color: var(--success);
+    margin-top: 2px;
+}
+
+/* --- 行合計 --- */
+.exp-row-total {
+    text-align: right;
+    margin-top: 8px;
+    font-weight: bold;
+    font-size: 0.85rem;
+    color: var(--accent-light);
+}
+
+.exp-row-total-val {
+    font-size: 1rem;
+}
+
+/* --- 合計表示 --- */
+.exp-total-display {
+    background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+    color: #fff;
+    padding: 16px;
+    border-radius: var(--radius-md);
+    text-align: center;
+    margin-top: 12px;
+}
+
+.exp-total-label {
+    font-size: 0.85rem;
+    opacity: 0.9;
+}
+
+.exp-total-amount {
+    font-size: 2rem;
+    font-weight: bold;
+    letter-spacing: 0.03em;
+}
+
+/* --- ボタン行 --- */
+.exp-btn-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+}
+
+.exp-btn-row .btn {
+    flex: 1;
+    min-width: 130px;
+}
+
+/* --- ETCリンクボタン --- */
+.btn-etc {
+    background: linear-gradient(135deg, #ff6b35, #f7931e);
+    color: #fff;
+    text-decoration: none;
+    margin-bottom: 10px;
+}
+
+/* --- 下書き一覧 --- */
+.exp-draft-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-secondary);
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    margin-bottom: 6px;
+    border: 1px solid var(--border);
+}
+
+.exp-draft-info {
+    flex: 1;
+    cursor: pointer;
+}
+
+.exp-draft-info:active {
+    opacity: 0.7;
+}
+
+.exp-draft-title {
+    font-weight: bold;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+}
+
+.exp-draft-date {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.exp-draft-del {
+    background: var(--danger);
+    color: #fff;
+    border: none;
+    padding: 5px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    cursor: pointer;
+}
+
+.exp-draft-del:active {
+    opacity: 0.8;
+}
+
+/* --- 基本情報フォーム --- */
+.exp-basic-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.exp-basic-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.exp-basic-row .exp-fg {
+    min-width: 120px;
+}
+
+.exp-textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    font-family: inherit;
+    outline: none;
+    resize: vertical;
+    min-height: 50px;
+    transition: border-color 0.15s;
+}
+
+.exp-textarea:focus {
+    border-color: var(--accent);
+}
+
+.exp-textarea::placeholder {
+    color: var(--text-muted);
+}
+
+/* --- PDF cell-content（改行対応） --- */
+.cell-content {
+    white-space: pre-line;
+    line-height: 1.3;
+}
