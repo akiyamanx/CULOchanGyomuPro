@@ -130,8 +130,10 @@
                 <div id="expDraftList"><p class="empty-msg">下書きはありません</p></div>
             </div>
         </div>
-        <!-- v1.5 マップタブ: ヘッダーをドロップダウン式に変更 -->
+        <!-- v1.6 マップタブ: ヘッダーをドロップダウン式に変更 + countBadge互換対応 -->
         <div class="tab-panel" id="tab-map">
+            <!-- v1.6修正: countBadgeのID互換性のためhidden要素追加 -->
+            <div id="countBadge" style="display:none;">0件</div>
             <!-- v1.5追加: コンパクトバー（常時表示の1行） -->
             <div class="map-compact-bar">
                 <button class="compact-ws-btn" id="compactWsBtn" onclick="showWorkspaceMenu()">📅 --</button>
