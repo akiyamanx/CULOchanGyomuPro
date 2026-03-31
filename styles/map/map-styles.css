@@ -25,19 +25,15 @@
 }
 
 /* --- リセット --- */
-* { margin: 0; padding: 0; box-sizing: border-box; }
+/* v1.3修正: グローバルリセット削除（common.cssで管理） */
 body {
     font-family: var(--font);
-    background: var(--bg);
-    color: var(--text);
-    overflow: hidden;
-    height: 100vh;
-    height: 100dvh;
+    /* v1.3修正: overflow:hidden と height:100vh を削除（タブ内統合のため） */
 }
 
 /* --- スプラッシュ画面 --- */
 .splash-overlay {
-    position: fixed; inset: 0; z-index: 9999;
+    position: relative; /* v1.3修正: fixed→relative（タブ内統合） */ inset: 0; z-index: 9999;
     background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 40%, #0ea5e9 100%);
     display: flex; align-items: center; justify-content: center;
     transition: opacity 0.5s ease;
@@ -135,8 +131,8 @@ body {
 /* --- 地図 --- */
 #map {
     width: 100%;
-    height: calc(100vh - 48px);
-    height: calc(100dvh - 48px);
+    height: 50vh; min-height: 300px; /* v1.3修正: タブ内用に固定高さ */
+    /* v1.3削除: dvh版も不要 */
 }
 
 /* --- ルート凡例 --- */
@@ -170,8 +166,7 @@ body {
 
 /* --- 下部パネル --- */
 .bottom-panel {
-    position: fixed;
-    bottom: 0; left: 0; right: 0;
+    position: relative; /* v1.3修正: fixed→relative（タブ内統合） */
     background: var(--surface);
     border-radius: 16px 16px 0 0;
     box-shadow: 0 -4px 16px rgba(0,0,0,0.1);
@@ -303,7 +298,7 @@ body {
 
 /* --- モーダル --- */
 .modal-overlay {
-    position: fixed; inset: 0;
+    position: fixed; inset: 0; /* v1.3: モーダルはfixed維持 */
     background: rgba(0,0,0,0.5);
     display: flex; align-items: center; justify-content: center;
     z-index: 500;
@@ -366,7 +361,7 @@ body {
 
 /* --- ローディング --- */
 .loading-overlay {
-    position: fixed; inset: 0;
+    position: fixed; inset: 0; /* v1.3: ローディングはfixed維持 */
     background: rgba(0,0,0,0.6);
     display: flex; align-items: center; justify-content: center;
     z-index: 600;
@@ -410,3 +405,49 @@ body {
 .info-btn-edit { background: var(--primary); color: white; }
 .info-btn-call { background: var(--success); color: white; }
 .info-btn-delete { background: var(--danger); color: white; }
+
+/* ============================================
+ * v1.3追加: CULOchanGyomuPro タブ内統合用スタイル
+ * マップタブ(#tab-map)内でのレイアウト調整
+ * ============================================ */
+
+/* v1.3 マップタブ自体にrelative設定（凡例等のabsolute基準） */
+#tab-map {
+    position: relative;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* v1.3 マップヘッダーをタブ内フロー配置 */
+.map-header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+/* v1.3 bottom-panelをタブ内フロー配置に変更 */
+#tab-map .bottom-panel {
+    position: relative;
+    max-height: none;
+    border-radius: 0;
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
+}
+#tab-map .bottom-panel.collapsed {
+    transform: none;
+}
+#tab-map .panel-content {
+    max-height: 40vh;
+}
+
+/* v1.3 凡例をマップ内に配置 */
+#tab-map .legend {
+    position: absolute;
+    z-index: 50;
+}
+
+/* v1.3 メニューパネルの位置調整 */
+#tab-map .menu-panel {
+    position: absolute;
+    top: 48px;
+    right: 8px;
+}
