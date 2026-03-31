@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CULOchan業務Pro</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <!-- 共通CSS -->
+    <link rel="stylesheet" href="styles/common.css">
+    <link rel="stylesheet" href="styles/receipt.css">
+    <link rel="stylesheet" href="styles/expense.css">
+    <!-- 外部ライブラリ -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+    <!-- ヘッダー -->
+    <header class="app-header">
+        <h1 class="app-title">CULOchan<span class="accent">業務</span>Pro</h1>
+    </header>
+
+    <!-- タブナビゲーション -->
+    <nav class="tab-nav">
+        <button class="tab-btn active" data-tab="receipt" onclick="AppCore.switchTab('receipt')">
+            <span class="tab-icon">📸</span>
+            <span class="tab-label">レシート</span>
+        </button>
+        <button class="tab-btn" data-tab="expense" onclick="AppCore.switchTab('expense')">
+            <span class="tab-icon">🧾</span>
+            <span class="tab-label">精算書</span>
+        </button>
+        <button class="tab-btn" data-tab="map" onclick="AppCore.switchTab('map')">
+            <span class="tab-icon">🗺️</span>
+            <span class="tab-label">マップ</span>
+        </button>
+    </nav>
+
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        <!-- レシートスキャナータブ -->
+        <div class="tab-panel active" id="tab-receipt">
+            <div class="panel-card">
+                <div class="card-title">📸 レシートスキャナー</div>
+                <p class="card-desc">スキャナーで取り込んだレシートを自動認識・管理</p>
+
+                <!-- スキャン画像取り込み -->
+                <div class="scan-input-area">
+                    <label class="scan-btn" id="scanFileBtn">
+                        <span class="scan-btn-icon">📄</span>
+                        <span class="scan-btn-text">スキャン画像を選択</span>
+                        <span class="scan-btn-hint">JPEG / PNG / PDF</span>
+                        <input type="file" accept="image/*,.pdf" 
+                               onchange="ReceiptScanner.handleFileSelect(event)" 
+                               style="display:none">
+                    </label>
+                </div>
+
+                <!-- スキャン結果プレビュー -->
+                <div id="scanPreview" class="scan-preview" style="display:none;">
+                    <div class="preview-header">
+                        <span class="preview-title">📋 スキャン画像</span>
+                        <button class="btn-small btn-clear" onclick="ReceiptScanner.clearScan()">✕ クリア</button>
+                    </div>
+                    <div class="preview-image-wrap">
+                        <img id="scanImage" class="preview-image" alt="スキャン画像">
+                    </div>
+                    <div class="preview-actions">
+                        <button class="btn btn-primary" onclick="ReceiptScanner.startDetection()">
+                            🔍 レシートを検出する
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 検出結果 -->
+                <div id="detectionResult" class="detection-result" style="display:none;">
+                    <div class="result-header">
+                        <span class="result-title">✂️ 検出されたレシート</span>
+                        <span class="result-count" id="detectedCount">0枚</span>
+                    </div>
+                    <div id="detectedReceipts" class="detected-list"></div>
+                    <div class="result-actions">
+                        <button class="btn btn-ai" onclick="ReceiptScanner.recognizeAll()">
+                            🤖 AIで全て読み取る
+                        </button>
+                    </div>
+                </div>
+
+                <!-- AI認識済みレシート一覧 -->
+                <div id="recognizedList" class="recognized-list" style="display:none;">
+                    <div class="result-header">
+                        <span class="result-title">📝 認識済みレシート</span>
+                        <button class="btn-small btn-select-all" onclick="ReceiptScanner.toggleSelectAll()">
+                            全選択/解除
+                        </button>
+                    </div>
+                    <div id="recognizedReceipts" class="receipt-cards"></div>
+                    <div class="result-actions">
+                        <button class="btn btn-pdf" onclick="ReceiptScanner.generateA4Pdf()">
+                            🖨️ 選択レシートをA4 PDF出力
+                        </button>
+                        <button class="btn btn-save" onclick="ReceiptScanner.saveAll()">
+                            💾 保存する
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 保存済みレシート履歴 -->
+            <div class="panel-card">
+                <div class="card-title">📂 保存済みレシート</div>
+                <div id="savedReceiptList" class="saved-list">
+                    <p class="empty-msg">保存されたレシートはありません</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 交通費精算書タブ -->
+        <div class="tab-panel" id="tab-expense">
+            <div class="panel-card">
+                <div class="card-title">🧾 交通費精算書</div>
+                <p class="card-desc">精算書の作成・ETC明細取込・PDF出力</p>
+                <p class="coming-msg">🚧 Phase B で統合予定（既存アプリは動作中）</p>
+                <a href="https://akiyamanx.github.io/CULOchanSEISANsho/" 
+                   target="_blank" class="btn btn-link">
+                    📎 現行の精算書アプリを開く
+                </a>
+            </div>
+        </div>
+
+        <!-- マップタブ -->
+        <div class="tab-panel" id="tab-map">
+            <div class="panel-card">
+                <div class="card-title">🗺️ メンテナンスマップ</div>
+                <p class="card-desc">現場マップ・ルート計算・精算連携</p>
+                <p class="coming-msg">🚧 Phase C で統合予定（既存アプリは動作中）</p>
+                <a href="https://akiyamanx.github.io/maintenance-map-ap/" 
+                   target="_blank" class="btn btn-link">
+                    📎 現行のマップアプリを開く
+                </a>
+            </div>
+        </div>
+    </main>
+
+    <!-- ローディング -->
+    <div class="loading-overlay" id="loading" style="display:none;">
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loadingText">処理中...</div>
+    </div>
+
+    <!-- 共通JS -->
+    <script src="shared/app-core.js"></script>
+    <!-- レシートスキャナーJS -->
+    <script src="receipt/receipt-image-utils.js"></script>
+    <script src="receipt/receipt-scanner.js"></script>
+</body>
+</html>
