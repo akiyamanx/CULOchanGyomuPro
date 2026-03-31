@@ -51,15 +51,12 @@ const EtcReader = (() => {
                     amountCol = j;
                 }
             }
-            // ヘッダーが見つかったらその次の行からデータ
             if (dateCol >= 0 && amountCol >= 0) {
                 for (let k = i + 1; k < lines.length; k++) {
                     const cols = lines[k].split(',').map(c => c.replace(/"/g, '').trim());
                     if (cols.length <= Math.max(dateCol, amountCol)) continue;
-
                     const dateStr = cols[dateCol] || '';
                     const amount = parseInt(cols[amountCol].replace(/[^0-9]/g, '')) || 0;
-
                     if (amount > 0) {
                         records.push({
                             date: dateStr,
@@ -77,10 +74,8 @@ const EtcReader = (() => {
         if (records.length === 0 && lines.length >= 2) {
             for (let i = 0; i < lines.length; i++) {
                 const cols = lines[i].split(',').map(c => c.replace(/"/g, '').trim());
-                // 日付っぽい列を探す
                 const dateIdx = cols.findIndex(c => /\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}/.test(c));
                 if (dateIdx >= 0) {
-                    // 数値っぽい列を金額として使う
                     for (let j = cols.length - 1; j > dateIdx; j--) {
                         const val = parseInt(cols[j].replace(/[^0-9]/g, ''));
                         if (val > 0) {
@@ -130,7 +125,6 @@ const EtcReader = (() => {
         html += '</div>';
         html += '</div></div>';
 
-        // データを保持
         EtcReader._records = records;
 
         const existing = document.getElementById('etcModal');
@@ -162,24 +156,21 @@ const EtcReader = (() => {
 
         closeModal();
 
-        // 精算書タブに切り替えて反映
         mapSwitchTab('expense');
         MapExpenseForm.init();
 
         setTimeout(() => {
             const firstRow = document.querySelector('.exp-row');
             if (firstRow) {
-                // 高速代欄にカンマ区切りで入力
+                // v1.4修正: 高速代欄に合計金額を入力（個別金額ではなく合計）
                 const hwInput = firstRow.querySelector('.exp-highway');
                 if (hwInput) {
-                    hwInput.value = amounts.join(',');
+                    hwInput.value = totalAmount;
                 }
-                // 枚数欄に件数を入力
                 const countInput = firstRow.querySelector('.exp-hw-count');
                 if (countInput) {
                     countInput.value = count;
                 }
-                // 交通機関欄に「高速道路」を設定
                 const transportInput = firstRow.querySelector('.exp-transport');
                 if (transportInput && !transportInput.value) {
                     transportInput.value = '高速道路';
