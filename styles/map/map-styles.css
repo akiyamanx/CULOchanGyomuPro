@@ -1,8 +1,10 @@
-/* [CULOchanGyomuPro統合] v1.4 2026-03-31 - ダークテーマ対応CSS変数修正 */
+/* [CULOchanGyomuPro統合] v1.5 2026-04-01 - マップヘッダードロップダウン化 */
 /* ============================================
  * メンテナンスマップ v2.0 - styles.css
  * 全スタイル定義
  * v2.0新規作成 - 分割ファイル構成対応
+ * v1.4 ダークテーマ対応 + .btnスコープ化
+ * v1.5 マップヘッダーをドロップダウン式に変更
  * ============================================ */
 
 /* --- CSS変数（v1.4 ダークテーマ対応） --- */
@@ -29,12 +31,11 @@
 /* v1.3修正: グローバルリセット削除（common.cssで管理） */
 body {
     font-family: var(--font);
-    /* v1.3修正: overflow:hidden と height:100vh を削除（タブ内統合のため） */
 }
 
 /* --- スプラッシュ画面 --- */
 .splash-overlay {
-    position: relative; /* v1.3修正: fixed→relative（タブ内統合） */ inset: 0; z-index: 9999;
+    position: relative; inset: 0; z-index: 9999;
     background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 40%, #0ea5e9 100%);
     display: flex; align-items: center; justify-content: center;
     transition: opacity 0.5s ease;
@@ -65,29 +66,129 @@ body {
     100% { transform: scale(1); opacity: 1; }
 }
 
-/* --- ヘッダー --- */
-.map-header {
+/* ============================================
+ * v1.5追加: コンパクトバー＋ドロップダウンツールバー
+ * 閉じた時: 1行（WS名＋件数＋▼ボタン）
+ * 開いた時: ドロップダウンで操作ボタン展開
+ * ============================================ */
+
+/* --- コンパクトバー（常時表示の1行） --- */
+.map-compact-bar {
     background: var(--primary);
     color: white;
     padding: 8px 12px;
     display: flex;
     align-items: center;
-    gap: 6px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-    position: relative;
+    gap: 8px;
+    position: sticky;
+    top: 0;
     z-index: 100;
-    flex-wrap: wrap;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
-.app-title { font-size: 15px; font-weight: 700; white-space: nowrap; }
-.header-actions { display: flex; gap: 4px; flex-wrap: wrap; }
-.count-badge {
+
+/* v1.5 WSボタン（コンパクトバー内） */
+.compact-ws-btn {
     background: rgba(255,255,255,0.2);
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 16px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: var(--font);
+    transition: background 0.2s;
+}
+.compact-ws-btn:active {
+    background: rgba(255,255,255,0.35);
+}
+
+/* v1.5 件数バッジ */
+.compact-count {
+    background: rgba(255,255,255,0.15);
     padding: 3px 10px;
     border-radius: 12px;
     font-size: 12px;
     font-weight: 500;
     margin-left: auto;
 }
+
+/* v1.5 ドロップダウン展開ボタン */
+.compact-toggle-btn {
+    background: rgba(255,255,255,0.2);
+    color: white;
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, transform 0.3s;
+    font-family: var(--font);
+}
+.compact-toggle-btn:active {
+    background: rgba(255,255,255,0.35);
+}
+/* v1.5 展開時に▼を▲に回転 */
+.compact-toggle-btn.expanded {
+    transform: rotate(180deg);
+}
+
+/* --- ドロップダウンパネル（展開時のボタン群） --- */
+.map-toolbar-dropdown {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease, padding 0.3s ease;
+    padding: 0 12px;
+}
+/* v1.5 展開状態 */
+.map-toolbar-dropdown.expanded {
+    max-height: 300px;
+    padding: 8px 12px;
+}
+
+/* v1.5 ツールバー内の各アイテム */
+.toolbar-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 12px 14px;
+    background: none;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+    cursor: pointer;
+    font-family: var(--font);
+    transition: background 0.15s;
+    text-decoration: none;
+}
+.toolbar-item:active {
+    background: var(--bg);
+}
+.toolbar-icon {
+    font-size: 18px;
+    width: 24px;
+    text-align: center;
+    flex-shrink: 0;
+}
+.toolbar-label {
+    flex: 1;
+}
+
+/* --- 旧ヘッダー（v1.5で非表示化、互換性のため残す） --- */
+.map-header {
+    display: none;
+}
+.header-actions { display: none; }
+.count-badge { display: none; }
 
 /* --- ボタン共通（v1.4修正: #tab-mapスコープで他タブへの漏れ防止） --- */
 #tab-map .btn {
@@ -132,8 +233,7 @@ body {
 /* --- 地図 --- */
 #map {
     width: 100%;
-    height: 50vh; min-height: 300px; /* v1.3修正: タブ内用に固定高さ */
-    /* v1.3削除: dvh版も不要 */
+    height: 50vh; min-height: 300px;
 }
 
 /* --- ルート凡例 --- */
@@ -167,7 +267,7 @@ body {
 
 /* --- 下部パネル --- */
 .bottom-panel {
-    position: relative; /* v1.3修正: fixed→relative（タブ内統合） */
+    position: relative;
     background: var(--surface);
     border-radius: 16px 16px 0 0;
     box-shadow: 0 -4px 16px rgba(0,0,0,0.1);
@@ -299,7 +399,7 @@ body {
 
 /* --- モーダル --- */
 .modal-overlay {
-    position: fixed; inset: 0; /* v1.3: モーダルはfixed維持 */
+    position: fixed; inset: 0;
     background: rgba(0,0,0,0.5);
     display: flex; align-items: center; justify-content: center;
     z-index: 500;
@@ -362,7 +462,7 @@ body {
 
 /* --- ローディング --- */
 .loading-overlay {
-    position: fixed; inset: 0; /* v1.3: ローディングはfixed維持 */
+    position: fixed; inset: 0;
     background: rgba(0,0,0,0.6);
     display: flex; align-items: center; justify-content: center;
     z-index: 600;
@@ -419,8 +519,8 @@ body {
     overflow-x: hidden;
 }
 
-/* v1.3 マップヘッダーをタブ内フロー配置 */
-.map-header {
+/* v1.5 コンパクトバーをタブ内sticky配置 */
+.map-compact-bar {
     position: sticky;
     top: 0;
     z-index: 100;
