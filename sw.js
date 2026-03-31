@@ -1,30 +1,16 @@
 // ==========================================
-// CULOchan業務Pro — Service Worker v2.3
-// このファイルはPWAのキャッシュ管理を担当する
+// CULOchan業務Pro — Service Worker v2.4
 // CACHE_NAMEはデプロイごとにインクリメントすること！
-// v1.1 2026-03-31 - キャッシュv2 + receipt-image-utils.js追加
-// v1.2 2026-03-31 - キャッシュv3 + 精算書JS追加（Phase B-1）
-// v1.3 2026-03-31 - キャッシュv4 + マップモジュール16ファイル追加（Step 1）
-// v1.4 2026-03-31 - キャッシュv5 + Step2日付連携＋Step3 ETC CSV取り込み
-// v1.5 2026-03-31 - キャッシュv6 + segment-dialog.jsダークテーマ修正
-// v1.6 2026-03-31 - キャッシュv7 + Phase D workspace/route-orderダーク化
-// v1.7 2026-03-31 - キャッシュv8 + .btnスコープ化（精算書ボタン表示修正）
-// v1.8 2026-03-31 - キャッシュv9 + ETC IC名表示修正＋マップ精算書入力欄背景修正
-// v1.9 2026-03-31 - キャッシュv10 + ETC高速代を合計金額で反映
-// v2.0 2026-03-31 - キャッシュv11 + ETCモーダル背景透明修正（var()フォールバック）
-// v2.1 2026-03-31 - キャッシュv12 + マップヘッダーボタン文字短縮
-// v2.2 2026-04-01 - キャッシュv13 + マップヘッダードロップダウン化（Phase D UI改善）
-// v2.3 2026-04-01 - キャッシュv14 + mapSwitchTabスコープ化修正（タブ表示バグ修正）
+// v2.4 2026-04-01 - キャッシュv15 + mapSwitchTabデバッグ版
 // ==========================================
 
-const CACHE_NAME = 'gyomupro-v14';
+const CACHE_NAME = 'gyomupro-v15';
 const ASSETS = [
     './',
     './index.html',
     './styles/common.css',
     './styles/receipt.css',
     './styles/expense.css',
-    // v1.3追加: マップCSS
     './styles/map/map-styles.css',
     './styles/map/map-expense-styles.css',
     './styles/map/route-order-styles.css',
@@ -34,9 +20,7 @@ const ASSETS = [
     './receipt/receipt-image-utils.js',
     './expense/expense-manager.js',
     './expense/expense-pdf.js',
-    // v1.4追加: 精算書ETC取り込み
     './expense/expense-etc.js',
-    // v1.3追加: マップJS（12ファイル）
     './map/map-data-storage.js',
     './map/v1-converter.js',
     './map/csv-handler.js',
@@ -52,7 +36,6 @@ const ASSETS = [
     './manifest.json'
 ];
 
-// インストール時にキャッシュ
 self.addEventListener('install', event => {
     event.waitUntil(
         caches.open(CACHE_NAME)
@@ -61,7 +44,6 @@ self.addEventListener('install', event => {
     );
 });
 
-// 古いキャッシュ削除
 self.addEventListener('activate', event => {
     event.waitUntil(
         caches.keys().then(keys => {
@@ -73,9 +55,7 @@ self.addEventListener('activate', event => {
     );
 });
 
-// ネットワーク優先、失敗したらキャッシュ
 self.addEventListener('fetch', event => {
-    // APIリクエストはキャッシュしない
     if (event.request.url.includes('generativelanguage.googleapis.com')) return;
     if (event.request.url.includes('maps.googleapis.com')) return;
     
