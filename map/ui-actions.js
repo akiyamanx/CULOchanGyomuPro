@@ -1,30 +1,89 @@
-// [CULOchanGyomuPro統合] v1.3 2026-03-31 - maintenance-map-ap v2.5からコピー
+// [CULOchanGyomuPro統合] v1.4 2026-04-01 - マップヘッダードロップダウン化対応
 // ============================================
 // メンテナンスマップ v2.5 - ui-actions.js
 // グローバルUI関数（モーダル・メニュー・パネル制御）
 // v2.0新規作成 - map-core.jsから分離
 // v2.3追加 - ワークスペース切り替えUI
 // v2.5追加 - 目的(purpose)フィールド対応
+// v1.4追加 - ドロップダウン式ツールバー（toggleMapToolbar）
 // ============================================
+
+// =============================================
+// v1.4追加 - ドロップダウン式ツールバー
+// =============================================
+
+// v1.4 ドロップダウンの開閉トグル
+function toggleMapToolbar() {
+    const dropdown = document.getElementById('mapToolbarDropdown');
+    const toggleBtn = document.getElementById('compactToggleBtn');
+    if (!dropdown || !toggleBtn) return;
+    const isExpanded = dropdown.classList.contains('expanded');
+    if (isExpanded) {
+        // 閉じる
+        dropdown.classList.remove('expanded');
+        toggleBtn.classList.remove('expanded');
+    } else {
+        // 開く
+        dropdown.classList.add('expanded');
+        toggleBtn.classList.add('expanded');
+        // メニューパネルが開いていたら閉じる
+        const menuPanel = document.getElementById('menuPanel');
+        if (menuPanel && menuPanel.style.display === 'block') {
+            menuPanel.style.display = 'none';
+        }
+    }
+}
+
+// v1.4 ドロップダウン外をタップしたら閉じる
+document.addEventListener('click', function(e) {
+    const dropdown = document.getElementById('mapToolbarDropdown');
+    const toggleBtn = document.getElementById('compactToggleBtn');
+    if (!dropdown || !toggleBtn) return;
+    if (!dropdown.classList.contains('expanded')) return;
+    // ドロップダウン内またはトグルボタンのクリックは無視
+    if (dropdown.contains(e.target) || toggleBtn.contains(e.target)) return;
+    // コンパクトバー内のクリックも無視（WSボタン等）
+    const compactBar = document.querySelector('.map-compact-bar');
+    if (compactBar && compactBar.contains(e.target)) return;
+    // それ以外は閉じる
+    dropdown.classList.remove('expanded');
+    toggleBtn.classList.remove('expanded');
+});
 
 // =============================================
 // v2.3 - ワークスペース切り替えUI
 // =============================================
 
 // v2.3 - ワークスペースボタンのラベルを更新
+// v1.4修正: コンパクトバーのWSボタンも更新
 function updateWsButton() {
     const btn = document.getElementById('wsSwitchBtn');
-    if (!btn) return;
+    const compactBtn = document.getElementById('compactWsBtn');
     const wsId = DataStorage.getCurrentWorkspaceId();
     const workspaces = DataStorage.getWorkspaces();
     const current = workspaces.find(ws => ws.id === wsId);
-    if (current) {
-        // v2.3 - 短い表示名（例: "2月"）
+    const shortName = (() => {
+        if (!current) return '--';
         const match = current.id.match(/^\d{4}-(\d{2})$/);
-        const shortName = match ? parseInt(match[1]) + '月' : current.name;
-        btn.textContent = '📅 ' + shortName;
-    } else {
-        btn.textContent = '📅 --';
+        return match ? parseInt(match[1]) + '月' : current.name;
+    })();
+    // 旧ヘッダーのWSボタン（互換性のため残す）
+    if (btn) btn.textContent = '📅 ' + shortName;
+    // v1.4 コンパクトバーのWSボタンを更新
+    if (compactBtn) compactBtn.textContent = '📅 ' + shortName;
+    // v1.4 件数バッジも更新
+    updateCompactCount();
+}
+
+// v1.4追加 - コンパクトバーの件数を更新
+function updateCompactCount() {
+    const compactCount = document.getElementById('compactCount');
+    if (!compactCount) return;
+    try {
+        const customers = DataStorage.getCustomers();
+        compactCount.textContent = customers.length + '件';
+    } catch (e) {
+        compactCount.textContent = '0件';
     }
 }
 
@@ -45,7 +104,6 @@ function showWorkspaceMenu() {
             const displayMonth = match ? parseInt(match[1]) + '月' : ws.id;
             const displayYear = match ? ws.id.substring(0, 4) + '年' : '';
             const customers = (() => {
-                // v2.3 - 各ワークスペースの件数を取得（直接LocalStorageから）
                 try {
                     const data = localStorage.getItem('mm_customers_' + ws.id);
                     return data ? JSON.parse(data).length : 0;
@@ -59,7 +117,6 @@ function showWorkspaceMenu() {
             html += `<span class="ws-menu-sub">${ws.name}</span>`;
             html += `</div>`;
             html += `<span class="ws-menu-count">${customers}件</span>`;
-            // v2.3 - 現在のワークスペース以外に削除ボタン
             if (!isActive) {
                 html += `<button class="ws-menu-delete" onclick="event.stopPropagation(); confirmDeleteWorkspace('${ws.id}', '${ws.name}')">🗑️</button>`;
             }
@@ -69,8 +126,15 @@ function showWorkspaceMenu() {
     list.innerHTML = html;
     overlay.style.display = 'flex';
 
-    // v2.3 - メニューパネルが開いてたら閉じる
+    // メニューパネルが開いてたら閉じる
     if (document.getElementById('menuPanel').style.display === 'block') toggleMenu();
+    // v1.4 ドロップダウンが開いてたら閉じる
+    const dropdown = document.getElementById('mapToolbarDropdown');
+    const toggleBtn = document.getElementById('compactToggleBtn');
+    if (dropdown && dropdown.classList.contains('expanded')) {
+        dropdown.classList.remove('expanded');
+        if (toggleBtn) toggleBtn.classList.remove('expanded');
+    }
 }
 
 // v2.3 - ワークスペースメニューを閉じる
@@ -88,39 +152,32 @@ function selectWorkspace(wsId) {
 
     if (DataStorage.switchWorkspace(wsId)) {
         hideWorkspaceMenu();
-        // v2.3 - 全UIを再描画
         reloadAllUI();
         updateWsButton();
-        const workspaces = DataStorage.getWorkspaces();
-        const ws = workspaces.find(w => w.id === wsId);
     }
 }
 
 // v2.3 - 全UIを再描画（ワークスペース切り替え後）
 function reloadAllUI() {
-    // v2.3 - 地図マーカー再描画
     MapCore.refreshAllMarkers();
-    // v2.3 - ルートパネル再描画
     RouteManager.updateRoutePanel();
-    // v2.3 - 精算書を再初期化（次にタブ開いた時にinit()が走るようにフラグリセット）
     if (typeof MapExpenseForm !== 'undefined' && MapExpenseForm.resetInitFlag) {
         MapExpenseForm.resetInitFlag();
     }
-    // v2.3 - 現在のタブが精算書なら即再初期化
     const activeTab = document.querySelector('.tab.active');
     if (activeTab && activeTab.dataset.tab === 'expense') {
         MapExpenseForm.init();
     }
-    // v2.3 - 集計タブが開いてれば更新
     if (activeTab && activeTab.dataset.tab === 'summary') {
         RouteManager.updateSummary();
     }
+    // v1.4 件数バッジも更新
+    updateCompactCount();
 }
 
 // v2.3 - ワークスペース追加ダイアログを表示
 function showAddWorkspaceDialog() {
     hideWorkspaceMenu();
-    // v2.3 - 来月をデフォルト値に
     const now = new Date();
     const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     const defaultVal = nextMonth.getFullYear() + '-' + String(nextMonth.getMonth() + 1).padStart(2, '0');
@@ -149,7 +206,6 @@ function addWorkspace() {
     }
     hideAddWorkspaceDialog();
 
-    // v2.3 - 作成後すぐに切り替えるか確認
     if (confirm(`📅 ${ws.name} を作成しました！\nこのワークスペースに切り替えますか？`)) {
         DataStorage.switchWorkspace(ws.id);
         reloadAllUI();
@@ -163,15 +219,13 @@ function confirmDeleteWorkspace(wsId, wsName) {
         return;
     }
     DataStorage.deleteWorkspace(wsId);
-    // v2.3 - メニューを更新
     showWorkspaceMenu();
     updateWsButton();
-    // v2.3 - もし現在のワークスペースが変わったらUI再描画
     reloadAllUI();
 }
 
 // =============================================
-// v2.0 - 既存のUI関数（変更なし）
+// v2.0 - 既存のUI関数
 // =============================================
 
 // v2.0 - メニュートグル
@@ -180,10 +234,10 @@ function toggleMenu() {
     panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
 }
 
-// v2.0 - メニュー以外をクリックしたら閉じる
+// v2.0 - メニュー以外をクリックしたら閉じる（メニューパネル用）
 document.addEventListener('click', (e) => {
     const panel = document.getElementById('menuPanel');
-    if (panel && panel.style.display === 'block' && !e.target.closest('.menu-panel') && !e.target.closest('.btn-menu')) {
+    if (panel && panel.style.display === 'block' && !e.target.closest('.menu-panel') && !e.target.closest('.btn-menu') && !e.target.closest('.toolbar-item')) {
         panel.style.display = 'none';
     }
 });
@@ -198,7 +252,6 @@ function hideAddModal() {
     ['addCompany','addAddress','addPhone','addContact','addNote'].forEach(id => {
         document.getElementById(id).value = '';
     });
-    // v2.5追加 - 目的もリセット
     document.getElementById('addPurpose').value = '';
 }
 
@@ -220,6 +273,8 @@ function addNewLocation() {
     });
     hideAddModal();
     MapCore.geocodeAndPlot([customer]);
+    // v1.4 件数を更新
+    updateCompactCount();
 }
 
 // v2.0 - 編集モーダル
@@ -256,6 +311,8 @@ function deleteLocation() {
     hideEditModal();
     MapCore.refreshAllMarkers();
     RouteManager.updateRoutePanel();
+    // v1.4 件数を更新
+    updateCompactCount();
 }
 
 // v2.0 - 設定モーダル
@@ -297,6 +354,8 @@ function resetAllData() {
     MapCore.updateCountBadge();
     MapCore.updateCustomerList();
     RouteManager.updateRoutePanel();
+    // v1.4 件数を更新
+    updateCompactCount();
     alert('🗑️ 現在のワークスペースの全データを削除しました。');
 }
 
@@ -329,17 +388,12 @@ function mapSwitchTab(tabName) {
     const tabId = 'tab' + tabName.charAt(0).toUpperCase() + tabName.slice(1);
     document.getElementById(tabId).classList.add('active');
 
-    // v2.0 - 集計タブを開いたら更新
     if (tabName === 'summary') {
         RouteManager.updateSummary();
     }
-
-    // v2.1追加 - 精算書タブを開いたら初期化
     if (tabName === 'expense') {
         MapExpenseForm.init();
     }
-
-    // v2.1追加 - 精算書タブ選択時はパネルを広げる
     if (tabName === 'expense') {
         document.getElementById('bottomPanel').classList.remove('collapsed');
         document.getElementById('bottomPanel').style.maxHeight = '85vh';
