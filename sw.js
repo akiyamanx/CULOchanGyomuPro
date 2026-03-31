@@ -1,11 +1,12 @@
 // ==========================================
-// CULOchan業務Pro — Service Worker v1.1
+// CULOchan業務Pro — Service Worker v1.2
 // このファイルはPWAのキャッシュ管理を担当する
 // CACHE_NAMEはデプロイごとにインクリメントすること！
 // v1.1 2026-03-31 - キャッシュv2 + receipt-image-utils.js追加
+// v1.2 2026-03-31 - キャッシュv3 + 精算書JS追加（Phase B-1）
 // ==========================================
 
-const CACHE_NAME = 'gyomupro-v2';
+const CACHE_NAME = 'gyomupro-v3';
 const ASSETS = [
     './',
     './index.html',
@@ -15,6 +16,8 @@ const ASSETS = [
     './shared/app-core.js',
     './receipt/receipt-scanner.js',
     './receipt/receipt-image-utils.js',
+    './expense/expense-manager.js',
+    './expense/expense-pdf.js',
     './manifest.json'
 ];
 
