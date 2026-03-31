@@ -130,19 +130,35 @@
                 <div id="expDraftList"><p class="empty-msg">下書きはありません</p></div>
             </div>
         </div>
+        <!-- v1.5 マップタブ: ヘッダーをドロップダウン式に変更 -->
         <div class="tab-panel" id="tab-map">
-            <header class="map-header">
-                <div class="map-header-title">📍 メンテナンスマップ</div>
-                <div class="header-actions">
-                    <button class="btn btn-ws" id="wsSwitchBtn" onclick="showWorkspaceMenu()">📅 --</button>
-                    <label class="btn btn-upload" for="fileInput">📁 読込</label>
-                    <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" style="display:none">
-                    <button class="btn btn-add" onclick="showAddModal()">➕ 追加</button>
-                    <button class="btn btn-pdf" onclick="exportPDF()">📄 PDF</button>
-                    <button class="btn btn-menu" onclick="toggleMenu()">⚙️</button>
-                </div>
-                <div class="count-badge" id="countBadge">0件</div>
-            </header>
+            <!-- v1.5追加: コンパクトバー（常時表示の1行） -->
+            <div class="map-compact-bar">
+                <button class="compact-ws-btn" id="compactWsBtn" onclick="showWorkspaceMenu()">📅 --</button>
+                <div class="compact-count" id="compactCount">0件</div>
+                <button class="compact-toggle-btn" id="compactToggleBtn" onclick="toggleMapToolbar()">▼</button>
+            </div>
+            <!-- v1.5追加: 展開パネル（ドロップダウン） -->
+            <div class="map-toolbar-dropdown" id="mapToolbarDropdown">
+                <label class="toolbar-item" for="fileInput">
+                    <span class="toolbar-icon">📁</span>
+                    <span class="toolbar-label">CSV読込</span>
+                </label>
+                <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" style="display:none">
+                <button class="toolbar-item" onclick="showAddModal(); toggleMapToolbar();">
+                    <span class="toolbar-icon">➕</span>
+                    <span class="toolbar-label">メンテナンス先を追加</span>
+                </button>
+                <button class="toolbar-item" onclick="exportPDF(); toggleMapToolbar();">
+                    <span class="toolbar-icon">📄</span>
+                    <span class="toolbar-label">PDF出力</span>
+                </button>
+                <button class="toolbar-item" onclick="toggleMenu(); toggleMapToolbar();">
+                    <span class="toolbar-icon">⚙️</span>
+                    <span class="toolbar-label">設定・バックアップ</span>
+                </button>
+            </div>
+            <!-- v1.5: ワークスペースメニュー（既存） -->
             <div class="ws-menu-overlay" id="wsMenuOverlay" style="display:none;" onclick="hideWorkspaceMenu()">
                 <div class="ws-menu" onclick="event.stopPropagation()">
                     <div class="ws-menu-title">📅 ワークスペース切替</div>
