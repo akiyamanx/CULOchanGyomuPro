@@ -1,4 +1,4 @@
-// [CULOchanGyomuPro統合] v1.4 2026-04-01 - マップヘッダードロップダウン化対応
+// [CULOchanGyomuPro統合] v1.5 2026-04-01 - mapSwitchTabスコープ化修正
 // ============================================
 // メンテナンスマップ v2.5 - ui-actions.js
 // グローバルUI関数（モーダル・メニュー・パネル制御）
@@ -6,6 +6,7 @@
 // v2.3追加 - ワークスペース切り替えUI
 // v2.5追加 - 目的(purpose)フィールド対応
 // v1.4追加 - ドロップダウン式ツールバー（toggleMapToolbar）
+// v1.5修正 - mapSwitchTab/reloadAllUIのセレクタを#bottomPanelスコープに限定
 // ============================================
 
 // =============================================
@@ -158,13 +159,16 @@ function selectWorkspace(wsId) {
 }
 
 // v2.3 - 全UIを再描画（ワークスペース切り替え後）
+// v1.5修正: セレクタを#bottomPanelスコープに限定
 function reloadAllUI() {
     MapCore.refreshAllMarkers();
     RouteManager.updateRoutePanel();
     if (typeof MapExpenseForm !== 'undefined' && MapExpenseForm.resetInitFlag) {
         MapExpenseForm.resetInitFlag();
     }
-    const activeTab = document.querySelector('.tab.active');
+    // v1.5修正: #bottomPanel内のactiveタブを検索（グローバル検索を回避）
+    const panel = document.getElementById('bottomPanel');
+    const activeTab = panel ? panel.querySelector('.tab.active') : null;
     if (activeTab && activeTab.dataset.tab === 'expense') {
         MapExpenseForm.init();
     }
@@ -380,25 +384,29 @@ function togglePanel() {
     document.getElementById('bottomPanel').classList.toggle('collapsed');
 }
 
-// v2.0 - タブ切替
+// v2.0 - タブ切替（マップ底部パネル内のサブタブ）
+// v1.5修正: セレクタを#bottomPanelスコープに限定（他タブとの衝突防止）
 function mapSwitchTab(tabName) {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-    document.querySelector(`.tab[data-tab="${tabName}"]`).classList.add('active');
+    const panel = document.getElementById('bottomPanel');
+    if (!panel) return;
+    // v1.5 #bottomPanel内のみ検索してactive切替
+    panel.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    panel.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    const targetTab = panel.querySelector(`.tab[data-tab="${tabName}"]`);
+    if (targetTab) targetTab.classList.add('active');
     const tabId = 'tab' + tabName.charAt(0).toUpperCase() + tabName.slice(1);
-    document.getElementById(tabId).classList.add('active');
+    const targetContent = document.getElementById(tabId);
+    if (targetContent) targetContent.classList.add('active');
 
     if (tabName === 'summary') {
         RouteManager.updateSummary();
     }
     if (tabName === 'expense') {
         MapExpenseForm.init();
-    }
-    if (tabName === 'expense') {
-        document.getElementById('bottomPanel').classList.remove('collapsed');
-        document.getElementById('bottomPanel').style.maxHeight = '85vh';
+        panel.classList.remove('collapsed');
+        panel.style.maxHeight = '85vh';
     } else {
-        document.getElementById('bottomPanel').style.maxHeight = '55vh';
+        panel.style.maxHeight = '55vh';
     }
 }
 
