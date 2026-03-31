@@ -25,49 +25,34 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
-    <!-- v1.1 ヘッダー（設定ボタン追加） -->
     <header class="app-header">
         <h1 class="app-title">CULOchan<span class="accent">業務</span>Pro</h1>
         <button class="settings-btn" onclick="AppCore.openSettings()">⚙️</button>
     </header>
-
-    <!-- タブナビゲーション -->
     <nav class="tab-nav">
         <button class="tab-btn active" data-tab="receipt" onclick="AppCore.switchTab('receipt')">
-            <span class="tab-icon">📸</span>
-            <span class="tab-label">レシート</span>
+            <span class="tab-icon">📸</span><span class="tab-label">レシート</span>
         </button>
         <button class="tab-btn" data-tab="expense" onclick="AppCore.switchTab('expense')">
-            <span class="tab-icon">🧾</span>
-            <span class="tab-label">精算書</span>
+            <span class="tab-icon">🧾</span><span class="tab-label">精算書</span>
         </button>
         <button class="tab-btn" data-tab="map" onclick="AppCore.switchTab('map')">
-            <span class="tab-icon">🗺️</span>
-            <span class="tab-label">マップ</span>
+            <span class="tab-icon">🗺️</span><span class="tab-label">マップ</span>
         </button>
     </nav>
-
-    <!-- メインコンテンツ -->
     <main class="main-content">
-        <!-- ===== レシートスキャナータブ ===== -->
         <div class="tab-panel active" id="tab-receipt">
             <div class="panel-card">
                 <div class="card-title">📸 レシートスキャナー</div>
                 <p class="card-desc">スキャナーで取り込んだレシートを自動認識・管理</p>
-
-                <!-- スキャン画像取り込み -->
                 <div class="scan-input-area">
                     <label class="scan-btn" id="scanFileBtn">
                         <span class="scan-btn-icon">📄</span>
                         <span class="scan-btn-text">スキャン画像を選択</span>
                         <span class="scan-btn-hint">JPEG / PNG / PDF</span>
-                        <input type="file" accept="image/*,.pdf" 
-                               onchange="ReceiptScanner.handleFileSelect(event)" 
-                               style="display:none">
+                        <input type="file" accept="image/*,.pdf" onchange="ReceiptScanner.handleFileSelect(event)" style="display:none">
                     </label>
                 </div>
-
-                <!-- スキャン結果プレビュー -->
                 <div id="scanPreview" class="scan-preview" style="display:none;">
                     <div class="preview-header">
                         <span class="preview-title">📋 スキャン画像</span>
@@ -77,13 +62,9 @@
                         <img id="scanImage" class="preview-image" alt="スキャン画像">
                     </div>
                     <div class="preview-actions">
-                        <button class="btn btn-primary" onclick="ReceiptScanner.startDetection()">
-                            🔍 レシートを検出する
-                        </button>
+                        <button class="btn btn-primary" onclick="ReceiptScanner.startDetection()">🔍 レシートを検出する</button>
                     </div>
                 </div>
-
-                <!-- 検出結果 -->
                 <div id="detectionResult" class="detection-result" style="display:none;">
                     <div class="result-header">
                         <span class="result-title">✂️ 検出されたレシート</span>
@@ -91,33 +72,21 @@
                     </div>
                     <div id="detectedReceipts" class="detected-list"></div>
                     <div class="result-actions">
-                        <button class="btn btn-ai" onclick="ReceiptScanner.recognizeAll()">
-                            🤖 AIで全て読み取る
-                        </button>
+                        <button class="btn btn-ai" onclick="ReceiptScanner.recognizeAll()">🤖 AIで全て読み取る</button>
                     </div>
                 </div>
-
-                <!-- AI認識済みレシート一覧 -->
                 <div id="recognizedList" class="recognized-list" style="display:none;">
                     <div class="result-header">
                         <span class="result-title">📝 認識済みレシート</span>
-                        <button class="btn-small btn-select-all" onclick="ReceiptScanner.toggleSelectAll()">
-                            全選択/解除
-                        </button>
+                        <button class="btn-small btn-select-all" onclick="ReceiptScanner.toggleSelectAll()">全選択/解除</button>
                     </div>
                     <div id="recognizedReceipts" class="receipt-cards"></div>
                     <div class="result-actions">
-                        <button class="btn btn-pdf" onclick="ReceiptScanner.generateA4Pdf()">
-                            🖨️ 選択レシートをA4 PDF出力
-                        </button>
-                        <button class="btn btn-save" onclick="ReceiptScanner.saveAll()">
-                            💾 保存する
-                        </button>
+                        <button class="btn btn-pdf" onclick="ReceiptScanner.generateA4Pdf()">🖨️ 選択レシートをA4 PDF出力</button>
+                        <button class="btn btn-save" onclick="ReceiptScanner.saveAll()">💾 保存する</button>
                     </div>
                 </div>
             </div>
-
-            <!-- 保存済みレシート履歴 -->
             <div class="panel-card">
                 <div class="card-title">📂 保存済みレシート</div>
                 <div id="savedReceiptList" class="saved-list">
@@ -125,124 +94,70 @@
                 </div>
             </div>
         </div>
-
-        <!-- ===== 交通費精算書タブ v1.2 Phase B-1 ===== -->
         <div class="tab-panel" id="tab-expense">
-            <!-- 基本情報カード -->
             <div class="panel-card">
                 <div class="card-title">📋 基本情報</div>
                 <div class="exp-basic-form">
                     <div class="exp-basic-row">
-                        <div class="exp-fg">
-                            <label>提出日</label>
-                            <input type="date" class="exp-input" id="expSubmitDate">
-                        </div>
-                        <div class="exp-fg">
-                            <label>SS名</label>
-                            <input type="text" class="exp-input" id="expSSName" value="千葉西SS">
-                        </div>
+                        <div class="exp-fg"><label>提出日</label><input type="date" class="exp-input" id="expSubmitDate"></div>
+                        <div class="exp-fg"><label>SS名</label><input type="text" class="exp-input" id="expSSName" value="千葉西SS"></div>
                     </div>
-                    <div class="exp-fg">
-                        <label>行先（お客様名）</label>
-                        <textarea class="exp-textarea" id="expDestination" rows="2" 
-                                  placeholder="逗子市&#10;クラフティ北村"></textarea>
-                    </div>
-                    <div class="exp-fg">
-                        <label>氏名</label>
-                        <input type="text" class="exp-input" id="expEmployeeName" value="小出晃也">
-                    </div>
+                    <div class="exp-fg"><label>行先（お客様名）</label><textarea class="exp-textarea" id="expDestination" rows="2" placeholder="逗子市&#10;クラフティ北村"></textarea></div>
+                    <div class="exp-fg"><label>氏名</label><input type="text" class="exp-input" id="expEmployeeName" value="小出晃也"></div>
                 </div>
             </div>
-
-            <!-- 交通費明細カード -->
             <div class="panel-card">
                 <div class="card-title">🚃 交通費明細</div>
-                <!-- v1.2 ETC利用照会リンク + v1.4 ETC CSV取り込み -->
                 <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
-                    <a href="https://www.etc-meisai.jp/" target="_blank" class="btn btn-etc" style="flex:1;min-width:140px;">
-                        🛣️ ETC利用照会を開く
-                    </a>
-                    <label class="btn btn-primary" style="flex:1;min-width:140px;cursor:pointer;text-align:center;">
-                        📥 ETC CSV取り込み
-                        <input type="file" accept=".csv" onchange="ExpenseEtc.handleFile(event)" style="display:none;">
-                    </label>
+                    <a href="https://www.etc-meisai.jp/" target="_blank" class="btn btn-etc" style="flex:1;min-width:140px;">🛣️ ETC利用照会を開く</a>
+                    <label class="btn btn-primary" style="flex:1;min-width:140px;cursor:pointer;text-align:center;">📥 ETC CSV取り込み<input type="file" accept=".csv" onchange="ExpenseEtc.handleFile(event)" style="display:none;"></label>
                 </div>
                 <div id="expenseRows"></div>
-                <button class="btn btn-primary" onclick="ExpenseManager.addRow()" style="margin-top:10px;">
-                    ➕ 行を追加
-                </button>
+                <button class="btn btn-primary" onclick="ExpenseManager.addRow()" style="margin-top:10px;">➕ 行を追加</button>
             </div>
-
-            <!-- 合計表示カード -->
             <div class="panel-card">
-                <div class="exp-total-display">
-                    <div class="exp-total-label">合計金額</div>
-                    <div class="exp-total-amount" id="expGrandTotal">¥0</div>
-                </div>
+                <div class="exp-total-display"><div class="exp-total-label">合計金額</div><div class="exp-total-amount" id="expGrandTotal">¥0</div></div>
             </div>
-
-            <!-- 操作ボタンカード -->
             <div class="panel-card">
                 <div class="exp-btn-row">
                     <button class="btn btn-pdf" onclick="ExpensePdf.generate()">📄 PDF出力</button>
-                    <button class="btn" style="background:var(--bg-card-hover);color:var(--text-secondary);border:1px solid var(--border);" 
-                            onclick="ExpenseManager.clearAll()">🗑️ クリア</button>
+                    <button class="btn" style="background:var(--bg-card-hover);color:var(--text-secondary);border:1px solid var(--border);" onclick="ExpenseManager.clearAll()">🗑️ クリア</button>
                 </div>
-                <div class="exp-btn-row">
-                    <button class="btn btn-save" onclick="ExpenseManager.saveDraft()">💾 下書き保存</button>
-                </div>
+                <div class="exp-btn-row"><button class="btn btn-save" onclick="ExpenseManager.saveDraft()">💾 下書き保存</button></div>
             </div>
-
-            <!-- 下書き一覧カード -->
             <div class="panel-card">
                 <div class="card-title">📁 下書き一覧</div>
-                <div id="expDraftList">
-                    <p class="empty-msg">下書きはありません</p>
-                </div>
+                <div id="expDraftList"><p class="empty-msg">下書きはありません</p></div>
             </div>
         </div>
-
-        <!-- ===== マップタブ v1.3 Step1 統合 ===== -->
         <div class="tab-panel" id="tab-map">
-            <!-- マップヘッダー -->
             <header class="map-header">
-                <div class="map-header-title">📍 マップ</div>
+                <div class="map-header-title">📍 メンテナンスマップ</div>
                 <div class="header-actions">
                     <button class="btn btn-ws" id="wsSwitchBtn" onclick="showWorkspaceMenu()">📅 --</button>
-                    <label class="btn btn-upload" for="fileInput">📁</label>
+                    <label class="btn btn-upload" for="fileInput">📁 読込</label>
                     <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" style="display:none">
-                    <button class="btn btn-add" onclick="showAddModal()">➕</button>
-                    <button class="btn btn-pdf" onclick="exportPDF()">📄</button>
+                    <button class="btn btn-add" onclick="showAddModal()">➕ 追加</button>
+                    <button class="btn btn-pdf" onclick="exportPDF()">📄 PDF</button>
                     <button class="btn btn-menu" onclick="toggleMenu()">⚙️</button>
                 </div>
                 <div class="count-badge" id="countBadge">0件</div>
             </header>
-
-            <!-- ワークスペースメニュー -->
             <div class="ws-menu-overlay" id="wsMenuOverlay" style="display:none;" onclick="hideWorkspaceMenu()">
                 <div class="ws-menu" onclick="event.stopPropagation()">
                     <div class="ws-menu-title">📅 ワークスペース切替</div>
                     <div class="ws-menu-list" id="wsMenuList"></div>
-                    <div class="ws-menu-actions">
-                        <button class="ws-menu-add" onclick="showAddWorkspaceDialog()">➕ 新しい月を追加</button>
-                    </div>
+                    <div class="ws-menu-actions"><button class="ws-menu-add" onclick="showAddWorkspaceDialog()">➕ 新しい月を追加</button></div>
                 </div>
             </div>
-
-            <!-- ワークスペース追加ダイアログ -->
             <div class="modal-overlay" id="addWsModal" style="display:none;">
                 <div class="modal">
                     <h2>📅 ワークスペース追加</h2>
                     <div class="modal-row"><label>年月</label><input type="month" id="addWsMonth"></div>
                     <div class="modal-row"><label>名前（任意）</label><input type="text" id="addWsName" placeholder="例：3月メンテ"></div>
-                    <div class="modal-buttons">
-                        <button class="modal-cancel" onclick="hideAddWorkspaceDialog()">キャンセル</button>
-                        <button class="modal-submit" onclick="addWorkspace()">作成</button>
-                    </div>
+                    <div class="modal-buttons"><button class="modal-cancel" onclick="hideAddWorkspaceDialog()">キャンセル</button><button class="modal-submit" onclick="addWorkspace()">作成</button></div>
                 </div>
             </div>
-
-            <!-- メニューパネル -->
             <div class="menu-panel" id="menuPanel" style="display:none;">
                 <button onclick="exportBackup()">💾 バックアップ保存</button>
                 <button onclick="importBackup()">📂 バックアップ復元</button>
@@ -250,17 +165,11 @@
                 <button onclick="showMapSettingsModal()">⚙️ 設定</button>
                 <button onclick="showResetConfirm()">🗑️ 全データ削除</button>
             </div>
-
-            <!-- 地図 -->
             <div id="map" style="width:100%;height:50vh;min-height:300px;"></div>
-
-            <!-- ルート凡例 -->
             <div class="legend" id="legend" style="display:none;">
                 <div class="legend-title">📍 ルート凡例 <button class="legend-close" onclick="toggleLegend()">✕</button></div>
                 <div id="legendItems"></div>
             </div>
-
-            <!-- 下部パネル -->
             <div class="bottom-panel" id="bottomPanel">
                 <div class="panel-handle" onclick="togglePanel()"><div class="handle-bar"></div></div>
                 <div class="panel-tabs">
@@ -270,165 +179,27 @@
                     <button class="tab" data-tab="expense" onclick="mapSwitchTab('expense')">💰 精算書</button>
                 </div>
                 <div class="panel-content">
-                    <div class="tab-content active" id="tabList">
-                        <div id="customerList" class="customer-list"></div>
-                    </div>
-                    <div class="tab-content" id="tabRoute">
-                        <div id="routeManager" class="route-manager"></div>
-                    </div>
-                    <div class="tab-content" id="tabSummary">
-                        <div id="summaryContent" class="summary-content">
-                            <p class="empty-msg">ルートを作成すると集計が表示されます</p>
-                        </div>
-                    </div>
-                    <div class="tab-content" id="tabExpense">
-                        <p class="empty-msg">💰 精算書タブを選択すると表示されます</p>
-                    </div>
+                    <div class="tab-content active" id="tabList"><div id="customerList" class="customer-list"></div></div>
+                    <div class="tab-content" id="tabRoute"><div id="routeManager" class="route-manager"></div></div>
+                    <div class="tab-content" id="tabSummary"><div id="summaryContent" class="summary-content"><p class="empty-msg">ルートを作成すると集計が表示されます</p></div></div>
+                    <div class="tab-content" id="tabExpense"><p class="empty-msg">💰 精算書タブを選択すると表示されます</p></div>
                 </div>
             </div>
-
-            <!-- 手動追加モーダル -->
-            <div class="modal-overlay" id="addModal" style="display:none;">
-                <div class="modal">
-                    <h2>➕ メンテナンス先を追加</h2>
-                    <div class="modal-row"><label>会社名 *</label><input type="text" id="addCompany" placeholder="例：㈱サンプル会社"></div>
-                    <div class="modal-row"><label>住所 *</label><input type="text" id="addAddress" placeholder="例：東京都港区虎ノ門1-1-1"></div>
-                    <div class="modal-row"><label>電話番号</label><input type="tel" id="addPhone" placeholder="例：03-1234-5678"></div>
-                    <div class="modal-row"><label>担当者</label><input type="text" id="addContact" placeholder="例：山田様"></div>
-                    <div class="modal-row"><label>目的</label>
-                        <select id="addPurpose">
-                            <option value="">未設定</option>
-                            <option value="メンテナンス">メンテナンス</option>
-                            <option value="修理">修理</option>
-                            <option value="本体設置">本体設置</option>
-                            <option value="その他">その他</option>
-                        </select>
-                    </div>
-                    <div class="modal-row"><label>備考</label><textarea id="addNote" placeholder="台数や機種、駐車場情報など..."></textarea></div>
-                    <div class="modal-buttons">
-                        <button class="modal-cancel" onclick="hideAddModal()">キャンセル</button>
-                        <button class="modal-submit" onclick="addNewLocation()">追加する</button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 詳細編集モーダル -->
-            <div class="modal-overlay" id="editModal" style="display:none;">
-                <div class="modal">
-                    <h2>📝 詳細編集</h2>
-                    <div class="modal-row"><label>会社名</label><input type="text" id="editCompany"></div>
-                    <div class="modal-row"><label>住所</label><input type="text" id="editAddress"></div>
-                    <div class="modal-row"><label>電話番号</label><input type="tel" id="editPhone"></div>
-                    <div class="modal-row"><label>担当者</label><input type="text" id="editContact"></div>
-                    <div class="modal-row"><label>ルート</label><select id="editRoute"></select></div>
-                    <div class="modal-row"><label>アポ日時</label><input type="datetime-local" id="editAppoDate"></div>
-                    <div class="modal-row"><label>ステータス</label>
-                        <select id="editStatus">
-                            <option value="pending">未アポ</option>
-                            <option value="appointed">アポ済み</option>
-                            <option value="completed">完了</option>
-                        </select>
-                    </div>
-                    <div class="modal-row"><label>目的</label>
-                        <select id="editPurpose">
-                            <option value="">未設定</option>
-                            <option value="メンテナンス">メンテナンス</option>
-                            <option value="修理">修理</option>
-                            <option value="本体設置">本体設置</option>
-                            <option value="その他">その他</option>
-                        </select>
-                    </div>
-                    <div class="modal-row"><label>備考</label><textarea id="editNote"></textarea></div>
-                    <div class="modal-buttons">
-                        <button class="modal-cancel" onclick="hideEditModal()">キャンセル</button>
-                        <button class="modal-delete" onclick="deleteLocation()">🗑️ 削除</button>
-                        <button class="modal-submit" onclick="saveEdit()">保存</button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- マップ設定モーダル -->
-            <div class="modal-overlay" id="mapSettingsModal" style="display:none;">
-                <div class="modal">
-                    <h2>⚙️ マップ設定</h2>
-                    <div class="modal-row"><label>自宅住所（出発点）</label><input type="text" id="settingHomeAddress" placeholder="例：千葉県袖ケ浦市..."></div>
-                    <div class="modal-row"><label>Google Maps APIキー</label><input type="text" id="settingApiKey" placeholder="APIキーを入力"></div>
-                    <div class="modal-buttons">
-                        <button class="modal-cancel" onclick="hideMapSettingsModal()">キャンセル</button>
-                        <button class="modal-submit" onclick="saveMapSettings()">保存</button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- リセット確認モーダル -->
-            <div class="modal-overlay" id="resetModal" style="display:none;">
-                <div class="modal">
-                    <h2>🗑️ データをリセット</h2>
-                    <p class="confirm-text">現在のワークスペースのデータをすべて削除しますか？<br>この操作は取り消せません。<br><strong id="resetCount">0件</strong>のデータが削除されます</p>
-                    <div class="modal-buttons">
-                        <button class="modal-cancel" onclick="hideResetConfirm()">キャンセル</button>
-                        <button class="modal-delete" onclick="resetAllData()">削除する</button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- マップ用ローディング -->
-            <div class="loading-overlay" id="mapLoading" style="display:none;">
-                <div class="loading-content">
-                    <div class="loading-spinner"></div>
-                    <p>📍 処理中...</p>
-                    <p id="mapLoadingProgress"></p>
-                </div>
-            </div>
+            <div class="modal-overlay" id="addModal" style="display:none;"><div class="modal"><h2>➕ メンテナンス先を追加</h2><div class="modal-row"><label>会社名 *</label><input type="text" id="addCompany" placeholder="例：㈱サンプル会社"></div><div class="modal-row"><label>住所 *</label><input type="text" id="addAddress" placeholder="例：東京都港区虎ノ門1-1-1"></div><div class="modal-row"><label>電話番号</label><input type="tel" id="addPhone" placeholder="例：03-1234-5678"></div><div class="modal-row"><label>担当者</label><input type="text" id="addContact" placeholder="例：山田様"></div><div class="modal-row"><label>目的</label><select id="addPurpose"><option value="">未設定</option><option value="メンテナンス">メンテナンス</option><option value="修理">修理</option><option value="本体設置">本体設置</option><option value="その他">その他</option></select></div><div class="modal-row"><label>備考</label><textarea id="addNote" placeholder="台数や機種、駐車場情報など..."></textarea></div><div class="modal-buttons"><button class="modal-cancel" onclick="hideAddModal()">キャンセル</button><button class="modal-submit" onclick="addNewLocation()">追加する</button></div></div></div>
+            <div class="modal-overlay" id="editModal" style="display:none;"><div class="modal"><h2>📝 詳細編集</h2><div class="modal-row"><label>会社名</label><input type="text" id="editCompany"></div><div class="modal-row"><label>住所</label><input type="text" id="editAddress"></div><div class="modal-row"><label>電話番号</label><input type="tel" id="editPhone"></div><div class="modal-row"><label>担当者</label><input type="text" id="editContact"></div><div class="modal-row"><label>ルート</label><select id="editRoute"></select></div><div class="modal-row"><label>アポ日時</label><input type="datetime-local" id="editAppoDate"></div><div class="modal-row"><label>ステータス</label><select id="editStatus"><option value="pending">未アポ</option><option value="appointed">アポ済み</option><option value="completed">完了</option></select></div><div class="modal-row"><label>目的</label><select id="editPurpose"><option value="">未設定</option><option value="メンテナンス">メンテナンス</option><option value="修理">修理</option><option value="本体設置">本体設置</option><option value="その他">その他</option></select></div><div class="modal-row"><label>備考</label><textarea id="editNote"></textarea></div><div class="modal-buttons"><button class="modal-cancel" onclick="hideEditModal()">キャンセル</button><button class="modal-delete" onclick="deleteLocation()">🗑️ 削除</button><button class="modal-submit" onclick="saveEdit()">保存</button></div></div></div>
+            <div class="modal-overlay" id="mapSettingsModal" style="display:none;"><div class="modal"><h2>⚙️ マップ設定</h2><div class="modal-row"><label>自宅住所（出発点）</label><input type="text" id="settingHomeAddress" placeholder="例：千葉県袖ケ浦市..."></div><div class="modal-row"><label>Google Maps APIキー</label><input type="text" id="settingApiKey" placeholder="APIキーを入力"></div><div class="modal-buttons"><button class="modal-cancel" onclick="hideMapSettingsModal()">キャンセル</button><button class="modal-submit" onclick="saveMapSettings()">保存</button></div></div></div>
+            <div class="modal-overlay" id="resetModal" style="display:none;"><div class="modal"><h2>🗑️ データをリセット</h2><p class="confirm-text">現在のワークスペースのデータをすべて削除しますか？<br>この操作は取り消せません。<br><strong id="resetCount">0件</strong>のデータが削除されます</p><div class="modal-buttons"><button class="modal-cancel" onclick="hideResetConfirm()">キャンセル</button><button class="modal-delete" onclick="resetAllData()">削除する</button></div></div></div>
+            <div class="loading-overlay" id="mapLoading" style="display:none;"><div class="loading-content"><div class="loading-spinner"></div><p>📍 処理中...</p><p id="mapLoadingProgress"></p></div></div>
         </div>
     </main>
-
-    <!-- v1.1追加: 設定モーダル -->
-    <div class="modal-overlay" id="settingsModal" style="display:none;" onclick="AppCore.closeSettings(event)">
-        <div class="modal-content" onclick="event.stopPropagation()">
-            <div class="modal-header">
-                <span class="modal-title">⚙️ 設定</span>
-                <button class="btn-small btn-clear" onclick="AppCore.closeSettings()">✕</button>
-            </div>
-            <div class="modal-body">
-                <div class="setting-group">
-                    <label class="setting-label">🔑 Gemini APIキー</label>
-                    <p class="setting-hint">レシートのAI読み取りに使用します</p>
-                    <input type="password" id="settingGeminiKey" class="setting-input" 
-                           placeholder="AIza...">
-                    <p class="setting-hint" style="margin-top:8px;">
-                        <a href="https://aistudio.google.com/apikey" target="_blank" 
-                           style="color:var(--accent-light);">
-                            Google AI Studio でAPIキーを取得 →
-                        </a>
-                    </p>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-save" onclick="AppCore.saveSettings()">
-                    💾 保存する
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- ローディング -->
-    <div class="loading-overlay" id="loading" style="display:none;">
-        <div class="loading-spinner"></div>
-        <div class="loading-text" id="loadingText">処理中...</div>
-    </div>
-
-    <!-- 共通JS -->
+    <div class="modal-overlay" id="settingsModal" style="display:none;" onclick="AppCore.closeSettings(event)"><div class="modal-content" onclick="event.stopPropagation()"><div class="modal-header"><span class="modal-title">⚙️ 設定</span><button class="btn-small btn-clear" onclick="AppCore.closeSettings()">✕</button></div><div class="modal-body"><div class="setting-group"><label class="setting-label">🔑 Gemini APIキー</label><p class="setting-hint">レシートのAI読み取りに使用します</p><input type="password" id="settingGeminiKey" class="setting-input" placeholder="AIza..."><p class="setting-hint" style="margin-top:8px;"><a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--accent-light);">Google AI Studio でAPIキーを取得 →</a></p></div></div><div class="modal-footer"><button class="btn btn-save" onclick="AppCore.saveSettings()">💾 保存する</button></div></div></div>
+    <div class="loading-overlay" id="loading" style="display:none;"><div class="loading-spinner"></div><div class="loading-text" id="loadingText">処理中...</div></div>
     <script src="shared/app-core.js"></script>
-    <!-- レシートスキャナーJS -->
     <script src="receipt/receipt-image-utils.js"></script>
     <script src="receipt/receipt-scanner.js"></script>
-    <!-- v1.2追加: 精算書JS -->
     <script src="expense/expense-manager.js"></script>
     <script src="expense/expense-pdf.js"></script>
-    <!-- v1.4追加: 精算書ETC取り込み -->
     <script src="expense/expense-etc.js"></script>
-    <!-- v1.3追加: マップモジュール（12ファイル） -->
     <script src="map/map-data-storage.js"></script>
     <script src="map/v1-converter.js"></script>
     <script src="map/csv-handler.js"></script>
@@ -441,52 +212,26 @@
     <script src="map/distance-calc.js"></script>
     <script src="map/etc-reader.js"></script>
     <script src="map/ui-actions.js"></script>
-    <!-- v1.3: 初期化処理 -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // 精算書タブ初期化
             ExpenseManager.init();
-
-            // v1.3 マップ初期化: マイグレーション＋ワークスペースボタン更新
             DataStorage.migrateIfNeeded();
             updateWsButton();
-
-            // v1.3 ファイル読込イベント
             var fi = document.getElementById('fileInput');
             if (fi) fi.addEventListener('change', function(e) { CsvHandler.handleFile(e); });
             var bi = document.getElementById('backupInput');
             if (bi) bi.addEventListener('change', function(e) { DataStorage.importBackup(e); });
-
-            // v1.3 Google Maps APIの遅延読み込み（APIキーがあれば）
             var mapSettings = DataStorage.getSettings();
             if (mapSettings.apiKey) {
                 var s = document.createElement('script');
                 s.src = 'https://maps.googleapis.com/maps/api/js?key=' + mapSettings.apiKey + '&libraries=places,geometry&callback=initMap';
-                s.async = true;
-                s.defer = true;
+                s.async = true; s.defer = true;
                 document.body.appendChild(s);
             }
         });
-
-        // v1.3 マップ設定モーダル関数（ID衝突回避でリネーム）
-        function showMapSettingsModal() {
-            var s = DataStorage.getSettings();
-            document.getElementById('settingHomeAddress').value = s.homeAddress || '';
-            document.getElementById('settingApiKey').value = s.apiKey || '';
-            document.getElementById('mapSettingsModal').style.display = 'flex';
-        }
-        function hideMapSettingsModal() {
-            document.getElementById('mapSettingsModal').style.display = 'none';
-        }
-        function saveMapSettings() {
-            var s = DataStorage.getSettings();
-            s.homeAddress = document.getElementById('settingHomeAddress').value.trim();
-            s.apiKey = document.getElementById('settingApiKey').value.trim();
-            DataStorage.saveSettings(s);
-            hideMapSettingsModal();
-            alert('✅ マップ設定を保存しました！\nページをリロードします。');
-            location.reload();
-        }
+        function showMapSettingsModal() { var s = DataStorage.getSettings(); document.getElementById('settingHomeAddress').value = s.homeAddress || ''; document.getElementById('settingApiKey').value = s.apiKey || ''; document.getElementById('mapSettingsModal').style.display = 'flex'; }
+        function hideMapSettingsModal() { document.getElementById('mapSettingsModal').style.display = 'none'; }
+        function saveMapSettings() { var s = DataStorage.getSettings(); s.homeAddress = document.getElementById('settingHomeAddress').value.trim(); s.apiKey = document.getElementById('settingApiKey').value.trim(); DataStorage.saveSettings(s); hideMapSettingsModal(); alert('✅ マップ設定を保存しました！\nページをリロードします。'); location.reload(); }
     </script>
 </body>
 </html>
