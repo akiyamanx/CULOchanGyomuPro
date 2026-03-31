@@ -1,4 +1,4 @@
-/* [CULOchanGyomuPro統合] v1.3 2026-03-31 - maintenance-map-ap v2.5からコピー */
+/* [CULOchanGyomuPro統合] v1.4 2026-03-31 - ダークテーマ対応 */
 /* ============================================
  * メンテナンスマップ v2.3 - workspace-styles.css
  * ワークスペース切り替えUIのスタイル
@@ -39,24 +39,26 @@
 }
 
 /* v2.3 - ワークスペースメニュー本体 */
+/* v1.4修正: ダークテーマ対応 */
 .ws-menu {
-    background: #fff;
+    background: #1c2d3f;
     border-radius: 16px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
     width: 90%;
     max-width: 360px;
     max-height: 70vh;
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    border: 1px solid #2a3f55;
 }
 
 .ws-menu-title {
     padding: 16px 20px 12px;
     font-size: 16px;
     font-weight: 700;
-    color: #1e293b;
-    border-bottom: 1px solid #e2e8f0;
+    color: #e8edf2;
+    border-bottom: 1px solid #2a3f55;
 }
 
 .ws-menu-list {
@@ -75,10 +77,10 @@
     gap: 8px;
 }
 .ws-menu-item:active {
-    background: #f1f5f9;
+    background: #243a50;
 }
 .ws-menu-item.ws-active {
-    background: #eff6ff;
+    background: rgba(59, 130, 246, 0.15);
 }
 
 .ws-menu-item-main {
@@ -98,12 +100,12 @@
 .ws-menu-name {
     font-size: 15px;
     font-weight: 600;
-    color: #1e293b;
+    color: #e8edf2;
 }
 
 .ws-menu-sub {
     font-size: 12px;
-    color: #94a3b8;
+    color: #8fa3b8;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -111,8 +113,8 @@
 
 .ws-menu-count {
     font-size: 12px;
-    color: #64748b;
-    background: #f1f5f9;
+    color: #8fa3b8;
+    background: #162230;
     padding: 2px 8px;
     border-radius: 10px;
     flex-shrink: 0;
@@ -129,35 +131,36 @@
     opacity: 0.5;
 }
 .ws-menu-delete:active {
-    background: #fee2e2;
+    background: rgba(239, 71, 111, 0.2);
     opacity: 1;
 }
 
 .ws-menu-empty {
     padding: 24px 20px;
     text-align: center;
-    color: #94a3b8;
+    color: #8fa3b8;
     font-size: 14px;
 }
 
 /* v2.3 - ワークスペース追加ボタン */
+/* v1.4修正: ダークテーマ対応 */
 .ws-menu-actions {
-    border-top: 1px solid #e2e8f0;
+    border-top: 1px solid #2a3f55;
     padding: 12px 20px;
 }
 .ws-menu-add {
     width: 100%;
-    background: #f8fafc;
-    border: 2px dashed #cbd5e1;
+    background: #162230;
+    border: 2px dashed #2a3f55;
     border-radius: 10px;
     padding: 12px;
     font-size: 14px;
     font-weight: 600;
-    color: #475569;
+    color: #8fa3b8;
     cursor: pointer;
     transition: all 0.15s;
 }
 .ws-menu-add:active {
-    background: #e2e8f0;
-    border-color: #94a3b8;
+    background: #243a50;
+    border-color: #3b82f6;
 }
