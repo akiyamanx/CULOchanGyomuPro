@@ -1,7 +1,8 @@
 // ==========================================
-// CULOchan業務Pro — 精算書ETC取り込み v1.0
+// CULOchan業務Pro — 精算書ETC取り込み v1.1
 // このファイルは精算書タブでのETC利用照会CSV取り込み→高速代自動反映を担当する
 // map/etc-reader.jsのパーサーを流用し、ExpenseManagerへの反映に特化
+// v1.1修正: 高速代を合計金額で反映（個別金額→合計に変更）
 //
 // 依存: expense-manager.js
 // ==========================================
@@ -151,14 +152,15 @@ const ExpenseEtc = (() => {
         // v1.0 - 精算書の最初の行に反映
         const firstRow = document.querySelector('#tab-expense .exp-row');
         if (firstRow) {
-            // v1.0 - 高速代にカンマ区切りで入力
+            // v1.1修正: 高速代に合計金額を入力（個別金額ではなく合計）
             const hwInput = firstRow.querySelector('.exp-highway');
             if (hwInput) {
                 if (hwInput.value.trim()) {
-                    // v1.0 - 既存値がある場合は追記
-                    hwInput.value = hwInput.value.trim() + ',' + amounts.join(',');
+                    // v1.0 - 既存値がある場合は加算
+                    const prev = parseInt(hwInput.value.replace(/[^0-9]/g, '')) || 0;
+                    hwInput.value = prev + totalAmount;
                 } else {
-                    hwInput.value = amounts.join(',');
+                    hwInput.value = totalAmount;
                 }
             }
             // v1.0 - 枚数にETC通行回数を反映
