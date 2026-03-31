@@ -40,13 +40,14 @@
     color: var(--text-light); margin-bottom: 3px;
 }
 
+/* v1.4修正: background→--bgで親セクションとの差を出す。colorも明示 */
 .exp-field input,
 .exp-field select,
 .exp-field textarea {
     width: 100%; padding: 8px 10px;
     border: 1.5px solid var(--border); border-radius: 8px;
     font-size: 14px; font-family: var(--font);
-    outline: none; background: var(--surface);
+    outline: none; background: var(--bg); color: var(--text);
     transition: border-color 0.2s, box-shadow 0.2s;
 }
 
