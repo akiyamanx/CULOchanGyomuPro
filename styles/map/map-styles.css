@@ -1,8 +1,5 @@
 /* [CULOchanGyomuPro統合] v1.8 2026-04-01 - 凡例ボタン追加＋タブ縦パディング拡大 */
-/* ============================================
- * メンテナンスマップ v2.0 - map-styles.css
- * v1.8 凡例ボタン追加＋タブ縦パディング拡大＋collapsed修正
- * ============================================ */
+/* メンテナンスマップ - 全スタイル定義 */
 
 /* --- CSS変数（v1.4 ダークテーマ対応） --- */
 #tab-map {
@@ -11,8 +8,7 @@
     --bg: #162230; --surface: #1c2d3f;
     --text: #e8edf2; --text-light: #8fa3b8;
     --border: #2a3f55;
-    --shadow: 0 2px 8px rgba(0,0,0,0.3);
-    --shadow-lg: 0 8px 24px rgba(0,0,0,0.4);
+    --shadow: 0 2px 8px rgba(0,0,0,0.3); --shadow-lg: 0 8px 24px rgba(0,0,0,0.4);
     --radius: 10px;
     --font: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
 }
@@ -26,9 +22,8 @@
 }
 .compact-ws-btn {
     background: rgba(255,255,255,0.2); color: white; border: none;
-    padding: 6px 12px; border-radius: 16px;
-    font-size: 13px; font-weight: 700; cursor: pointer;
-    font-family: var(--font); transition: background 0.2s;
+    padding: 6px 12px; border-radius: 16px; font-size: 13px; font-weight: 700;
+    cursor: pointer; font-family: var(--font); transition: background 0.2s;
 }
 .compact-ws-btn:active { background: rgba(255,255,255,0.35); }
 /* v1.8追加: 凡例表示ボタン */
@@ -117,14 +112,13 @@
 .bottom-panel {
     position: relative; background: var(--surface);
     border-radius: 16px 16px 0 0; box-shadow: 0 -4px 16px rgba(0,0,0,0.1);
-    z-index: 150; max-height: 55vh;
-    transition: transform 0.3s ease, max-height 0.3s ease;
+    z-index: 150; max-height: 55vh; transition: transform 0.3s ease, max-height 0.3s ease;
 }
 .bottom-panel.collapsed { transform: translateY(calc(100% - 44px)); }
 .panel-handle { display: flex; justify-content: center; padding: 10px; cursor: pointer; }
 .handle-bar { width: 40px; height: 4px; background: #5a7089; border-radius: 2px; }
 .panel-tabs { display: flex; border-bottom: 1px solid var(--border); padding: 0 8px; }
-/* v1.8修正: タブ縦パディング拡大 8px→12px */
+/* v1.8修正: タブボタンの縦パディングを拡大（8px→12px） */
 .tab {
     flex: 1; padding: 12px 4px; border: none; background: none;
     font-size: 12px; font-weight: 500; cursor: pointer; font-family: var(--font);
@@ -206,10 +200,8 @@
 .modal-delete { background: var(--danger); color: white; }
 .confirm-text { text-align: center; font-size: 14px; line-height: 1.8; padding: 8px 0; }
 
-/* --- ローディング --- */
+/* --- ローディング・吹き出し --- */
 .loading-content { text-align: center; color: white; font-size: 16px; }
-
-/* --- 吹き出し（InfoWindow） --- */
 .info-window { font-family: var(--font); max-width: 260px; }
 .info-window h3 { font-size: 14px; margin-bottom: 4px; color: var(--primary-dark); }
 .info-window p { font-size: 12px; color: var(--text-light); margin: 2px 0; }
@@ -225,7 +217,7 @@
 /* --- タブ内統合用スタイル（#tab-mapスコープ） --- */
 #tab-map { position: relative; overflow-y: auto; overflow-x: hidden; }
 .map-compact-bar { position: sticky; top: 0; z-index: 100; }
-/* v1.7修正: collapsed折りたたみをmax-height方式に */
+/* v1.7修正: bottom-panelのcollapsedをmax-height方式に変更 */
 #tab-map .bottom-panel {
     position: relative; max-height: 55vh; border-radius: 0;
     box-shadow: 0 -2px 8px rgba(0,0,0,0.1); overflow: hidden; transition: max-height 0.3s ease;
