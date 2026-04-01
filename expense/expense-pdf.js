@@ -1,20 +1,16 @@
 // ==========================================
-// CULOchan業務Pro — 精算書PDF出力 v1.1
+// CULOchan業務Pro — 精算書PDF出力 v1.2
 // このファイルは交通費精算書のPDF生成を担当する
 // html2canvas + jsPDF で横向きA4に11列テーブルを描画
 // 日本ROメンテナンスサービス向けの書式
 // v1.1改修 - 行先セルを会社名行＋住所行の2段表示に対応
+// v1.2改修 - 行先セルの会社名と住所の間の余白を縮小（品川がギリギリ問題を修正）
 //
 // 依存: app-core.js, expense-manager.js, html2canvas, jsPDF
 // ==========================================
 
 const ExpensePdf = (() => {
 
-    // ==========================================
-    // PDF用HTMLを生成してDOMに挿入
-    // ==========================================
-
-    // v1.0 - PDF出力用の隠しDOM要素を生成
     function _buildPdfDom(header, rows) {
         const old = document.getElementById('expPdfContent');
         if (old) old.remove();
@@ -102,11 +98,11 @@ const ExpensePdf = (() => {
             + '<td style="width:50%;text-align:center;font-size:10px;">経理</td></tr></table></td>'
             + '<td style="border:1px solid black;text-align:center;font-size:10px;">本部</td>'
             + '</tr>'
-            // v1.1改修 - 行先セル: 会社名行（大）＋住所行（小）の2段表示
+            // v1.2改修 - 行先セル: margin-bottom:4px→1px に縮小してセル内余白を確保
             + '<tr>'
             + '<td colspan="2" style="border:1px solid black;padding:3px 5px;text-align:center;height:50px;">行先<br><span style="font-size:8px;">（お客様名）</span></td>'
             + '<td colspan="4" style="border:1px solid black;text-align:left;padding-left:10px;height:50px;vertical-align:middle;">'
-            + '<div style="font-size:11px;margin-bottom:4px;">' + _esc(header.destCompany || '') + '</div>'
+            + '<div style="font-size:11px;margin-bottom:1px;">' + _esc(header.destCompany || '') + '</div>'
             + '<div style="font-size:9px;color:#444;">' + _esc(header.destAddress || '') + '</div>'
             + '</td>'
             + '<td style="border:1px solid black;padding:3px 5px;text-align:center;">氏名</td>'
@@ -158,9 +154,6 @@ const ExpensePdf = (() => {
         return div;
     }
 
-    // ==========================================
-    // PDF生成メイン
-    // ==========================================
     async function generate() {
         const header = ExpenseManager.getHeaderData();
         const rows = ExpenseManager.getRowsData();
