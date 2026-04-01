@@ -1,4 +1,4 @@
-// [CULOchanGyomuPro統合] v1.6 2026-04-01 - mapSwitchTabデバッグ版
+// [CULOchanGyomuPro統合] v1.7 2026-04-01 - erudaデバッグ版＋mapSwitchTab改善
 // ============================================
 // メンテナンスマップ v2.5 - ui-actions.js
 // グローバルUI関数（モーダル・メニュー・パネル制御）
@@ -7,7 +7,7 @@
 // v2.5追加 - 目的(purpose)フィールド対応
 // v1.4追加 - ドロップダウン式ツールバー（toggleMapToolbar）
 // v1.5修正 - mapSwitchTab/reloadAllUIのセレクタを#bottomPanelスコープに限定
-// v1.6修正 - mapSwitchTabにデバッグログ＋元のdocument.querySelectorAllに戻して検証
+// v1.7修正 - mapSwitchTabデバッグ強化＋eruda対応
 // ============================================
 
 // =============================================
@@ -345,21 +345,29 @@ function togglePanel() {
     document.getElementById('bottomPanel').classList.toggle('collapsed');
 }
 
-// v1.6修正: デバッグログ付き＋元のdocument.querySelectorAll方式に戻して比較
+// v1.7修正: デバッグログ強化＋nullガード
 function mapSwitchTab(tabName) {
     console.log('[mapSwitchTab] 呼ばれた tabName=' + tabName);
-    // 元のグローバルセレクタ方式に戻す（night4で動いていた方式）
-    document.querySelectorAll('#bottomPanel .tab').forEach(function(t) { t.classList.remove('active'); });
-    document.querySelectorAll('#bottomPanel .tab-content').forEach(function(t) { t.classList.remove('active'); });
+    // v1.7 デバッグ強化: 各ステップの結果を確認
+    var allTabs = document.querySelectorAll('#bottomPanel .tab');
+    var allContents = document.querySelectorAll('#bottomPanel .tab-content');
+    console.log('[mapSwitchTab] tabs=' + allTabs.length + ' contents=' + allContents.length);
+    
+    allTabs.forEach(function(t) { t.classList.remove('active'); });
+    allContents.forEach(function(t) { t.classList.remove('active'); });
+    
     var targetTab = document.querySelector('#bottomPanel .tab[data-tab="' + tabName + '"]');
     console.log('[mapSwitchTab] targetTab=', targetTab);
     if (targetTab) targetTab.classList.add('active');
+    
     var tabId = 'tab' + tabName.charAt(0).toUpperCase() + tabName.slice(1);
     var targetContent = document.getElementById(tabId);
     console.log('[mapSwitchTab] tabId=' + tabId + ' targetContent=', targetContent);
     if (targetContent) {
         targetContent.classList.add('active');
-        console.log('[mapSwitchTab] activeクラス追加完了 classList=', targetContent.classList.toString());
+        console.log('[mapSwitchTab] activeクラス追加完了');
+    } else {
+        console.error('[mapSwitchTab] ❌ targetContentが見つからない! tabId=' + tabId);
     }
 
     if (tabName === 'summary') {
