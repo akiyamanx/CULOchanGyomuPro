@@ -1,15 +1,14 @@
-/* [CULOchanGyomuPro統合] v1.6 2026-04-01 - スプラッシュ・旧header削除で500行以内に */
+/* [CULOchanGyomuPro統合] v1.7 2026-04-01 - collapsed折りたたみ修正（max-height方式） */
 /* ============================================
  * メンテナンスマップ v2.0 - styles.css
  * 全スタイル定義
  * v2.0新規作成 - 分割ファイル構成対応
  * v1.4 ダークテーマ対応 + .btnスコープ化
  * v1.5 マップヘッダーをドロップダウン式に変更
- * v1.6 スプラッシュCSS・旧header・重複loading削除で500行以内に
+ * v1.7 collapsed折りたたみをmax-height方式に修正
  * ============================================ */
 
 /* --- CSS変数（v1.4 ダークテーマ対応） --- */
-/* v1.4修正: :rootからスコープ化。common.cssのダークテーマに合わせた色に変更 */
 #tab-map {
     --primary: #3b82f6;
     --primary-light: #60a5fa;
@@ -32,11 +31,7 @@
 
 /* ============================================
  * v1.5追加: コンパクトバー＋ドロップダウンツールバー
- * 閉じた時: 1行（WS名＋件数＋▼ボタン）
- * 開いた時: ドロップダウンで操作ボタン展開
  * ============================================ */
-
-/* --- コンパクトバー（常時表示の1行） --- */
 .map-compact-bar {
     background: var(--primary);
     color: white;
@@ -49,8 +44,6 @@
     z-index: 100;
     box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
-
-/* v1.5 WSボタン（コンパクトバー内） */
 .compact-ws-btn {
     background: rgba(255,255,255,0.2);
     color: white;
@@ -63,11 +56,7 @@
     font-family: var(--font);
     transition: background 0.2s;
 }
-.compact-ws-btn:active {
-    background: rgba(255,255,255,0.35);
-}
-
-/* v1.5 件数バッジ */
+.compact-ws-btn:active { background: rgba(255,255,255,0.35); }
 .compact-count {
     background: rgba(255,255,255,0.15);
     padding: 3px 10px;
@@ -76,32 +65,20 @@
     font-weight: 500;
     margin-left: auto;
 }
-
-/* v1.5 ドロップダウン展開ボタン */
 .compact-toggle-btn {
     background: rgba(255,255,255,0.2);
     color: white;
     border: none;
-    width: 32px;
-    height: 32px;
+    width: 32px; height: 32px;
     border-radius: 50%;
     font-size: 14px;
     cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: flex; align-items: center; justify-content: center;
     transition: background 0.2s, transform 0.3s;
     font-family: var(--font);
 }
-.compact-toggle-btn:active {
-    background: rgba(255,255,255,0.35);
-}
-/* v1.5 展開時に▼を▲に回転 */
-.compact-toggle-btn.expanded {
-    transform: rotate(180deg);
-}
-
-/* --- ドロップダウンパネル（展開時のボタン群） --- */
+.compact-toggle-btn:active { background: rgba(255,255,255,0.35); }
+.compact-toggle-btn.expanded { transform: rotate(180deg); }
 .map-toolbar-dropdown {
     background: var(--surface);
     border-bottom: 1px solid var(--border);
@@ -110,58 +87,27 @@
     transition: max-height 0.3s ease, padding 0.3s ease;
     padding: 0 12px;
 }
-/* v1.5 展開状態 */
-.map-toolbar-dropdown.expanded {
-    max-height: 300px;
-    padding: 8px 12px;
-}
-
-/* v1.5 ツールバー内の各アイテム */
+.map-toolbar-dropdown.expanded { max-height: 300px; padding: 8px 12px; }
 .toolbar-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    width: 100%;
-    padding: 12px 14px;
-    background: none;
-    border: none;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--text);
-    cursor: pointer;
+    display: flex; align-items: center; gap: 12px;
+    width: 100%; padding: 12px 14px;
+    background: none; border: none; border-radius: 8px;
+    font-size: 14px; font-weight: 500;
+    color: var(--text); cursor: pointer;
     font-family: var(--font);
     transition: background 0.15s;
     text-decoration: none;
 }
-.toolbar-item:active {
-    background: var(--bg);
-}
-.toolbar-icon {
-    font-size: 18px;
-    width: 24px;
-    text-align: center;
-    flex-shrink: 0;
-}
-.toolbar-label {
-    flex: 1;
-}
+.toolbar-item:active { background: var(--bg); }
+.toolbar-icon { font-size: 18px; width: 24px; text-align: center; flex-shrink: 0; }
+.toolbar-label { flex: 1; }
 
-/* v1.6 旧map-header削除済み */
-
-/* --- ボタン共通（v1.4修正: #tab-mapスコープで他タブへの漏れ防止） --- */
+/* --- ボタン共通（#tab-mapスコープ） --- */
 #tab-map .btn {
-    background: rgba(255,255,255,0.9);
-    color: var(--primary);
-    border: none;
-    padding: 6px 10px;
-    border-radius: 16px;
-    font-size: 11px;
-    font-weight: 600;
-    cursor: pointer;
-    white-space: nowrap;
-    font-family: var(--font);
-    transition: background 0.2s;
+    background: rgba(255,255,255,0.9); color: var(--primary);
+    border: none; padding: 6px 10px; border-radius: 16px;
+    font-size: 11px; font-weight: 600; cursor: pointer;
+    white-space: nowrap; font-family: var(--font); transition: background 0.2s;
 }
 #tab-map .btn:active { background: rgba(255,255,255,0.7); }
 #tab-map .btn-pdf { background: var(--success); color: white; }
@@ -170,55 +116,34 @@
 
 /* --- メニューパネル --- */
 .menu-panel {
-    position: absolute;
-    top: 48px; right: 8px;
-    background: var(--surface);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-lg);
-    z-index: 200;
-    overflow: hidden;
+    position: absolute; top: 48px; right: 8px;
+    background: var(--surface); border-radius: var(--radius);
+    box-shadow: var(--shadow-lg); z-index: 200; overflow: hidden;
 }
 .menu-panel button {
-    display: block; width: 100%;
-    padding: 12px 20px;
-    border: none; background: none;
-    font-size: 14px; text-align: left;
-    cursor: pointer; font-family: var(--font);
-    border-bottom: 1px solid var(--border);
+    display: block; width: 100%; padding: 12px 20px;
+    border: none; background: none; font-size: 14px; text-align: left;
+    cursor: pointer; font-family: var(--font); border-bottom: 1px solid var(--border);
 }
 .menu-panel button:last-child { border-bottom: none; }
 .menu-panel button:active { background: var(--bg); }
 
 /* --- 地図 --- */
-#map {
-    width: 100%;
-    height: 50vh; min-height: 300px;
-}
+#map { width: 100%; height: 50vh; min-height: 300px; }
 
 /* --- ルート凡例 --- */
 .legend {
-    position: absolute;
-    bottom: 60px; left: 8px;
-    background: var(--surface);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    padding: 10px 14px;
-    z-index: 50;
-    max-width: 200px;
-    font-size: 12px;
+    position: absolute; bottom: 60px; left: 8px;
+    background: var(--surface); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 10px 14px;
+    z-index: 50; max-width: 200px; font-size: 12px;
 }
 .legend-title {
     font-weight: 700; margin-bottom: 6px;
     display: flex; align-items: center; justify-content: space-between;
 }
-.legend-close {
-    background: none; border: none; cursor: pointer;
-    font-size: 14px; color: var(--text-light);
-}
-.legend-item {
-    display: flex; align-items: center; gap: 6px;
-    padding: 3px 0; font-size: 12px;
-}
+.legend-close { background: none; border: none; cursor: pointer; font-size: 14px; color: var(--text-light); }
+.legend-item { display: flex; align-items: center; gap: 6px; padding: 3px 0; font-size: 12px; }
 .legend-color {
     width: 14px; height: 14px; border-radius: 50%;
     border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.3);
@@ -226,41 +151,22 @@
 
 /* --- 下部パネル --- */
 .bottom-panel {
-    position: relative;
-    background: var(--surface);
+    position: relative; background: var(--surface);
     border-radius: 16px 16px 0 0;
     box-shadow: 0 -4px 16px rgba(0,0,0,0.1);
-    z-index: 150;
-    max-height: 55vh;
+    z-index: 150; max-height: 55vh;
     transition: transform 0.3s ease, max-height 0.3s ease;
 }
 .bottom-panel.collapsed { transform: translateY(calc(100% - 44px)); }
-.panel-handle {
-    display: flex; justify-content: center;
-    padding: 10px; cursor: pointer;
-}
-.handle-bar {
-    width: 40px; height: 4px;
-    background: #5a7089; border-radius: 2px;
-}
-.panel-tabs {
-    display: flex; border-bottom: 1px solid var(--border);
-    padding: 0 8px;
-}
+.panel-handle { display: flex; justify-content: center; padding: 10px; cursor: pointer; }
+.handle-bar { width: 40px; height: 4px; background: #5a7089; border-radius: 2px; }
+.panel-tabs { display: flex; border-bottom: 1px solid var(--border); padding: 0 8px; }
 .tab {
-    flex: 1; padding: 8px 4px;
-    border: none; background: none;
-    font-size: 12px; font-weight: 500;
-    cursor: pointer; font-family: var(--font);
-    color: var(--text-light);
-    border-bottom: 2px solid transparent;
-    transition: all 0.2s;
+    flex: 1; padding: 8px 4px; border: none; background: none;
+    font-size: 12px; font-weight: 500; cursor: pointer; font-family: var(--font);
+    color: var(--text-light); border-bottom: 2px solid transparent; transition: all 0.2s;
 }
-.tab.active {
-    color: var(--primary);
-    border-bottom-color: var(--primary);
-    font-weight: 700;
-}
+.tab.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 700; }
 .panel-content { overflow-y: auto; max-height: calc(55vh - 90px); }
 .tab-content { display: none; padding: 8px; }
 .tab-content.active { display: block; }
@@ -269,16 +175,11 @@
 .customer-list { padding: 0; }
 .customer-item {
     display: flex; align-items: center; gap: 10px;
-    padding: 10px 12px;
-    border-bottom: 1px solid var(--border);
-    cursor: pointer;
-    transition: background 0.15s;
+    padding: 10px 12px; border-bottom: 1px solid var(--border);
+    cursor: pointer; transition: background 0.15s;
 }
 .customer-item:active { background: var(--bg); }
-.customer-status {
-    width: 10px; height: 10px;
-    border-radius: 50%; flex-shrink: 0;
-}
+.customer-status { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 .status-pending { background: var(--danger); }
 .status-appointed { background: var(--success); }
 .status-completed { background: #9ca3af; }
@@ -292,207 +193,107 @@
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .customer-route {
-    font-size: 10px; padding: 2px 8px;
-    border-radius: 10px; font-weight: 600;
-    color: white; flex-shrink: 0;
+    font-size: 10px; padding: 2px 8px; border-radius: 10px;
+    font-weight: 600; color: white; flex-shrink: 0;
 }
-.customer-count {
-    font-size: 11px; color: var(--text-light);
-    font-weight: 500; flex-shrink: 0;
-}
-.empty-msg {
-    text-align: center; color: var(--text-light);
-    padding: 24px; font-size: 13px;
-}
+.customer-count { font-size: 11px; color: var(--text-light); font-weight: 500; flex-shrink: 0; }
+.empty-msg { text-align: center; color: var(--text-light); padding: 24px; font-size: 13px; }
 
 /* --- ルート管理 --- */
 .route-manager { padding: 4px; }
 .route-section {
-    margin-bottom: 12px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    overflow: hidden;
+    margin-bottom: 12px; border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden;
 }
 .route-header {
     display: flex; align-items: center; gap: 8px;
-    padding: 10px 12px;
-    background: var(--bg);
-    font-weight: 600; font-size: 14px;
-    cursor: pointer;
+    padding: 10px 12px; background: var(--bg);
+    font-weight: 600; font-size: 14px; cursor: pointer;
 }
 .route-color-dot {
-    width: 16px; height: 16px;
-    border-radius: 50%;
-    border: 2px solid white;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    width: 16px; height: 16px; border-radius: 50%;
+    border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
 .route-count { margin-left: auto; font-size: 12px; color: var(--text-light); }
 .route-stops { padding: 0 8px 8px; }
 .route-stop {
     display: flex; align-items: center; gap: 8px;
-    padding: 6px 8px; font-size: 13px;
-    border-bottom: 1px dashed var(--border);
+    padding: 6px 8px; font-size: 13px; border-bottom: 1px dashed var(--border);
 }
 .route-stop:last-child { border-bottom: none; }
 .stop-number {
-    width: 22px; height: 22px;
-    border-radius: 50%; background: var(--bg);
+    width: 22px; height: 22px; border-radius: 50%; background: var(--bg);
     display: flex; align-items: center; justify-content: center;
     font-size: 11px; font-weight: 700; flex-shrink: 0;
 }
 
 /* --- 集計 --- */
 .summary-content { padding: 8px; }
-.summary-card {
-    background: var(--bg);
-    border-radius: var(--radius);
-    padding: 14px;
-    margin-bottom: 10px;
-}
+.summary-card { background: var(--bg); border-radius: var(--radius); padding: 14px; margin-bottom: 10px; }
 .summary-card h3 { font-size: 14px; margin-bottom: 8px; }
-.summary-row {
-    display: flex; justify-content: space-between;
-    font-size: 13px; padding: 3px 0;
-}
+.summary-row { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; }
 .summary-value { font-weight: 700; }
 
 /* --- モーダル --- */
 .modal-overlay {
-    position: fixed; inset: 0;
-    background: rgba(0,0,0,0.5);
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
     display: flex; align-items: center; justify-content: center;
-    z-index: 500;
-    padding: 16px;
+    z-index: 500; padding: 16px;
 }
 .modal {
-    background: var(--surface);
-    border-radius: 16px;
-    padding: 24px;
-    width: 100%; max-width: 420px;
-    max-height: 85vh;
-    overflow-y: auto;
-    box-shadow: var(--shadow-lg);
+    background: var(--surface); border-radius: 16px; padding: 24px;
+    width: 100%; max-width: 420px; max-height: 85vh;
+    overflow-y: auto; box-shadow: var(--shadow-lg);
 }
 .modal h2 { font-size: 18px; margin-bottom: 16px; }
 .modal-row { margin-bottom: 14px; }
-.modal-row label {
-    display: block; font-size: 12px; font-weight: 600;
-    color: var(--text-light); margin-bottom: 4px;
+.modal-row label { display: block; font-size: 12px; font-weight: 600; color: var(--text-light); margin-bottom: 4px; }
+.modal-row input, .modal-row select, .modal-row textarea {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--border);
+    border-radius: 8px; font-size: 14px; font-family: var(--font);
+    outline: none; transition: border-color 0.2s;
 }
-.modal-row input,
-.modal-row select,
-.modal-row textarea {
-    width: 100%; padding: 10px 12px;
-    border: 1px solid var(--border);
-    border-radius: 8px; font-size: 14px;
-    font-family: var(--font);
-    outline: none;
-    transition: border-color 0.2s;
-}
-.modal-row input:focus,
-.modal-row select:focus,
-.modal-row textarea:focus {
-    border-color: var(--primary);
-}
+.modal-row input:focus, .modal-row select:focus, .modal-row textarea:focus { border-color: var(--primary); }
 .modal-row textarea { resize: vertical; min-height: 60px; }
-.modal-buttons {
-    display: flex; gap: 8px; margin-top: 20px;
-    justify-content: flex-end;
-}
+.modal-buttons { display: flex; gap: 8px; margin-top: 20px; justify-content: flex-end; }
 .modal-cancel, .modal-submit, .modal-delete {
-    padding: 10px 20px;
-    border: none; border-radius: 8px;
-    font-size: 14px; font-weight: 600;
-    cursor: pointer; font-family: var(--font);
+    padding: 10px 20px; border: none; border-radius: 8px;
+    font-size: 14px; font-weight: 600; cursor: pointer; font-family: var(--font);
 }
-.modal-cancel {
-    background: var(--bg); color: var(--text);
-}
-.modal-submit {
-    background: var(--primary); color: white;
-}
-.modal-delete {
-    background: var(--danger); color: white;
-}
-.confirm-text {
-    text-align: center; font-size: 14px;
-    line-height: 1.8; padding: 8px 0;
-}
+.modal-cancel { background: var(--bg); color: var(--text); }
+.modal-submit { background: var(--primary); color: white; }
+.modal-delete { background: var(--danger); color: white; }
+.confirm-text { text-align: center; font-size: 14px; line-height: 1.8; padding: 8px 0; }
 
-/* --- ローディング（loading-overlay/spinnerはcommon.cssで定義済み。マップ固有のみ） --- */
-.loading-content {
-    text-align: center; color: white;
-    font-size: 16px;
-}
+/* --- ローディング --- */
+.loading-content { text-align: center; color: white; font-size: 16px; }
 
 /* --- 吹き出し（InfoWindow） --- */
-.info-window {
-    font-family: var(--font);
-    max-width: 260px;
-}
-.info-window h3 {
-    font-size: 14px; margin-bottom: 4px;
-    color: var(--primary-dark);
-}
-.info-window p {
-    font-size: 12px; color: var(--text-light);
-    margin: 2px 0;
-}
-.info-window .info-actions {
-    display: flex; gap: 6px; margin-top: 8px;
-}
+.info-window { font-family: var(--font); max-width: 260px; }
+.info-window h3 { font-size: 14px; margin-bottom: 4px; color: var(--primary-dark); }
+.info-window p { font-size: 12px; color: var(--text-light); margin: 2px 0; }
+.info-window .info-actions { display: flex; gap: 6px; margin-top: 8px; }
 .info-window .info-btn {
-    padding: 5px 10px; border: none;
-    border-radius: 6px; font-size: 11px;
-    cursor: pointer; font-family: var(--font);
-    font-weight: 600;
+    padding: 5px 10px; border: none; border-radius: 6px;
+    font-size: 11px; cursor: pointer; font-family: var(--font); font-weight: 600;
 }
 .info-btn-edit { background: var(--primary); color: white; }
 .info-btn-call { background: var(--success); color: white; }
 .info-btn-delete { background: var(--danger); color: white; }
 
 /* ============================================
- * v1.3追加: CULOchanGyomuPro タブ内統合用スタイル
- * マップタブ(#tab-map)内でのレイアウト調整
+ * タブ内統合用スタイル（#tab-mapスコープ）
  * ============================================ */
+#tab-map { position: relative; overflow-y: auto; overflow-x: hidden; }
+.map-compact-bar { position: sticky; top: 0; z-index: 100; }
 
-/* v1.3 マップタブ自体にrelative設定（凡例等のabsolute基準） */
-#tab-map {
-    position: relative;
-    overflow-y: auto;
-    overflow-x: hidden;
-}
-
-/* v1.5 コンパクトバーをタブ内sticky配置 */
-.map-compact-bar {
-    position: sticky;
-    top: 0;
-    z-index: 100;
-}
-
-/* v1.3 bottom-panelをタブ内フロー配置に変更 */
+/* v1.7修正: bottom-panelのcollapsedをmax-height方式に変更 */
 #tab-map .bottom-panel {
-    position: relative;
-    max-height: none;
-    border-radius: 0;
+    position: relative; max-height: 55vh; border-radius: 0;
     box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
+    overflow: hidden; transition: max-height 0.3s ease;
 }
-#tab-map .bottom-panel.collapsed {
-    transform: none;
-}
-#tab-map .panel-content {
-    max-height: 40vh;
-}
-
-/* v1.3 凡例をマップ内に配置 */
-#tab-map .legend {
-    position: absolute;
-    z-index: 50;
-}
-
-/* v1.3 メニューパネルの位置調整 */
-#tab-map .menu-panel {
-    position: absolute;
-    top: 48px;
-    right: 8px;
-}
+#tab-map .bottom-panel.collapsed { max-height: 44px; }
+#tab-map .panel-content { max-height: 40vh; }
+#tab-map .legend { position: absolute; z-index: 50; }
+#tab-map .menu-panel { position: absolute; top: 48px; right: 8px; }
