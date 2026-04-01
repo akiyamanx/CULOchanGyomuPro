@@ -1,432 +1,133 @@
-// [CULOchanGyomuPro統合] v1.3 2026-03-31 - maintenance-map-ap v2.5からコピー
-// ============================================
-// メンテナンスマップ v2.3 - expense-form.js
-// 交通費精算書フォーム・下書き管理
-// v2.1新規作成 - CULOchanSEISANshoから統合
-// PDF生成はexpense-pdf.jsに委譲
-// v2.2改修 - ETC明細読込ボタン追加
-// v2.2.4追加 - setDestination()で行先自動入力対応
-// v2.3追加 - resetInitFlag()でワークスペース切替対応
-// ============================================
+// ==========================================
+// CULOchan業務Pro — マップ内精算書サブタブ v2.0
+// このファイルはマップの💰精算書タブを担当する
+// Phase E Step3: フォーム機能をメイン精算書タブに一本化
+//   → このタブはルート集計表示＋「精算書タブで開く」ボタンのみ
+// v1.3 旧バージョン: MapExpenseForm内に独自フォームあり（廃止）
+// v2.0 新バージョン: 集計表示＋メイン精算書タブへの誘導に変更
+//
+// 依存: app-core.js, route-manager.js, expense-manager.js
+// ==========================================
 
 const MapExpenseForm = (() => {
-    let rowCount = 0;
     let initialized = false;
 
-    // v2.1 - 精算書タブの初期化
+    // ==========================================
+    // 初期化（ui-actions.jsから呼ばれる）
+    // ==========================================
     function init() {
         if (!initialized) {
-            renderExpensePanel();
+            _render();
             initialized = true;
+        } else {
+            _updateSummary();
         }
-        loadDraftList();
     }
 
-    // v2.1 - 精算書パネルのHTML生成
-    function renderExpensePanel() {
+    // ==========================================
+    // サブタブのHTML生成（初回のみ）
+    // ==========================================
+    function _render() {
         const container = document.getElementById('tabExpense');
         if (!container) return;
-
-        container.innerHTML = `
-            <div class="exp-panel">
-                <div class="exp-section">
-                    <div class="exp-section-title">📋 基本情報</div>
-                    <div class="exp-form-grid">
-                        <div class="exp-field">
-                            <label>提出日</label>
-                            <input type="date" id="expSubmitDate">
-                        </div>
-                        <div class="exp-field">
-                            <label>SS名</label>
-                            <input type="text" id="expSsName" value="千葉西SS">
-                        </div>
-                    </div>
-                    <div class="exp-field" style="margin-top:8px;">
-                        <label>行先（お客様名）</label>
-                        <textarea id="expDestination" rows="2"
-                            placeholder="逗子市&#10;クラフティ北村"></textarea>
-                    </div>
-                    <div class="exp-field" style="margin-top:8px;">
-                        <label>氏名</label>
-                        <input type="text" id="expEmployeeName" value="小出晃也">
-                    </div>
-                </div>
-
-                <div style="display:flex;gap:8px;margin-bottom:10px;">
-                    <a href="https://www.etc-meisai.jp/" target="_blank"
-                       class="exp-etc-btn" style="flex:1;">
-                        🛣️ ETC照会を開く
-                    </a>
-                    <label class="exp-etc-btn" style="flex:1;background:linear-gradient(135deg,#0d7377,#14919b);cursor:pointer;">
-                        📂 ETC明細読込
-                        <input type="file" accept=".csv" style="display:none"
-                            onchange="EtcReader.handleFile(event)">
-                    </label>
-                </div>
-
-                <div class="exp-section">
-                    <div class="exp-section-title">🚃 交通費明細</div>
-                    <div id="expRows"></div>
-                    <button class="exp-add-row-btn"
-                        onclick="MapExpenseForm.addRow()">
-                        ➕ 行を追加
-                    </button>
-                    <p class="exp-hint">
-                        💡 走行距離100km以上でガソリン代自動計算</p>
-                </div>
-
-                <div class="exp-total-card">
-                    <div class="exp-total-label">合計金額</div>
-                    <div class="exp-total-amount" id="expGrandTotal">¥0</div>
-                </div>
-
-                <div class="exp-actions">
-                    <button class="exp-btn exp-btn-pdf"
-                        onclick="MapExpenseForm.generatePDF()">
-                        📄 PDF出力</button>
-                    <button class="exp-btn exp-btn-save"
-                        onclick="MapExpenseForm.saveDraft()">
-                        💾 下書き保存</button>
-                    <button class="exp-btn exp-btn-clear"
-                        onclick="MapExpenseForm.clearAll()">
-                        🗑️ クリア</button>
-                </div>
-
-                <div class="exp-section">
-                    <div class="exp-section-title">📁 下書き一覧</div>
-                    <div id="expDraftList" class="exp-draft-list">
-                        <p class="empty-msg">下書きはありません</p>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        document.getElementById('expSubmitDate').value =
-            new Date().toISOString().split('T')[0];
-        rowCount = 0;
-        addRow();
+        container.innerHTML = ''
+            + '<div class="map-exp-bridge">'
+            + '<div class="map-exp-bridge-icon">🧾</div>'
+            + '<div class="map-exp-bridge-title">精算書はメインタブで作成できます</div>'
+            + '<div class="map-exp-bridge-hint">ルート情報（行先・走行距離）を<br>精算書タブに自動反映します</div>'
+            + '<button class="btn btn-primary map-exp-bridge-btn"'
+            + ' onclick="MapExpenseForm.openExpenseTab()">📋 精算書タブを開く</button>'
+            + '<div class="map-exp-summary" id="mapExpSummary"></div>'
+            + '</div>';
+        _updateSummary();
     }
 
-    // v2.1 - 明細行を追加
-    function addRow() {
-        rowCount++;
-        const container = document.getElementById('expRows');
-        if (!container) return;
-
-        const row = document.createElement('div');
-        row.className = 'exp-row';
-        row.id = `expRow-${rowCount}`;
-        const num = rowCount;
-
-        row.innerHTML = `
-            <div class="exp-row-head">
-                <span class="exp-row-num">${num}</span>
-                <button class="exp-row-del"
-                    onclick="MapExpenseForm.deleteRow(${num})">✕</button>
-            </div>
-            <div class="exp-form-grid">
-                <div class="exp-field exp-field-sm">
-                    <label>月</label>
-                    <input type="number" class="exp-month"
-                        placeholder="2" min="1" max="12">
-                </div>
-                <div class="exp-field exp-field-sm">
-                    <label>日</label>
-                    <input type="number" class="exp-day"
-                        placeholder="21" min="1" max="31">
-                </div>
-                <div class="exp-field exp-field-grow">
-                    <label>交通機関</label>
-                    <input type="text" class="exp-transport"
-                        placeholder="高速道路">
-                </div>
-            </div>
-            <div class="exp-form-grid">
-                <div class="exp-field">
-                    <label>走行距離(km)</label>
-                    <input type="number" class="exp-distance"
-                        placeholder="186"
-                        onchange="MapExpenseForm.updateGas(this)">
-                </div>
-                <div class="exp-field">
-                    <label>ガソリン代</label>
-                    <input type="number" class="exp-gas"
-                        placeholder="自動" readonly>
-                </div>
-            </div>
-            <div class="exp-form-grid">
-                <div class="exp-field exp-field-grow">
-                    <label>高速代（カンマ区切り可）</label>
-                    <input type="text" class="exp-highway"
-                        placeholder="5110"
-                        onchange="MapExpenseForm.calcTotals()">
-                </div>
-                <div class="exp-field exp-field-sm">
-                    <label>枚数</label>
-                    <input type="number" class="exp-hw-count"
-                        placeholder="8">
-                </div>
-            </div>
-            <div class="exp-form-grid">
-                <div class="exp-field">
-                    <label>その他</label>
-                    <input type="number" class="exp-other"
-                        placeholder="0"
-                        onchange="MapExpenseForm.calcTotals()">
-                </div>
-                <div class="exp-field">
-                    <label>船賃</label>
-                    <input type="number" class="exp-ship"
-                        placeholder="0"
-                        onchange="MapExpenseForm.calcTotals()">
-                </div>
-            </div>
-            <div class="exp-form-grid">
-                <div class="exp-field">
-                    <label>電車賃</label>
-                    <input type="number" class="exp-train"
-                        placeholder="0"
-                        onchange="MapExpenseForm.calcTotals()">
-                </div>
-                <div class="exp-field">
-                    <label>航空賃</label>
-                    <input type="number" class="exp-air"
-                        placeholder="0"
-                        onchange="MapExpenseForm.calcTotals()">
-                </div>
-            </div>
-            <div class="exp-form-grid">
-                <div class="exp-field">
-                    <label>宿泊料</label>
-                    <input type="number" class="exp-hotel"
-                        placeholder="0"
-                        onchange="MapExpenseForm.calcTotals()">
-                </div>
-                <div class="exp-field">
-                    <label>宿泊先</label>
-                    <input type="text" class="exp-hotel-name"
-                        placeholder="">
-                </div>
-            </div>
-            <div class="exp-row-total">
-                行合計: <span class="exp-row-total-val">¥0</span>
-            </div>
-        `;
-        container.appendChild(row);
-        updateRowNumbers();
-    }
-
-    // v2.1 - 行を削除
-    function deleteRow(id) {
-        const row = document.getElementById(`expRow-${id}`);
-        const allRows = document.querySelectorAll('.exp-row');
-        if (row && allRows.length > 1) {
-            row.remove();
-            updateRowNumbers();
-            calcTotals();
-        }
-    }
-
-    // v2.1 - 行番号を振り直す
-    function updateRowNumbers() {
-        document.querySelectorAll('.exp-row').forEach((row, i) => {
-            row.querySelector('.exp-row-num').textContent = i + 1;
-        });
-    }
-
-    // v2.1 - ガソリン代自動計算（100km以上で(km-100)×30円）
-    function updateGas(input) {
-        const row = input.closest('.exp-row');
-        const km = parseInt(input.value) || 0;
-        const gas = km >= 100 ? (km - 100) * 30 : 0;
-        row.querySelector('.exp-gas').value = gas || '';
-        calcTotals();
-    }
-
-    // v2.1 - 高速代のカンマ区切りパース
-    function parseHighway(value) {
-        if (!value) return 0;
-        return value.split(/[,、，]/).reduce(
-            (sum, v) => sum + (parseInt(v.trim()) || 0), 0
-        );
-    }
-
-    // v2.1 - 合計金額計算
-    function calcTotals() {
-        let grandTotal = 0;
-        document.querySelectorAll('.exp-row').forEach(row => {
-            const gas = parseInt(row.querySelector('.exp-gas').value) || 0;
-            const hw = parseHighway(row.querySelector('.exp-highway').value);
-            const ot = parseInt(row.querySelector('.exp-other').value) || 0;
-            const sh = parseInt(row.querySelector('.exp-ship').value) || 0;
-            const tr = parseInt(row.querySelector('.exp-train').value) || 0;
-            const ai = parseInt(row.querySelector('.exp-air').value) || 0;
-            const ho = parseInt(row.querySelector('.exp-hotel').value) || 0;
-            const rowTotal = gas + hw + ot + sh + tr + ai + ho;
-            row.querySelector('.exp-row-total-val').textContent =
-                `¥${rowTotal.toLocaleString()}`;
-            grandTotal += rowTotal;
-        });
-        const el = document.getElementById('expGrandTotal');
-        if (el) el.textContent = `¥${grandTotal.toLocaleString()}`;
-    }
-
-    // v2.1 - 全行データを収集
-    function collectRowData() {
-        const rows = [];
-        document.querySelectorAll('.exp-row').forEach(row => {
-            rows.push({
-                month: row.querySelector('.exp-month').value,
-                day: row.querySelector('.exp-day').value,
-                transport: row.querySelector('.exp-transport').value,
-                distance: row.querySelector('.exp-distance').value,
-                gasCost: row.querySelector('.exp-gas').value,
-                highway: row.querySelector('.exp-highway').value,
-                highwayCount: row.querySelector('.exp-hw-count').value,
-                other: row.querySelector('.exp-other').value,
-                ship: row.querySelector('.exp-ship').value,
-                train: row.querySelector('.exp-train').value,
-                air: row.querySelector('.exp-air').value,
-                hotel: row.querySelector('.exp-hotel').value,
-                hotelName: row.querySelector('.exp-hotel-name').value
-            });
-        });
-        return rows;
-    }
-
-    // v2.2.4追加 - 行先テキストを外部から設定（距離計算→精算書反映で使用）
-    function setDestination(text) {
-        const el = document.getElementById('expDestination');
-        if (el) {
-            el.value = text;
-        }
-    }
-
-    // v2.1 - 下書き保存
-    function saveDraft() {
-        const draft = {
-            submitDate: document.getElementById('expSubmitDate').value,
-            ssName: document.getElementById('expSsName').value,
-            destination: document.getElementById('expDestination').value,
-            employeeName: document.getElementById('expEmployeeName').value,
-            rows: collectRowData()
-        };
-        DataStorage.addExpense(draft);
-        alert('💾 下書きを保存しました！');
-        loadDraftList();
-    }
-
-    // v2.1 - 下書き一覧表示
-    function loadDraftList() {
-        const expenses = DataStorage.getExpenses();
-        const listEl = document.getElementById('expDraftList');
-        if (!listEl) return;
-
-        if (expenses.length === 0) {
-            listEl.innerHTML =
-                '<p class="empty-msg">下書きはありません</p>';
+    // ==========================================
+    // ルート集計をサブタブに表示
+    // ==========================================
+    function _updateSummary() {
+        const el = document.getElementById('mapExpSummary');
+        if (!el) return;
+        const summary = _getRouteSummary();
+        if (!summary) {
+            el.innerHTML = '<p class="empty-msg" style="margin-top:12px;">ルートを計画すると集計が表示されます</p>';
             return;
         }
-
-        let html = '';
-        expenses.forEach(d => {
-            const dateStr = d.createdAt
-                ? new Date(d.createdAt).toLocaleString('ja-JP') : '';
-            html += `<div class="exp-draft-item">
-                <div class="exp-draft-info"
-                    onclick="MapExpenseForm.loadDraft('${d.id}')">
-                    <div class="exp-draft-title">
-                        ${d.destination || '（行先未入力）'}</div>
-                    <div class="exp-draft-date">${dateStr}</div>
-                </div>
-                <button class="exp-draft-del"
-                    onclick="MapExpenseForm.deleteDraft('${d.id}')">
-                    🗑️</button>
-            </div>`;
-        });
-        listEl.innerHTML = html;
+        const gasCost = summary.totalKm >= 100 ? (summary.totalKm - 100) * 30 : 0;
+        el.innerHTML = ''
+            + '<div class="map-exp-summary-title">📊 現在のルート集計</div>'
+            + '<div class="map-exp-summary-row"><span>総走行距離</span><span>' + summary.totalKm + ' km</span></div>'
+            + (gasCost > 0
+                ? '<div class="map-exp-summary-row"><span>ガソリン代（試算）</span><span>¥' + gasCost.toLocaleString() + '</span></div>'
+                : '<div class="map-exp-summary-row exp-summary-note"><span>走行距離100km未満</span><span>精算対象外</span></div>'
+              )
+            + (summary.customerCount > 0
+                ? '<div class="map-exp-summary-row"><span>訪問先</span><span>' + summary.customerCount + '件</span></div>'
+                : '')
+            + '<button class="btn btn-secondary map-exp-reflect-btn"'
+            + ' onclick="MapExpenseForm.reflectToExpense()">⬆️ 精算書に反映して開く</button>';
     }
 
-    // v2.1 - 下書き読み込み
-    function loadDraft(id) {
-        const expenses = DataStorage.getExpenses();
-        const draft = expenses.find(e => e.id === id);
-        if (!draft) { alert('下書きが見つかりません'); return; }
-        if (!confirm('現在の入力を破棄して読み込みますか？')) return;
-
-        document.getElementById('expSubmitDate').value =
-            draft.submitDate || new Date().toISOString().split('T')[0];
-        document.getElementById('expSsName').value =
-            draft.ssName || '千葉西SS';
-        document.getElementById('expDestination').value =
-            draft.destination || '';
-        document.getElementById('expEmployeeName').value =
-            draft.employeeName || '小出晃也';
-
-        document.getElementById('expRows').innerHTML = '';
-        rowCount = 0;
-
-        if (draft.rows && draft.rows.length > 0) {
-            draft.rows.forEach(rd => {
-                addRow();
-                const r = document.getElementById(`expRow-${rowCount}`);
-                r.querySelector('.exp-month').value = rd.month || '';
-                r.querySelector('.exp-day').value = rd.day || '';
-                r.querySelector('.exp-transport').value = rd.transport || '';
-                r.querySelector('.exp-distance').value = rd.distance || '';
-                r.querySelector('.exp-gas').value = rd.gasCost || '';
-                r.querySelector('.exp-highway').value = rd.highway || '';
-                r.querySelector('.exp-hw-count').value = rd.highwayCount || '';
-                r.querySelector('.exp-other').value = rd.other || '';
-                r.querySelector('.exp-ship').value = rd.ship || '';
-                r.querySelector('.exp-train').value = rd.train || '';
-                r.querySelector('.exp-air').value = rd.air || '';
-                r.querySelector('.exp-hotel').value = rd.hotel || '';
-                r.querySelector('.exp-hotel-name').value = rd.hotelName || '';
+    // ==========================================
+    // RouteManagerからルート集計を取得
+    // ==========================================
+    function _getRouteSummary() {
+        try {
+            if (typeof RouteManager === 'undefined') return null;
+            const routes = RouteManager.getRoutes ? RouteManager.getRoutes() : null;
+            if (!routes || routes.length === 0) return null;
+            let totalKm = 0;
+            let customerCount = 0;
+            routes.forEach(r => {
+                if (r.totalDistance) totalKm += Math.round(r.totalDistance / 1000);
+                if (r.customers) customerCount += r.customers.length;
             });
-        } else { addRow(); }
-        calcTotals();
-        alert('📂 下書きを読み込みました！');
+            return { totalKm, customerCount };
+        } catch (e) { return null; }
     }
 
-    // v2.1 - 下書き削除
-    function deleteDraft(id) {
-        if (!confirm('この下書きを削除しますか？')) return;
-        DataStorage.deleteExpense(id);
-        loadDraftList();
+    // ==========================================
+    // 精算書タブを開く（メインタブに切り替え）
+    // ==========================================
+    function openExpenseTab() {
+        if (typeof AppCore !== 'undefined' && AppCore.switchTab) {
+            AppCore.switchTab('expense');
+        }
     }
 
-    // v2.1 - フォームクリア
-    function clearAll() {
-        if (!confirm('すべての入力をクリアしますか？')) return;
-        document.getElementById('expDestination').value = '';
-        document.getElementById('expRows').innerHTML = '';
-        rowCount = 0;
-        addRow();
-        calcTotals();
+    // ==========================================
+    // ルート集計を精算書タブに反映してから開く
+    // ==========================================
+    function reflectToExpense() {
+        const summary = _getRouteSummary();
+        if (summary && summary.totalKm > 0) {
+            const firstRow = document.querySelector('#tab-expense .exp-row');
+            if (firstRow) {
+                const distInput = firstRow.querySelector('.exp-distance');
+                if (distInput) {
+                    distInput.value = summary.totalKm;
+                    if (typeof ExpenseManager !== 'undefined') {
+                        ExpenseManager.onDistanceChange(distInput);
+                    }
+                }
+                const transport = firstRow.querySelector('.exp-transport');
+                if (transport && !transport.value) transport.value = '高速道路';
+            }
+            alert('✅ 走行距離 ' + summary.totalKm + ' km を精算書に反映しました！');
+        }
+        openExpenseTab();
     }
 
-    // v2.1 - PDF生成（expense-pdf.jsに委譲）
-    function generatePDF() {
-        const formData = {
-            submitDate: document.getElementById('expSubmitDate').value,
-            ssName: document.getElementById('expSsName').value,
-            destination: document.getElementById('expDestination').value,
-            employeeName: document.getElementById('expEmployeeName').value
-        };
-        MapExpensePdf.generate(formData, collectRowData());
-    }
-
-    // v2.3追加 - ワークスペース切替時にフラグリセット（再init可能にする）
+    // ==========================================
+    // resetInitFlag — ui-actions.jsからワークスペース切替時に呼ばれる
+    // ==========================================
     function resetInitFlag() {
         initialized = false;
+        _updateSummary();
     }
 
-    return {
-        init, addRow, deleteRow, updateGas, calcTotals,
-        saveDraft, loadDraft, deleteDraft, loadDraftList,
-        clearAll, generatePDF,
-        setDestination,     // v2.2.4追加
-        resetInitFlag       // v2.3追加
-    };
+    // setDestination — 後方互換（呼ばれても何もしない）
+    function setDestination() {}
+
+    return { init, resetInitFlag, setDestination, openExpenseTab, reflectToExpense };
 })();
