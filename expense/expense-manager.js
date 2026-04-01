@@ -1,14 +1,14 @@
 // ==========================================
-// CULOchan業務Pro — 精算書マネージャー v1.1
+// CULOchan業務Pro — 精算書マネージャー v1.2
 // このファイルは交通費精算書の入力・計算・下書き保存/読込/削除を担当する
 // 元CULOchanSEISANshoから移植し、業務Pro用に分割・リファクタリング
 // v1.1追加 - Step2マップ顧客データ連携（日付変更→アポ済み顧客→行先自動入力）
+// v1.2追加 - 行先を会社名行+住所行の2フィールドに分割、住所は市区町村切り詰め
 //
 // 依存: app-core.js
 // ==========================================
 
 const ExpenseManager = (() => {
-    // v1.0 - 行カウンター
     let _rowCount = 0;
 
     // ==========================================
@@ -16,29 +16,22 @@ const ExpenseManager = (() => {
     // ==========================================
     function init() {
         console.log('[Expense] 精算書マネージャー初期化');
-        // v1.0 - 提出日を今日に設定
         const dateInput = document.getElementById('expSubmitDate');
         if (dateInput) {
             dateInput.value = new Date().toISOString().split('T')[0];
-            // v1.1追加 - 提出日変更時にマップ顧客データ連携
             dateInput.addEventListener('change', _onSubmitDateChange);
         }
-        // v1.0 - 初期行を1行追加
         addRow();
-        // v1.0 - 下書き一覧を表示
         renderDraftList();
     }
 
     // ==========================================
     // 行の追加・削除
     // ==========================================
-
-    // v1.0 - 経費行を追加
     function addRow() {
         _rowCount++;
         const container = document.getElementById('expenseRows');
         if (!container) return;
-
         const row = document.createElement('div');
         row.className = 'exp-row';
         row.id = 'expRow-' + _rowCount;
@@ -47,7 +40,6 @@ const ExpenseManager = (() => {
             + '<span class="exp-row-num">' + _rowCount + '</span>'
             + '<button class="exp-row-del" onclick="ExpenseManager.deleteRow(' + _rowCount + ')">×</button>'
             + '</div>'
-            // 月・日・交通機関
             + '<div class="exp-form-row">'
             + '<div class="exp-fg exp-fg-sm"><label>月</label>'
             + '<input type="number" class="exp-input exp-month" placeholder="4" min="1" max="12"></div>'
@@ -56,7 +48,6 @@ const ExpenseManager = (() => {
             + '<div class="exp-fg"><label>利用交通機関</label>'
             + '<input type="text" class="exp-input exp-transport" placeholder="高速道路"></div>'
             + '</div>'
-            // 走行距離・ガソリン代
             + '<div class="exp-form-row">'
             + '<div class="exp-fg"><label>走行距離（km）</label>'
             + '<input type="number" class="exp-input exp-distance" placeholder="186" '
@@ -65,7 +56,6 @@ const ExpenseManager = (() => {
             + '<div class="exp-fg"><label>ガソリン代（自動）</label>'
             + '<input type="number" class="exp-input exp-gas" placeholder="0" readonly></div>'
             + '</div>'
-            // 高速代・枚数
             + '<div class="exp-form-row">'
             + '<div class="exp-fg"><label>高速代（カンマ区切りで複数可）</label>'
             + '<input type="text" class="exp-input exp-highway" placeholder="5110" '
@@ -73,7 +63,6 @@ const ExpenseManager = (() => {
             + '<div class="exp-fg exp-fg-sm"><label>枚数</label>'
             + '<input type="number" class="exp-input exp-highway-count" placeholder="8"></div>'
             + '</div>'
-            // その他・船賃
             + '<div class="exp-form-row">'
             + '<div class="exp-fg"><label>その他（タクシー等）</label>'
             + '<input type="number" class="exp-input exp-other" placeholder="0" '
@@ -82,7 +71,6 @@ const ExpenseManager = (() => {
             + '<input type="number" class="exp-input exp-ship" placeholder="0" '
             + 'onchange="ExpenseManager.recalculate()"></div>'
             + '</div>'
-            // 電車賃・航空賃
             + '<div class="exp-form-row">'
             + '<div class="exp-fg"><label>電車賃</label>'
             + '<input type="number" class="exp-input exp-train" placeholder="0" '
@@ -91,7 +79,6 @@ const ExpenseManager = (() => {
             + '<input type="number" class="exp-input exp-air" placeholder="0" '
             + 'onchange="ExpenseManager.recalculate()"></div>'
             + '</div>'
-            // 宿泊料・宿泊先
             + '<div class="exp-form-row">'
             + '<div class="exp-fg"><label>宿泊料</label>'
             + '<input type="number" class="exp-input exp-hotel" placeholder="0" '
@@ -99,14 +86,11 @@ const ExpenseManager = (() => {
             + '<div class="exp-fg"><label>宿泊先</label>'
             + '<input type="text" class="exp-input exp-hotel-name" placeholder=""></div>'
             + '</div>'
-            // 行合計
             + '<div class="exp-row-total">行合計: <span class="exp-row-total-val">¥0</span></div>';
-
         container.appendChild(row);
         _updateRowNumbers();
     }
 
-    // v1.0 - 行を削除
     function deleteRow(id) {
         const row = document.getElementById('expRow-' + id);
         if (row && document.querySelectorAll('.exp-row').length > 1) {
@@ -116,7 +100,6 @@ const ExpenseManager = (() => {
         }
     }
 
-    // v1.0 - 行番号を振り直す
     function _updateRowNumbers() {
         document.querySelectorAll('.exp-row').forEach((row, i) => {
             const num = row.querySelector('.exp-row-num');
@@ -127,14 +110,11 @@ const ExpenseManager = (() => {
     // ==========================================
     // 計算ロジック
     // ==========================================
-
-    // v1.0 - ガソリン代自動計算（100km超で (km-100)×30円）
     function calcGasCost(distance) {
         const km = parseInt(distance) || 0;
         return km >= 100 ? (km - 100) * 30 : 0;
     }
 
-    // v1.0 - 走行距離変更時のハンドラ
     function onDistanceChange(input) {
         const row = input.closest('.exp-row');
         if (!row) return;
@@ -143,15 +123,11 @@ const ExpenseManager = (() => {
         recalculate();
     }
 
-    // v1.0 - 高速代パース（カンマ区切り対応）
     function _parseHighway(value) {
         if (!value) return 0;
-        return value.split(/[,、，]/).reduce((sum, v) => {
-            return sum + (parseInt(v.trim()) || 0);
-        }, 0);
+        return value.split(/[,、，]/).reduce((sum, v) => sum + (parseInt(v.trim()) || 0), 0);
     }
 
-    // v1.0 - 全行の合計を再計算
     function recalculate() {
         let grandTotal = 0;
         document.querySelectorAll('.exp-row').forEach(row => {
@@ -172,20 +148,19 @@ const ExpenseManager = (() => {
     }
 
     // ==========================================
-    // データ収集（PDF出力や保存で使う）
+    // データ収集
     // ==========================================
-
-    // v1.0 - 基本情報を取得
+    // v1.2改修 - destCompany/destAddressの2フィールド対応
     function getHeaderData() {
         return {
             submitDate: (document.getElementById('expSubmitDate') || {}).value || '',
             ssName: (document.getElementById('expSSName') || {}).value || '千葉西SS',
-            destination: (document.getElementById('expDestination') || {}).value || '',
+            destCompany: (document.getElementById('expDestCompany') || {}).value || '',
+            destAddress: (document.getElementById('expDestAddress') || {}).value || '',
             employeeName: (document.getElementById('expEmployeeName') || {}).value || '小出晃也'
         };
     }
 
-    // v1.0 - 全行データを取得
     function getRowsData() {
         const rows = [];
         document.querySelectorAll('.exp-row').forEach(row => {
@@ -208,59 +183,49 @@ const ExpenseManager = (() => {
         return rows;
     }
 
-    // v1.0 - 高速代パース（外部公開用）
-    function parseHighway(value) {
-        return _parseHighway(value);
-    }
+    function parseHighway(value) { return _parseHighway(value); }
 
     // ==========================================
     // 下書き保存・読込・削除
     // ==========================================
-
-    // v1.0 - localStorageキー（SEISANsho互換）
     const DRAFT_KEY = 'travelExpenseDrafts';
 
-    // v1.0 - 下書き保存
+    // v1.2改修 - destCompany/destAddressで保存
     function saveDraft() {
         const header = getHeaderData();
-        const rowsData = getRowsData();
-
         const draft = {
             id: Date.now(),
             date: new Date().toLocaleString('ja-JP'),
             submitDate: header.submitDate,
             ssName: header.ssName,
-            destination: header.destination,
+            destCompany: header.destCompany,
+            destAddress: header.destAddress,
+            destination: header.destCompany || header.destAddress, // 旧互換
             employeeName: header.employeeName,
-            rows: rowsData
+            rows: getRowsData()
         };
-
         let drafts = JSON.parse(localStorage.getItem(DRAFT_KEY) || '[]');
         drafts.unshift(draft);
-        // v1.0 - 最大20件
         if (drafts.length > 20) drafts = drafts.slice(0, 20);
         localStorage.setItem(DRAFT_KEY, JSON.stringify(drafts));
-
         alert('✅ 下書きを保存しました！');
         renderDraftList();
     }
 
-    // v1.0 - 下書き一覧を描画
     function renderDraftList() {
         const container = document.getElementById('expDraftList');
         if (!container) return;
         const drafts = JSON.parse(localStorage.getItem(DRAFT_KEY) || '[]');
-
         if (drafts.length === 0) {
             container.innerHTML = '<p class="empty-msg">下書きはありません</p>';
             return;
         }
-
         let html = '';
         drafts.forEach(d => {
+            const title = d.destCompany || d.destination || '（行先未入力）';
             html += '<div class="exp-draft-item">'
                 + '<div class="exp-draft-info" onclick="ExpenseManager.loadDraft(' + d.id + ')">'
-                + '<div class="exp-draft-title">' + (d.destination || '（行先未入力）') + '</div>'
+                + '<div class="exp-draft-title">' + title + '</div>'
                 + '<div class="exp-draft-date">' + d.date + '</div>'
                 + '</div>'
                 + '<button class="exp-draft-del" onclick="ExpenseManager.deleteDraft(' + d.id + ')">🗑️</button>'
@@ -269,24 +234,20 @@ const ExpenseManager = (() => {
         container.innerHTML = html;
     }
 
-    // v1.0 - 下書きを読み込み
+    // v1.2改修 - destCompany/destAddress + 旧destination後方互換
     function loadDraft(id) {
         const drafts = JSON.parse(localStorage.getItem(DRAFT_KEY) || '[]');
         const draft = drafts.find(d => d.id === id);
         if (!draft) { alert('下書きが見つかりません'); return; }
         if (!confirm('現在の入力を破棄して下書きを読み込みますか？')) return;
-
-        // 基本情報を復元
         _setVal('expSubmitDate', draft.submitDate || new Date().toISOString().split('T')[0]);
         _setVal('expSSName', draft.ssName || '千葉西SS');
-        _setVal('expDestination', draft.destination || '');
         _setVal('expEmployeeName', draft.employeeName || '小出晃也');
-
-        // 行データを復元
+        _setVal('expDestCompany', draft.destCompany || draft.destination || '');
+        _setVal('expDestAddress', draft.destAddress || '');
         const container = document.getElementById('expenseRows');
         if (container) container.innerHTML = '';
         _rowCount = 0;
-
         if (draft.rows && draft.rows.length > 0) {
             draft.rows.forEach(rd => {
                 addRow();
@@ -306,14 +267,11 @@ const ExpenseManager = (() => {
                 row.querySelector('.exp-hotel').value = rd.hotel || '';
                 row.querySelector('.exp-hotel-name').value = rd.hotelName || '';
             });
-        } else {
-            addRow();
-        }
+        } else { addRow(); }
         recalculate();
         alert('✅ 下書きを読み込みました！');
     }
 
-    // v1.0 - 下書きを削除
     function deleteDraft(id) {
         if (!confirm('この下書きを削除しますか？')) return;
         let drafts = JSON.parse(localStorage.getItem(DRAFT_KEY) || '[]');
@@ -327,7 +285,8 @@ const ExpenseManager = (() => {
     // ==========================================
     function clearAll() {
         if (!confirm('すべての入力をクリアしますか？')) return;
-        _setVal('expDestination', '');
+        _setVal('expDestCompany', '');
+        _setVal('expDestAddress', '');
         const container = document.getElementById('expenseRows');
         if (container) container.innerHTML = '';
         _rowCount = 0;
@@ -336,10 +295,8 @@ const ExpenseManager = (() => {
     }
 
     // ==========================================
-    // v1.1追加 - マップ顧客データ連携（Step2: 日付連携）
+    // v1.1 マップ顧客連携 / v1.2 2フィールド対応
     // ==========================================
-
-    // v1.1 - 提出日変更→その月のアポ済み顧客を検索→選択モーダル表示
     function _onSubmitDateChange() {
         const dateInput = document.getElementById('expSubmitDate');
         if (!dateInput || !dateInput.value) return;
@@ -351,7 +308,6 @@ const ExpenseManager = (() => {
         _showCustomerPicker(appointed, ym);
     }
 
-    // v1.1 - localStorageから直接マップ顧客データを読む（ワークスペース非依存で安全）
     function _getMapCustomers(yearMonth) {
         try {
             const data = localStorage.getItem('mm_customers_' + yearMonth);
@@ -361,7 +317,14 @@ const ExpenseManager = (() => {
         } catch (e) { return []; }
     }
 
-    // v1.1 - 顧客選択モーダル表示
+    // v1.2追加 - 住所を市区町村レベルに切り詰め
+    // 例: 「千葉県千葉市美浜区磯辺3-31-1」→「千葉県千葉市美浜区」
+    function _trimToCity(address) {
+        if (!address) return '';
+        const match = address.match(/^(.+?(?:都|道|府|県).+?(?:市|郡|区)(?:.+?区)?)/);
+        return match ? match[1] : address;
+    }
+
     function _showCustomerPicker(customers, yearMonth) {
         const byDate = {};
         customers.forEach(c => {
@@ -407,31 +370,41 @@ const ExpenseManager = (() => {
         modal.style.display = 'flex';
     }
 
-    // v1.1 - 全選択/解除トグル
     function togglePickerAll() {
         const cbs = document.querySelectorAll('.exp-picker-cb');
         const allChecked = Array.from(cbs).every(cb => cb.checked);
         cbs.forEach(cb => { cb.checked = !allChecked; });
     }
 
-    // v1.1 - 選択した顧客を行先フィールドに反映
+    // v1.2改修 - 会社名行と住所行を分けて反映（住所は市区町村切り詰め）
     function applyPicker() {
         const cbs = document.querySelectorAll('.exp-picker-cb:checked');
         if (cbs.length === 0) { alert('お客様を1件以上選択してください'); return; }
-        const lines = [];
-        cbs.forEach(cb => { lines.push(cb.dataset.company || cb.dataset.address); });
-        const dest = document.getElementById('expDestination');
-        if (dest) {
-            if (dest.value.trim()) {
-                if (confirm('既存の行先に追記しますか？\n（キャンセルで上書き）')) {
-                    dest.value = dest.value.trim() + '\n' + lines.join('\n');
-                } else { dest.value = lines.join('\n'); }
-            } else { dest.value = lines.join('\n'); }
+        const companies = [];
+        const addresses = [];
+        cbs.forEach(cb => {
+            if (cb.dataset.company) companies.push(cb.dataset.company);
+            if (cb.dataset.address) addresses.push(_trimToCity(cb.dataset.address));
+        });
+        const companyLine = companies.join(' → ');
+        const addressLine = addresses.join(' → ');
+        const destC = document.getElementById('expDestCompany');
+        const destA = document.getElementById('expDestAddress');
+        if (destC) {
+            if (destC.value.trim()) {
+                destC.value = confirm('既存の会社名に上書き？\nキャンセルで追記')
+                    ? companyLine : destC.value.trim() + ' → ' + companyLine;
+            } else { destC.value = companyLine; }
+        }
+        if (destA) {
+            if (destA.value.trim()) {
+                destA.value = confirm('既存の住所に上書き？\nキャンセルで追記')
+                    ? addressLine : destA.value.trim() + ' → ' + addressLine;
+            } else { destA.value = addressLine; }
         }
         closePicker();
     }
 
-    // v1.1 - モーダルを閉じる
     function closePicker() {
         const modal = document.getElementById('expCustomerPicker');
         if (modal) modal.style.display = 'none';
@@ -440,32 +413,16 @@ const ExpenseManager = (() => {
     function _escHtml(str) { return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
     function _escAttr(str) { return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
 
-    // ==========================================
-    // ユーティリティ
-    // ==========================================
     function _setVal(id, val) {
         const el = document.getElementById(id);
         if (el) el.value = val;
     }
 
     return {
-        init: init,
-        addRow: addRow,
-        deleteRow: deleteRow,
-        onDistanceChange: onDistanceChange,
-        recalculate: recalculate,
-        getHeaderData: getHeaderData,
-        getRowsData: getRowsData,
-        parseHighway: parseHighway,
-        saveDraft: saveDraft,
-        loadDraft: loadDraft,
-        deleteDraft: deleteDraft,
-        renderDraftList: renderDraftList,
-        clearAll: clearAll,
-        calcGasCost: calcGasCost,
-        // v1.1追加 - マップ顧客連携
-        togglePickerAll: togglePickerAll,
-        applyPicker: applyPicker,
-        closePicker: closePicker
+        init, addRow, deleteRow, onDistanceChange, recalculate,
+        getHeaderData, getRowsData, parseHighway, calcGasCost,
+        saveDraft, loadDraft, deleteDraft, renderDraftList, clearAll,
+        trimToCity: _trimToCity,
+        togglePickerAll, applyPicker, closePicker
     };
 })();
