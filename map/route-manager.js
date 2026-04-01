@@ -1,4 +1,4 @@
-// [CULOchanGyomuPro統合] v1.5 2026-04-01 - 凡例の自動表示を廃止（ユーザー手動表示に変更）
+// [CULOchanGyomuPro統合] v1.6 2026-04-02 - Phase E: applyDistanceToExpenseをExpenseManager直接呼び出しに変更
 // ============================================
 // メンテナンスマップ v2.2.4 - route-manager.js
 // ルート管理・色分け・PDF出力・凡例
@@ -7,6 +7,7 @@
 // v2.2.3変更 - 区間別の高速/下道選択対応（UIはsegment-dialog.jsに分離）
 // v2.2.4追加 - 精算書への行先自動反映（地区名＋会社名）
 // v1.5修正 - updateLegendの自動display:block廃止
+// v1.6改修 - applyDistanceToExpenseをExpenseManager直接呼び出しに変更（MapExpenseForm廃止対応）
 // ============================================
 
 const RouteManager = (() => {
@@ -297,15 +298,25 @@ const RouteManager = (() => {
         }
     }
 
+    // v1.6改修 - Phase E: メイン精算書タブに直接反映（MapExpenseForm廃止対応）
     function applyDistanceToExpense(totalKm, destText) {
-        mapSwitchTab('expense');
-        MapExpenseForm.init();
+        // メイン精算書タブに切り替え
+        if (typeof AppCore !== 'undefined' && AppCore.switchTab) {
+            AppCore.switchTab('expense');
+        }
         setTimeout(() => {
-            if (destText) { MapExpenseForm.setDestination(destText); }
-            const firstRow = document.querySelector('.exp-row');
+            // 走行距離をメイン精算書の最初の行に反映
+            const firstRow = document.querySelector('#tab-expense .exp-row');
             if (firstRow) {
                 const distInput = firstRow.querySelector('.exp-distance');
-                if (distInput) { distInput.value = totalKm; MapExpenseForm.updateGas(distInput); }
+                if (distInput) {
+                    distInput.value = totalKm;
+                    if (typeof ExpenseManager !== 'undefined') {
+                        ExpenseManager.onDistanceChange(distInput);
+                    }
+                }
+                const transport = firstRow.querySelector('.exp-transport');
+                if (transport && !transport.value) transport.value = '高速道路';
             }
         }, 200);
     }
