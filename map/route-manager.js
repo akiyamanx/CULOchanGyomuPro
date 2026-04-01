@@ -1,4 +1,4 @@
-// [CULOchanGyomuPro統合] v1.9 2026-04-02 - 行先住所を会社名と1対1で並べるよう修正
+// [CULOchanGyomuPro統合] v2.0 2026-04-02 - 行先住所を町名まで切り出すよう修正
 // ============================================
 // メンテナンスマップ v2.2.4 - route-manager.js
 // v1.5修正 - updateLegendの自動display:block廃止
@@ -6,6 +6,7 @@
 // v1.7改修 - buildDestinationTextを{company,address}の2フィールド対応に変更
 // v1.8修正 - AppCore.switchTabとmapSwitchTabの競合を修正
 // v1.9修正 - buildDestinationTextで住所の重複排除を廃止→会社名と1対1で並べる
+// v2.0修正 - 住所切り出しを町名まで拡張（数字・スペース手前まで）
 // ============================================
 
 const RouteManager = (() => {
@@ -217,30 +218,36 @@ const RouteManager = (() => {
         summaryEl.innerHTML = html;
     }
 
-    function extractArea(address) {
+    // v2.0修正 - 住所から番地を除いた町名レベルまで切り出す
+    // 例: 「東京都中央区日本橋浜町3-21-1」→「東京都中央区日本橋浜町」
+    // 例: 「東京都江東区夢の島3-3」→「東京都江東区夢の島」
+    function trimToTownLevel(address) {
         if (!address) return '';
-        const match = address.match(
-            /^(東京都|北海道|(?:大阪|京都)府|.{2,3}県)((?:[^市区町村]+?郡)?(?:[^市区町村]+?[市区町村]))/
-        );
-        if (match) return match[1] + match[2];
-        return address.substring(0, 10);
+        // 数字・ハイフン・全角スペース・半角スペースが来る手前まで取る
+        const match = address.match(/^(.*?)(?=\d|　| )/);
+        if (match && match[1]) {
+            // 末尾の不要な文字（ハイフン等）をトリム
+            return match[1].replace(/[-\s]+$/, '');
+        }
+        return address;
     }
 
-    // v1.9修正 - 会社名と住所を1対1で並べる（住所の重複排除を廃止）
-    // 例: A社→B社→C社（同区）→D社 に対して
-    //     東京都江東区→東京都中央区→東京都中央区→品川区 と件数分並べる
+    function extractArea(address) {
+        if (!address) return '';
+        // v2.0: 町名レベルまで切り出す
+        return trimToTownLevel(address) || address.substring(0, 10);
+    }
+
+    // v2.0修正 - 会社名と住所を1対1で並べる、住所は町名レベルまで
     function buildDestinationText(orderedCustomers) {
         const companies = [];
         const areas = [];
         for (const c of orderedCustomers) {
-            // 会社名
             const name = (c.company || '').trim();
             if (name) companies.push(name);
-            // 住所は市区町村レベルに切り詰め（会社名と1対1で並べるため重複排除なし）
-            const addr = (c.address || '').trim();
-            const match = addr.match(/^(.+?(?:都|道|府|県).+?(?:市|郡|区)(?:.+?区)?)/);
-            const area = match ? match[1] : extractArea(c.address);
-            areas.push(area || addr.substring(0, 10));
+            // 住所は町名レベルに切り詰め（数字の手前まで）
+            const area = trimToTownLevel((c.address || '').trim());
+            areas.push(area || (c.address || '').substring(0, 10));
         }
         return { company: companies.join(' → '), address: areas.join(' → ') };
     }
