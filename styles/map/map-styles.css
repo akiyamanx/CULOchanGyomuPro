@@ -1,25 +1,15 @@
-/* [CULOchanGyomuPro統合] v1.7 2026-04-01 - collapsed折りたたみ修正（max-height方式） */
+/* [CULOchanGyomuPro統合] v1.8 2026-04-01 - 凡例ボタン追加＋タブ縦パディング拡大 */
 /* ============================================
- * メンテナンスマップ v2.0 - styles.css
- * 全スタイル定義
- * v2.0新規作成 - 分割ファイル構成対応
- * v1.4 ダークテーマ対応 + .btnスコープ化
- * v1.5 マップヘッダーをドロップダウン式に変更
- * v1.7 collapsed折りたたみをmax-height方式に修正
+ * メンテナンスマップ v2.0 - map-styles.css
+ * v1.8 凡例ボタン追加＋タブ縦パディング拡大＋collapsed修正
  * ============================================ */
 
 /* --- CSS変数（v1.4 ダークテーマ対応） --- */
 #tab-map {
-    --primary: #3b82f6;
-    --primary-light: #60a5fa;
-    --primary-dark: #2563eb;
-    --success: #06d6a0;
-    --warning: #ffd166;
-    --danger: #ef476f;
-    --bg: #162230;
-    --surface: #1c2d3f;
-    --text: #e8edf2;
-    --text-light: #8fa3b8;
+    --primary: #3b82f6; --primary-light: #60a5fa; --primary-dark: #2563eb;
+    --success: #06d6a0; --warning: #ffd166; --danger: #ef476f;
+    --bg: #162230; --surface: #1c2d3f;
+    --text: #e8edf2; --text-light: #8fa3b8;
     --border: #2a3f55;
     --shadow: 0 2px 8px rgba(0,0,0,0.3);
     --shadow-lg: 0 8px 24px rgba(0,0,0,0.4);
@@ -27,75 +17,50 @@
     --font: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-/* v1.6 スプラッシュ画面・旧map-header・bodyリセット削除（common.cssで管理） */
-
-/* ============================================
- * v1.5追加: コンパクトバー＋ドロップダウンツールバー
- * ============================================ */
+/* --- コンパクトバー＋ドロップダウンツールバー --- */
 .map-compact-bar {
-    background: var(--primary);
-    color: white;
-    padding: 8px 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    position: sticky;
-    top: 0;
-    z-index: 100;
+    background: var(--primary); color: white;
+    padding: 8px 12px; display: flex; align-items: center; gap: 8px;
+    position: sticky; top: 0; z-index: 100;
     box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
 .compact-ws-btn {
-    background: rgba(255,255,255,0.2);
-    color: white;
-    border: none;
-    padding: 6px 12px;
-    border-radius: 16px;
-    font-size: 13px;
-    font-weight: 700;
-    cursor: pointer;
-    font-family: var(--font);
-    transition: background 0.2s;
+    background: rgba(255,255,255,0.2); color: white; border: none;
+    padding: 6px 12px; border-radius: 16px;
+    font-size: 13px; font-weight: 700; cursor: pointer;
+    font-family: var(--font); transition: background 0.2s;
 }
 .compact-ws-btn:active { background: rgba(255,255,255,0.35); }
+/* v1.8追加: 凡例表示ボタン */
+.compact-legend-btn {
+    background: rgba(255,255,255,0.2); color: white;
+    border: none; padding: 4px 10px; border-radius: 12px;
+    font-size: 14px; cursor: pointer; transition: background 0.2s;
+}
+.compact-legend-btn:active { background: rgba(255,255,255,0.35); }
 .compact-count {
-    background: rgba(255,255,255,0.15);
-    padding: 3px 10px;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 500;
-    margin-left: auto;
+    background: rgba(255,255,255,0.15); padding: 3px 10px;
+    border-radius: 12px; font-size: 12px; font-weight: 500; margin-left: auto;
 }
 .compact-toggle-btn {
-    background: rgba(255,255,255,0.2);
-    color: white;
-    border: none;
-    width: 32px; height: 32px;
-    border-radius: 50%;
-    font-size: 14px;
-    cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    transition: background 0.2s, transform 0.3s;
-    font-family: var(--font);
+    background: rgba(255,255,255,0.2); color: white; border: none;
+    width: 32px; height: 32px; border-radius: 50%; font-size: 14px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: background 0.2s, transform 0.3s; font-family: var(--font);
 }
 .compact-toggle-btn:active { background: rgba(255,255,255,0.35); }
 .compact-toggle-btn.expanded { transform: rotate(180deg); }
 .map-toolbar-dropdown {
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.3s ease, padding 0.3s ease;
-    padding: 0 12px;
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    max-height: 0; overflow: hidden;
+    transition: max-height 0.3s ease, padding 0.3s ease; padding: 0 12px;
 }
 .map-toolbar-dropdown.expanded { max-height: 300px; padding: 8px 12px; }
 .toolbar-item {
-    display: flex; align-items: center; gap: 12px;
-    width: 100%; padding: 12px 14px;
-    background: none; border: none; border-radius: 8px;
-    font-size: 14px; font-weight: 500;
-    color: var(--text); cursor: pointer;
-    font-family: var(--font);
-    transition: background 0.15s;
+    display: flex; align-items: center; gap: 12px; width: 100%;
+    padding: 12px 14px; background: none; border: none; border-radius: 8px;
+    font-size: 14px; font-weight: 500; color: var(--text);
+    cursor: pointer; font-family: var(--font); transition: background 0.15s;
     text-decoration: none;
 }
 .toolbar-item:active { background: var(--bg); }
@@ -104,10 +69,9 @@
 
 /* --- ボタン共通（#tab-mapスコープ） --- */
 #tab-map .btn {
-    background: rgba(255,255,255,0.9); color: var(--primary);
-    border: none; padding: 6px 10px; border-radius: 16px;
-    font-size: 11px; font-weight: 600; cursor: pointer;
-    white-space: nowrap; font-family: var(--font); transition: background 0.2s;
+    background: rgba(255,255,255,0.9); color: var(--primary); border: none;
+    padding: 6px 10px; border-radius: 16px; font-size: 11px; font-weight: 600;
+    cursor: pointer; white-space: nowrap; font-family: var(--font); transition: background 0.2s;
 }
 #tab-map .btn:active { background: rgba(255,255,255,0.7); }
 #tab-map .btn-pdf { background: var(--success); color: white; }
@@ -152,8 +116,7 @@
 /* --- 下部パネル --- */
 .bottom-panel {
     position: relative; background: var(--surface);
-    border-radius: 16px 16px 0 0;
-    box-shadow: 0 -4px 16px rgba(0,0,0,0.1);
+    border-radius: 16px 16px 0 0; box-shadow: 0 -4px 16px rgba(0,0,0,0.1);
     z-index: 150; max-height: 55vh;
     transition: transform 0.3s ease, max-height 0.3s ease;
 }
@@ -161,8 +124,9 @@
 .panel-handle { display: flex; justify-content: center; padding: 10px; cursor: pointer; }
 .handle-bar { width: 40px; height: 4px; background: #5a7089; border-radius: 2px; }
 .panel-tabs { display: flex; border-bottom: 1px solid var(--border); padding: 0 8px; }
+/* v1.8修正: タブ縦パディング拡大 8px→12px */
 .tab {
-    flex: 1; padding: 8px 4px; border: none; background: none;
+    flex: 1; padding: 12px 4px; border: none; background: none;
     font-size: 12px; font-weight: 500; cursor: pointer; font-family: var(--font);
     color: var(--text-light); border-bottom: 2px solid transparent; transition: all 0.2s;
 }
@@ -174,9 +138,8 @@
 /* --- 顧客リスト --- */
 .customer-list { padding: 0; }
 .customer-item {
-    display: flex; align-items: center; gap: 10px;
-    padding: 10px 12px; border-bottom: 1px solid var(--border);
-    cursor: pointer; transition: background 0.15s;
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.15s;
 }
 .customer-item:active { background: var(--bg); }
 .customer-status { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
@@ -184,42 +147,23 @@
 .status-appointed { background: var(--success); }
 .status-completed { background: #9ca3af; }
 .customer-info { flex: 1; min-width: 0; }
-.customer-name {
-    font-size: 14px; font-weight: 600;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.customer-address {
-    font-size: 11px; color: var(--text-light);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.customer-route {
-    font-size: 10px; padding: 2px 8px; border-radius: 10px;
-    font-weight: 600; color: white; flex-shrink: 0;
-}
+.customer-name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.customer-address { font-size: 11px; color: var(--text-light); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.customer-route { font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 600; color: white; flex-shrink: 0; }
 .customer-count { font-size: 11px; color: var(--text-light); font-weight: 500; flex-shrink: 0; }
 .empty-msg { text-align: center; color: var(--text-light); padding: 24px; font-size: 13px; }
 
 /* --- ルート管理 --- */
 .route-manager { padding: 4px; }
-.route-section {
-    margin-bottom: 12px; border: 1px solid var(--border);
-    border-radius: var(--radius); overflow: hidden;
-}
+.route-section { margin-bottom: 12px; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
 .route-header {
-    display: flex; align-items: center; gap: 8px;
-    padding: 10px 12px; background: var(--bg);
-    font-weight: 600; font-size: 14px; cursor: pointer;
+    display: flex; align-items: center; gap: 8px; padding: 10px 12px;
+    background: var(--bg); font-weight: 600; font-size: 14px; cursor: pointer;
 }
-.route-color-dot {
-    width: 16px; height: 16px; border-radius: 50%;
-    border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-}
+.route-color-dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
 .route-count { margin-left: auto; font-size: 12px; color: var(--text-light); }
 .route-stops { padding: 0 8px 8px; }
-.route-stop {
-    display: flex; align-items: center; gap: 8px;
-    padding: 6px 8px; font-size: 13px; border-bottom: 1px dashed var(--border);
-}
+.route-stop { display: flex; align-items: center; gap: 8px; padding: 6px 8px; font-size: 13px; border-bottom: 1px dashed var(--border); }
 .route-stop:last-child { border-bottom: none; }
 .stop-number {
     width: 22px; height: 22px; border-radius: 50%; background: var(--bg);
@@ -237,21 +181,18 @@
 /* --- モーダル --- */
 .modal-overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,0.5);
-    display: flex; align-items: center; justify-content: center;
-    z-index: 500; padding: 16px;
+    display: flex; align-items: center; justify-content: center; z-index: 500; padding: 16px;
 }
 .modal {
     background: var(--surface); border-radius: 16px; padding: 24px;
-    width: 100%; max-width: 420px; max-height: 85vh;
-    overflow-y: auto; box-shadow: var(--shadow-lg);
+    width: 100%; max-width: 420px; max-height: 85vh; overflow-y: auto; box-shadow: var(--shadow-lg);
 }
 .modal h2 { font-size: 18px; margin-bottom: 16px; }
 .modal-row { margin-bottom: 14px; }
 .modal-row label { display: block; font-size: 12px; font-weight: 600; color: var(--text-light); margin-bottom: 4px; }
 .modal-row input, .modal-row select, .modal-row textarea {
     width: 100%; padding: 10px 12px; border: 1px solid var(--border);
-    border-radius: 8px; font-size: 14px; font-family: var(--font);
-    outline: none; transition: border-color 0.2s;
+    border-radius: 8px; font-size: 14px; font-family: var(--font); outline: none; transition: border-color 0.2s;
 }
 .modal-row input:focus, .modal-row select:focus, .modal-row textarea:focus { border-color: var(--primary); }
 .modal-row textarea { resize: vertical; min-height: 60px; }
@@ -281,17 +222,13 @@
 .info-btn-call { background: var(--success); color: white; }
 .info-btn-delete { background: var(--danger); color: white; }
 
-/* ============================================
- * タブ内統合用スタイル（#tab-mapスコープ）
- * ============================================ */
+/* --- タブ内統合用スタイル（#tab-mapスコープ） --- */
 #tab-map { position: relative; overflow-y: auto; overflow-x: hidden; }
 .map-compact-bar { position: sticky; top: 0; z-index: 100; }
-
-/* v1.7修正: bottom-panelのcollapsedをmax-height方式に変更 */
+/* v1.7修正: collapsed折りたたみをmax-height方式に */
 #tab-map .bottom-panel {
     position: relative; max-height: 55vh; border-radius: 0;
-    box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
-    overflow: hidden; transition: max-height 0.3s ease;
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.1); overflow: hidden; transition: max-height 0.3s ease;
 }
 #tab-map .bottom-panel.collapsed { max-height: 44px; }
 #tab-map .panel-content { max-height: 40vh; }
