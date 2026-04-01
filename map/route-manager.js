@@ -1,4 +1,4 @@
-// [CULOchanGyomuPro統合] v1.6 2026-04-02 - Phase E: applyDistanceToExpenseをExpenseManager直接呼び出しに変更
+// [CULOchanGyomuPro統合] v1.7 2026-04-02 - 行先(会社名/住所)をexpDestCompany/expDestAddressに反映
 // ============================================
 // メンテナンスマップ v2.2.4 - route-manager.js
 // ルート管理・色分け・PDF出力・凡例
@@ -8,6 +8,7 @@
 // v2.2.4追加 - 精算書への行先自動反映（地区名＋会社名）
 // v1.5修正 - updateLegendの自動display:block廃止
 // v1.6改修 - applyDistanceToExpenseをExpenseManager直接呼び出しに変更（MapExpenseForm廃止対応）
+// v1.7改修 - buildDestinationTextを{company,address}の2フィールド対応に変更、行先フィールドに実際に反映
 // ============================================
 
 const RouteManager = (() => {
@@ -230,18 +231,22 @@ const RouteManager = (() => {
         return address.substring(0, 10);
     }
 
+    // v1.7改修 - 会社名と住所を別々のフィールドで返す（Phase E: 2フィールド対応）
     function buildDestinationText(orderedCustomers) {
-        const areas = []; const areaSet = new Set();
-        for (const c of orderedCustomers) {
-            const area = extractArea(c.address);
-            if (area && !areaSet.has(area)) { areaSet.add(area); areas.push(area); }
-        }
         const companies = []; const compSet = new Set();
         for (const c of orderedCustomers) {
             const name = (c.company || '').trim();
             if (name && !compSet.has(name)) { compSet.add(name); companies.push(name); }
         }
-        return areas.join('→') + '\n' + companies.join('→');
+        const areas = []; const areaSet = new Set();
+        for (const c of orderedCustomers) {
+            // 住所を市区町村レベルに切り詰め（_trimToCityと同じロジック）
+            const addr = (c.address || '').trim();
+            const match = addr.match(/^(.+?(?:都|道|府|県).+?(?:市|郡|区)(?:.+?区)?)/);
+            const area = match ? match[1] : extractArea(c.address);
+            if (area && !areaSet.has(area)) { areaSet.add(area); areas.push(area); }
+        }
+        return { company: companies.join(' → '), address: areas.join(' → ') };
     }
 
     async function calcDistance(routeId) {
@@ -289,8 +294,8 @@ const RouteManager = (() => {
             });
             msg += `\n精算書に反映しますか？`;
             if (confirm(msg)) {
-                const destText = buildDestinationText(ordered);
-                applyDistanceToExpense(result.totalKm, destText);
+                const dest = buildDestinationText(ordered);
+                applyDistanceToExpense(result.totalKm, dest);
             }
         } catch (err) {
             loading.style.display = 'none';
@@ -298,14 +303,19 @@ const RouteManager = (() => {
         }
     }
 
-    // v1.6改修 - Phase E: メイン精算書タブに直接反映（MapExpenseForm廃止対応）
-    function applyDistanceToExpense(totalKm, destText) {
-        // メイン精算書タブに切り替え
+    // v1.7改修 - 行先(会社名/住所)と走行距離をメイン精算書に反映
+    function applyDistanceToExpense(totalKm, dest) {
         if (typeof AppCore !== 'undefined' && AppCore.switchTab) {
             AppCore.switchTab('expense');
         }
         setTimeout(() => {
-            // 走行距離をメイン精算書の最初の行に反映
+            // 行先（会社名）を反映
+            const destC = document.getElementById('expDestCompany');
+            if (destC && dest && dest.company) destC.value = dest.company;
+            // 行先（住所）を反映
+            const destA = document.getElementById('expDestAddress');
+            if (destA && dest && dest.address) destA.value = dest.address;
+            // 走行距離を精算書の最初の行に反映
             const firstRow = document.querySelector('#tab-expense .exp-row');
             if (firstRow) {
                 const distInput = firstRow.querySelector('.exp-distance');
