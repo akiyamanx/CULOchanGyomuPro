@@ -1,11 +1,11 @@
 // ==========================================
-// CULOchan業務Pro — Service Worker v3.5
+// CULOchan業務Pro — Service Worker v3.6
 // CACHE_NAMEはデプロイごとにインクリメントすること！
-// v3.4 2026-04-02 - Phase E Step1: 行先2フィールド化
-// v3.5 2026-04-02 - Phase E Step2-4: ETCパーサー統合、MapExpenseForm軽量化、不要ファイル削除
+// v3.5 2026-04-02 - Phase E Step2-4完了
+// v3.6 2026-04-02 - fix: 行先フィールド反映バグ修正(route-manager.js v1.7)
 // ==========================================
 
-const CACHE_NAME = 'gyomupro-v26';
+const CACHE_NAME = 'gyomupro-v27';
 const ASSETS = [
     './',
     './index.html',
