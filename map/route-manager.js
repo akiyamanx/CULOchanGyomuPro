@@ -1,10 +1,12 @@
-// [CULOchanGyomuPro統合] v1.5 2026-04-01 - 凡例デフォルト非表示化
+// [CULOchanGyomuPro統合] v1.5 2026-04-01 - 凡例の自動表示を廃止（ユーザー手動表示に変更）
 // ============================================
 // メンテナンスマップ v2.2.4 - route-manager.js
 // ルート管理・色分け・PDF出力・凡例
 // v2.0新規作成 - 分割ファイル構成対応
-// v2.2.4追加 - 精算書への行先自動反映
-// v1.5修正 - 凡例を自動表示しない（ユーザーが📍ボタンで手動表示）
+// v2.2.1変更 - 🔢ボタン削除（ルートタブは確認専用に）
+// v2.2.3変更 - 区間別の高速/下道選択対応（UIはsegment-dialog.jsに分離）
+// v2.2.4追加 - 精算書への行先自動反映（地区名＋会社名）
+// v1.5修正 - updateLegendの自動display:block廃止
 // ============================================
 
 const RouteManager = (() => {
@@ -25,7 +27,6 @@ const RouteManager = (() => {
                     return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
                 });
             }
-
             html += `<div class="route-section">`;
             html += `<div class="route-header" onclick="RouteManager.toggleRouteSection(this)">`;
             html += `<span class="route-color-dot" style="background:${route.color}"></span>`;
@@ -35,7 +36,6 @@ const RouteManager = (() => {
                 html += `<button class="route-dist-btn" onclick="event.stopPropagation();RouteManager.calcDistance('${route.id}')">📏</button>`;
             }
             html += `</div>`;
-
             if (members.length > 0) {
                 html += `<div class="route-stops">`;
                 members.forEach((m, idx) => {
@@ -52,13 +52,18 @@ const RouteManager = (() => {
 
         const unassigned = customers.filter(c => !c.routeId);
         if (unassigned.length > 0) {
-            html += `<div class="route-section"><div class="route-header">`;
+            html += `<div class="route-section">`;
+            html += `<div class="route-header">`;
             html += `<span class="route-color-dot" style="background:#9e9e9e"></span>`;
-            html += `<span>未割当</span><span class="route-count">${unassigned.length}件</span></div>`;
+            html += `<span>未割当</span>`;
+            html += `<span class="route-count">${unassigned.length}件</span>`;
+            html += `</div>`;
             html += `<div class="route-stops">`;
             unassigned.forEach((m, idx) => {
                 html += `<div class="route-stop" onclick="MapCore.focusMarker('${m.id}')">`;
-                html += `<span class="stop-number">-</span><span>${m.company || '不明'}</span></div>`;
+                html += `<span class="stop-number">-</span>`;
+                html += `<span>${m.company || '不明'}</span>`;
+                html += `</div>`;
             });
             html += `</div></div>`;
         }
@@ -72,29 +77,27 @@ const RouteManager = (() => {
         if (stops) { stops.style.display = stops.style.display === 'none' ? 'block' : 'none'; }
     }
 
-    // v1.5修正: 凡例データは更新するが、自動表示しない
+    // v1.5修正: 凡例データは更新するが、自動表示はしない
     function updateLegend(routes, customers) {
         const legendEl = document.getElementById('legend');
         const itemsEl = document.getElementById('legendItems');
         const activeRoutes = routes.filter(r => customers.some(c => c.routeId === r.id));
-
-        if (activeRoutes.length === 0) {
-            legendEl.style.display = 'none';
-            return;
-        }
+        if (activeRoutes.length === 0) { legendEl.style.display = 'none'; return; }
 
         let html = '';
         activeRoutes.forEach(r => {
             const count = customers.filter(c => c.routeId === r.id).length;
-            html += `<div class="legend-item"><span class="legend-color" style="background:${r.color}"></span>`;
-            html += `<span>${r.name}（${count}件）</span></div>`;
+            html += `<div class="legend-item">`;
+            html += `<span class="legend-color" style="background:${r.color}"></span>`;
+            html += `<span>${r.name}（${count}件）</span>`;
+            html += `</div>`;
         });
         html += `<div style="border-top:1px solid #e2e8f0;margin:6px 0;"></div>`;
         html += `<div class="legend-item"><span class="legend-color" style="background:#ea4335"></span><span>未アポ</span></div>`;
         html += `<div class="legend-item"><span class="legend-color" style="background:#34a853"></span><span>アポ済み</span></div>`;
         html += `<div class="legend-item"><span class="legend-color" style="background:#9e9e9e"></span><span>完了</span></div>`;
         itemsEl.innerHTML = html;
-        // v1.5修正: 凡例は自動表示しない（ユーザーが📍ボタンで手動表示）
+        // v1.5修正: 凡例は自動表示しない（ユーザーがコンパクトバーの📍ボタンで手動表示）
     }
 
     function drawRouteLines() {
@@ -117,7 +120,8 @@ const RouteManager = (() => {
             }
             if (path.length >= 2) {
                 const polyline = new google.maps.Polyline({
-                    path: path, strokeColor: route.color, strokeOpacity: 0.7, strokeWeight: 3, map: map
+                    path: path, strokeColor: route.color,
+                    strokeOpacity: 0.7, strokeWeight: 3, map: map
                 });
                 polylines.push(polyline);
             }
@@ -144,14 +148,18 @@ const RouteManager = (() => {
             doc.text(`${route.name}（${members.length}件）`, 14, startY);
             startY += 3;
             const tableData = members.map((m, idx) => [
-                idx + 1, m.company || '', m.address || '', m.phone || '', m.contact || '',
+                idx + 1, m.company || '', m.address || '',
+                m.phone || '', m.contact || '',
                 m.unitCount > 1 ? `${m.unitCount}台` : '',
                 m.status === 'appointed' ? 'アポ済' : m.status === 'completed' ? '完了' : '未アポ'
             ]);
             doc.autoTable({
-                startY: startY, head: [['#', '会社名', '住所', '電話番号', '担当者', '台数', 'ステータス']],
-                body: tableData, styles: { fontSize: 7, cellPadding: 2 },
-                headStyles: { fillColor: hexToRgb(route.color) }, margin: { left: 14, right: 14 }, theme: 'grid'
+                startY: startY,
+                head: [['#', '会社名', '住所', '電話番号', '担当者', '台数', 'ステータス']],
+                body: tableData,
+                styles: { fontSize: 7, cellPadding: 2 },
+                headStyles: { fillColor: hexToRgb(route.color) },
+                margin: { left: 14, right: 14 }, theme: 'grid'
             });
             startY = doc.lastAutoTable.finalY + 10;
             if (startY > 260) { doc.addPage(); startY = 20; }
@@ -163,13 +171,16 @@ const RouteManager = (() => {
             doc.text(`未割当（${unassigned.length}件）`, 14, startY);
             startY += 3;
             const tableData = unassigned.map((m, idx) => [
-                idx + 1, m.company || '', m.address || '', m.phone || '', m.contact || '',
-                m.unitCount > 1 ? `${m.unitCount}台` : '', '未アポ'
+                idx + 1, m.company || '', m.address || '',
+                m.phone || '', m.contact || '', m.unitCount > 1 ? `${m.unitCount}台` : '', '未アポ'
             ]);
             doc.autoTable({
-                startY: startY, head: [['#', '会社名', '住所', '電話番号', '担当者', '台数', 'ステータス']],
-                body: tableData, styles: { fontSize: 7, cellPadding: 2 },
-                headStyles: { fillColor: [158, 158, 158] }, margin: { left: 14, right: 14 }, theme: 'grid'
+                startY: startY,
+                head: [['#', '会社名', '住所', '電話番号', '担当者', '台数', 'ステータス']],
+                body: tableData,
+                styles: { fontSize: 7, cellPadding: 2 },
+                headStyles: { fillColor: [158, 158, 158] },
+                margin: { left: 14, right: 14 }, theme: 'grid'
             });
         }
         doc.save(`maintenance_map_${today.replace(/\//g, '-')}.pdf`);
@@ -190,7 +201,6 @@ const RouteManager = (() => {
         const appointed = customers.filter(c => c.status === 'appointed').length;
         const completed = customers.filter(c => c.status === 'completed').length;
         const pending = customers.filter(c => c.status === 'pending' || !c.status).length;
-
         html += `<div class="summary-card"><h3>📊 全体集計</h3>`;
         html += `<div class="summary-row"><span>総件数</span><span class="summary-value">${customers.length}件</span></div>`;
         html += `<div class="summary-row"><span>🔴 未アポ</span><span class="summary-value">${pending}件</span></div>`;
@@ -212,7 +222,9 @@ const RouteManager = (() => {
 
     function extractArea(address) {
         if (!address) return '';
-        const match = address.match(/^(東京都|北海道|(?:大阪|京都)府|.{2,3}県)((?:[^市区町村]+?郡)?(?:[^市区町村]+?[市区町村]))/);
+        const match = address.match(
+            /^(東京都|北海道|(?:大阪|京都)府|.{2,3}県)((?:[^市区町村]+?郡)?(?:[^市区町村]+?[市区町村]))/
+        );
         if (match) return match[1] + match[2];
         return address.substring(0, 10);
     }
@@ -237,7 +249,6 @@ const RouteManager = (() => {
         if (!route) { alert('ルートが見つかりません'); return; }
         const customers = DataStorage.getCustomers();
         const members = customers.filter(c => c.routeId === routeId);
-
         const ordered = [];
         if (route.order && route.order.length > 0) {
             for (const cid of route.order) {
@@ -301,6 +312,7 @@ const RouteManager = (() => {
 
     return {
         updateRoutePanel, toggleRouteSection,
-        drawRouteLines, exportPDF, updateSummary, calcDistance
+        drawRouteLines, exportPDF, updateSummary,
+        calcDistance
     };
 })();
