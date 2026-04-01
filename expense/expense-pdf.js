@@ -4,7 +4,7 @@
 // html2canvas + jsPDF で横向きA4に11列テーブルを描画
 // 日本ROメンテナンスサービス向けの書式
 // v1.1改修 - 行先セルを会社名行＋住所行の2段表示に対応
-// v1.2改修 - 行先セルの会社名と住所の間の余白を縮小（品川がギリギリ問題を修正）
+// v1.2修正 - 行先セルの高さを拡大(50→60px)、会社名と住所の間のmarginを縮小(4px→1px)
 //
 // 依存: app-core.js, expense-manager.js, html2canvas, jsPDF
 // ==========================================
@@ -98,20 +98,20 @@ const ExpensePdf = (() => {
             + '<td style="width:50%;text-align:center;font-size:10px;">経理</td></tr></table></td>'
             + '<td style="border:1px solid black;text-align:center;font-size:10px;">本部</td>'
             + '</tr>'
-            // v1.2改修 - 行先セル: margin-bottom:4px→1px に縮小してセル内余白を確保
+            // v1.2修正 - 行先セル: 高さ60px、会社名と住所のmarginを1pxに縮小してゆとり確保
             + '<tr>'
-            + '<td colspan="2" style="border:1px solid black;padding:3px 5px;text-align:center;height:50px;">行先<br><span style="font-size:8px;">（お客様名）</span></td>'
-            + '<td colspan="4" style="border:1px solid black;text-align:left;padding-left:10px;height:50px;vertical-align:middle;">'
+            + '<td colspan="2" style="border:1px solid black;padding:3px 5px;text-align:center;height:60px;">行先<br><span style="font-size:8px;">（お客様名）</span></td>'
+            + '<td colspan="4" style="border:1px solid black;text-align:left;padding:4px 6px;height:60px;vertical-align:middle;">'
             + '<div style="font-size:11px;margin-bottom:1px;">' + _esc(header.destCompany || '') + '</div>'
             + '<div style="font-size:9px;color:#444;">' + _esc(header.destAddress || '') + '</div>'
             + '</td>'
             + '<td style="border:1px solid black;padding:3px 5px;text-align:center;">氏名</td>'
             + '<td colspan="2" style="border:1px solid black;text-align:left;padding-left:5px;">' + _esc(header.employeeName) + '　印</td>'
-            + '<td style="border:1px solid black;height:40px;padding:0;">'
+            + '<td style="border:1px solid black;height:60px;padding:0;">'
             + '<table style="width:100%;height:100%;border-collapse:collapse;"><tr>'
             + '<td style="border-right:1px solid black;width:50%;"></td>'
             + '<td style="width:50%;"></td></tr></table></td>'
-            + '<td style="border:1px solid black;height:40px;"></td>'
+            + '<td style="border:1px solid black;height:60px;"></td>'
             + '</tr>'
             + '<tr style="height:45px;">'
             + '<td style="border:1px solid black;width:40px;text-align:center;font-size:10px;">月</td>'
