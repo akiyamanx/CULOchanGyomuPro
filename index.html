@@ -176,7 +176,8 @@
                 <button onclick="showMapSettingsModal()">⚙️ 設定</button>
                 <button onclick="showResetConfirm()">🗑️ 全データ削除</button>
             </div>
-            <div id="map" style="width:100%;height:50vh;min-height:300px;"></div>
+            <!-- v1.9: インラインstyle削除、CSS側(map-styles.css)で高さ制御 -->
+            <div id="map"></div>
             <div class="legend" id="legend" style="display:none;">
                 <div class="legend-title">📍 ルート凡例 <button class="legend-close" onclick="toggleLegend()">✕</button></div>
                 <div id="legendItems"></div>
