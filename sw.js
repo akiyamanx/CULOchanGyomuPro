@@ -1,11 +1,11 @@
 // ==========================================
-// CULOchan業務Pro — Service Worker v3.8
+// CULOchan業務Pro — Service Worker v3.9
 // CACHE_NAMEはデプロイごとにインクリメントすること！
-// v3.7 2026-04-02 - タブ切替競合修正(v1.8)
-// v3.8 2026-04-02 - 行先住所1対1並べ修正(route-manager.js v1.9)
+// v3.8 2026-04-02 - 行先住所1対1修正(v1.9)
+// v3.9 2026-04-02 - 行先住所を町名まで切り出す修正(route-manager.js v2.0)
 // ==========================================
 
-const CACHE_NAME = 'gyomupro-v29';
+const CACHE_NAME = 'gyomupro-v30';
 const ASSETS = [
     './',
     './index.html',
