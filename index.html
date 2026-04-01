@@ -8,22 +8,18 @@
     <meta name="theme-color" content="#1a1a2e">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <link rel="apple-touch-icon" href="icons/icon-192.png">
-    <!-- 共通CSS -->
     <link rel="stylesheet" href="styles/common.css">
     <link rel="stylesheet" href="styles/receipt.css">
     <link rel="stylesheet" href="styles/expense.css">
-    <!-- v1.3追加: マップ関連CSS -->
     <link rel="stylesheet" href="styles/map/map-styles.css">
     <link rel="stylesheet" href="styles/map/map-expense-styles.css">
     <link rel="stylesheet" href="styles/map/route-order-styles.css">
     <link rel="stylesheet" href="styles/map/workspace-styles.css">
-    <!-- v1.2追加: 外部ライブラリ（html2canvas + jsPDF） -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <!-- v1.3追加: マップ用追加ライブラリ -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
-    <!-- v1.7 デバッグ用: eruda（モバイルコンソール）※本番リリース時に削除 -->
+    <!-- v1.7 デバッグ用: eruda ※本番リリース時に削除 -->
     <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
     <script>eruda.init();</script>
 </head>
@@ -61,28 +57,16 @@
                         <span class="preview-title">📋 スキャン画像</span>
                         <button class="btn-small btn-clear" onclick="ReceiptScanner.clearScan()">✕ クリア</button>
                     </div>
-                    <div class="preview-image-wrap">
-                        <img id="scanImage" class="preview-image" alt="スキャン画像">
-                    </div>
-                    <div class="preview-actions">
-                        <button class="btn btn-primary" onclick="ReceiptScanner.startDetection()">🔍 レシートを検出する</button>
-                    </div>
+                    <div class="preview-image-wrap"><img id="scanImage" class="preview-image" alt="スキャン画像"></div>
+                    <div class="preview-actions"><button class="btn btn-primary" onclick="ReceiptScanner.startDetection()">🔍 レシートを検出する</button></div>
                 </div>
                 <div id="detectionResult" class="detection-result" style="display:none;">
-                    <div class="result-header">
-                        <span class="result-title">✂️ 検出されたレシート</span>
-                        <span class="result-count" id="detectedCount">0枚</span>
-                    </div>
+                    <div class="result-header"><span class="result-title">✂️ 検出されたレシート</span><span class="result-count" id="detectedCount">0枚</span></div>
                     <div id="detectedReceipts" class="detected-list"></div>
-                    <div class="result-actions">
-                        <button class="btn btn-ai" onclick="ReceiptScanner.recognizeAll()">🤖 AIで全て読み取る</button>
-                    </div>
+                    <div class="result-actions"><button class="btn btn-ai" onclick="ReceiptScanner.recognizeAll()">🤖 AIで全て読み取る</button></div>
                 </div>
                 <div id="recognizedList" class="recognized-list" style="display:none;">
-                    <div class="result-header">
-                        <span class="result-title">📝 認識済みレシート</span>
-                        <button class="btn-small btn-select-all" onclick="ReceiptScanner.toggleSelectAll()">全選択/解除</button>
-                    </div>
+                    <div class="result-header"><span class="result-title">📝 認識済みレシート</span><button class="btn-small btn-select-all" onclick="ReceiptScanner.toggleSelectAll()">全選択/解除</button></div>
                     <div id="recognizedReceipts" class="receipt-cards"></div>
                     <div class="result-actions">
                         <button class="btn btn-pdf" onclick="ReceiptScanner.generateA4Pdf()">🖨️ 選択レシートをA4 PDF出力</button>
@@ -90,12 +74,7 @@
                     </div>
                 </div>
             </div>
-            <div class="panel-card">
-                <div class="card-title">📂 保存済みレシート</div>
-                <div id="savedReceiptList" class="saved-list">
-                    <p class="empty-msg">保存されたレシートはありません</p>
-                </div>
-            </div>
+            <div class="panel-card"><div class="card-title">📂 保存済みレシート</div><div id="savedReceiptList" class="saved-list"><p class="empty-msg">保存されたレシートはありません</p></div></div>
         </div>
         <div class="tab-panel" id="tab-expense">
             <div class="panel-card">
@@ -118,79 +97,35 @@
                 <div id="expenseRows"></div>
                 <button class="btn btn-primary" onclick="ExpenseManager.addRow()" style="margin-top:10px;">➕ 行を追加</button>
             </div>
+            <div class="panel-card"><div class="exp-total-display"><div class="exp-total-label">合計金額</div><div class="exp-total-amount" id="expGrandTotal">¥0</div></div></div>
             <div class="panel-card">
-                <div class="exp-total-display"><div class="exp-total-label">合計金額</div><div class="exp-total-amount" id="expGrandTotal">¥0</div></div>
-            </div>
-            <div class="panel-card">
-                <div class="exp-btn-row">
-                    <button class="btn btn-pdf" onclick="ExpensePdf.generate()">📄 PDF出力</button>
-                    <button class="btn" style="background:var(--bg-card-hover);color:var(--text-secondary);border:1px solid var(--border);" onclick="ExpenseManager.clearAll()">🗑️ クリア</button>
-                </div>
+                <div class="exp-btn-row"><button class="btn btn-pdf" onclick="ExpensePdf.generate()">📄 PDF出力</button><button class="btn" style="background:var(--bg-card-hover);color:var(--text-secondary);border:1px solid var(--border);" onclick="ExpenseManager.clearAll()">🗑️ クリア</button></div>
                 <div class="exp-btn-row"><button class="btn btn-save" onclick="ExpenseManager.saveDraft()">💾 下書き保存</button></div>
             </div>
-            <div class="panel-card">
-                <div class="card-title">📁 下書き一覧</div>
-                <div id="expDraftList"><p class="empty-msg">下書きはありません</p></div>
-            </div>
+            <div class="panel-card"><div class="card-title">📁 下書き一覧</div><div id="expDraftList"><p class="empty-msg">下書きはありません</p></div></div>
         </div>
-        <!-- v1.7 マップタブ: eruda追加デバッグ版 -->
+        <!-- v1.8 マップタブ: 凡例ボタン追加 -->
         <div class="tab-panel" id="tab-map">
-            <!-- v1.6修正: countBadgeのID互換性のためhidden要素追加 -->
             <div id="countBadge" style="display:none;">0件</div>
-            <!-- v1.5追加: コンパクトバー（常時表示の1行） -->
+            <!-- v1.8 コンパクトバー: 📍凡例ボタン追加 -->
             <div class="map-compact-bar">
                 <button class="compact-ws-btn" id="compactWsBtn" onclick="showWorkspaceMenu()">📅 --</button>
+                <button class="compact-legend-btn" onclick="toggleLegend()">📍</button>
                 <div class="compact-count" id="compactCount">0件</div>
                 <button class="compact-toggle-btn" id="compactToggleBtn" onclick="toggleMapToolbar()">▼</button>
             </div>
-            <!-- v1.5追加: 展開パネル（ドロップダウン） -->
             <div class="map-toolbar-dropdown" id="mapToolbarDropdown">
-                <label class="toolbar-item" for="fileInput">
-                    <span class="toolbar-icon">📁</span>
-                    <span class="toolbar-label">CSV読込</span>
-                </label>
+                <label class="toolbar-item" for="fileInput"><span class="toolbar-icon">📁</span><span class="toolbar-label">CSV読込</span></label>
                 <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" style="display:none">
-                <button class="toolbar-item" onclick="showAddModal(); toggleMapToolbar();">
-                    <span class="toolbar-icon">➕</span>
-                    <span class="toolbar-label">メンテナンス先を追加</span>
-                </button>
-                <button class="toolbar-item" onclick="exportPDF(); toggleMapToolbar();">
-                    <span class="toolbar-icon">📄</span>
-                    <span class="toolbar-label">PDF出力</span>
-                </button>
-                <button class="toolbar-item" onclick="toggleMenu(); toggleMapToolbar();">
-                    <span class="toolbar-icon">⚙️</span>
-                    <span class="toolbar-label">設定・バックアップ</span>
-                </button>
+                <button class="toolbar-item" onclick="showAddModal(); toggleMapToolbar();"><span class="toolbar-icon">➕</span><span class="toolbar-label">メンテナンス先を追加</span></button>
+                <button class="toolbar-item" onclick="exportPDF(); toggleMapToolbar();"><span class="toolbar-icon">📄</span><span class="toolbar-label">PDF出力</span></button>
+                <button class="toolbar-item" onclick="toggleMenu(); toggleMapToolbar();"><span class="toolbar-icon">⚙️</span><span class="toolbar-label">設定・バックアップ</span></button>
             </div>
-            <!-- v1.5: ワークスペースメニュー（既存） -->
-            <div class="ws-menu-overlay" id="wsMenuOverlay" style="display:none;" onclick="hideWorkspaceMenu()">
-                <div class="ws-menu" onclick="event.stopPropagation()">
-                    <div class="ws-menu-title">📅 ワークスペース切替</div>
-                    <div class="ws-menu-list" id="wsMenuList"></div>
-                    <div class="ws-menu-actions"><button class="ws-menu-add" onclick="showAddWorkspaceDialog()">➕ 新しい月を追加</button></div>
-                </div>
-            </div>
-            <div class="modal-overlay" id="addWsModal" style="display:none;">
-                <div class="modal">
-                    <h2>📅 ワークスペース追加</h2>
-                    <div class="modal-row"><label>年月</label><input type="month" id="addWsMonth"></div>
-                    <div class="modal-row"><label>名前（任意）</label><input type="text" id="addWsName" placeholder="例：3月メンテ"></div>
-                    <div class="modal-buttons"><button class="modal-cancel" onclick="hideAddWorkspaceDialog()">キャンセル</button><button class="modal-submit" onclick="addWorkspace()">作成</button></div>
-                </div>
-            </div>
-            <div class="menu-panel" id="menuPanel" style="display:none;">
-                <button onclick="exportBackup()">💾 バックアップ保存</button>
-                <button onclick="importBackup()">📂 バックアップ復元</button>
-                <input type="file" id="backupInput" accept=".json" style="display:none">
-                <button onclick="showMapSettingsModal()">⚙️ 設定</button>
-                <button onclick="showResetConfirm()">🗑️ 全データ削除</button>
-            </div>
+            <div class="ws-menu-overlay" id="wsMenuOverlay" style="display:none;" onclick="hideWorkspaceMenu()"><div class="ws-menu" onclick="event.stopPropagation()"><div class="ws-menu-title">📅 ワークスペース切替</div><div class="ws-menu-list" id="wsMenuList"></div><div class="ws-menu-actions"><button class="ws-menu-add" onclick="showAddWorkspaceDialog()">➕ 新しい月を追加</button></div></div></div>
+            <div class="modal-overlay" id="addWsModal" style="display:none;"><div class="modal"><h2>📅 ワークスペース追加</h2><div class="modal-row"><label>年月</label><input type="month" id="addWsMonth"></div><div class="modal-row"><label>名前（任意）</label><input type="text" id="addWsName" placeholder="例：3月メンテ"></div><div class="modal-buttons"><button class="modal-cancel" onclick="hideAddWorkspaceDialog()">キャンセル</button><button class="modal-submit" onclick="addWorkspace()">作成</button></div></div></div>
+            <div class="menu-panel" id="menuPanel" style="display:none;"><button onclick="exportBackup()">💾 バックアップ保存</button><button onclick="importBackup()">📂 バックアップ復元</button><input type="file" id="backupInput" accept=".json" style="display:none"><button onclick="showMapSettingsModal()">⚙️ 設定</button><button onclick="showResetConfirm()">🗑️ 全データ削除</button></div>
             <div id="map" style="width:100%;height:50vh;min-height:300px;"></div>
-            <div class="legend" id="legend" style="display:none;">
-                <div class="legend-title">📍 ルート凡例 <button class="legend-close" onclick="toggleLegend()">✕</button></div>
-                <div id="legendItems"></div>
-            </div>
+            <div class="legend" id="legend" style="display:none;"><div class="legend-title">📍 ルート凡例 <button class="legend-close" onclick="toggleLegend()">✕</button></div><div id="legendItems"></div></div>
             <div class="bottom-panel" id="bottomPanel">
                 <div class="panel-handle" onclick="togglePanel()"><div class="handle-bar"></div></div>
                 <div class="panel-tabs">
