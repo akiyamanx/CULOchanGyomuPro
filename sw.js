@@ -1,10 +1,10 @@
 // ==========================================
-// CULOchan業務Pro — Service Worker v2.9
+// CULOchan業務Pro — Service Worker v3.0
 // CACHE_NAMEはデプロイごとにインクリメントすること！
-// v2.9 2026-04-01 - 凡例ボタン追加＋タブ縦パディング拡大
+// v3.0 2026-04-01 - タブ文字切れ修正（flex-column方式）
 // ==========================================
 
-const CACHE_NAME = 'gyomupro-v20';
+const CACHE_NAME = 'gyomupro-v21';
 const ASSETS = [
     './',
     './index.html',
