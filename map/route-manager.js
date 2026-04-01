@@ -1,14 +1,11 @@
-// [CULOchanGyomuPro統合] v1.7 2026-04-02 - 行先(会社名/住所)をexpDestCompany/expDestAddressに反映
+// [CULOchanGyomuPro統合] v1.8 2026-04-02 - applyDistanceToExpenseのタブ切替競合を修正
 // ============================================
 // メンテナンスマップ v2.2.4 - route-manager.js
 // ルート管理・色分け・PDF出力・凡例
-// v2.0新規作成 - 分割ファイル構成対応
-// v2.2.1変更 - 🔢ボタン削除（ルートタブは確認専用に）
-// v2.2.3変更 - 区間別の高速/下道選択対応（UIはsegment-dialog.jsに分離）
-// v2.2.4追加 - 精算書への行先自動反映（地区名＋会社名）
 // v1.5修正 - updateLegendの自動display:block廃止
-// v1.6改修 - applyDistanceToExpenseをExpenseManager直接呼び出しに変更（MapExpenseForm廃止対応）
-// v1.7改修 - buildDestinationTextを{company,address}の2フィールド対応に変更、行先フィールドに実際に反映
+// v1.6改修 - applyDistanceToExpenseをExpenseManager直接呼び出しに変更
+// v1.7改修 - buildDestinationTextを{company,address}の2フィールド対応に変更
+// v1.8修正 - AppCore.switchTabとmapSwitchTabの競合を修正（遷移後にsetTimeoutで反映）
 // ============================================
 
 const RouteManager = (() => {
@@ -79,7 +76,6 @@ const RouteManager = (() => {
         if (stops) { stops.style.display = stops.style.display === 'none' ? 'block' : 'none'; }
     }
 
-    // v1.5修正: 凡例データは更新するが、自動表示はしない
     function updateLegend(routes, customers) {
         const legendEl = document.getElementById('legend');
         const itemsEl = document.getElementById('legendItems');
@@ -99,7 +95,6 @@ const RouteManager = (() => {
         html += `<div class="legend-item"><span class="legend-color" style="background:#34a853"></span><span>アポ済み</span></div>`;
         html += `<div class="legend-item"><span class="legend-color" style="background:#9e9e9e"></span><span>完了</span></div>`;
         itemsEl.innerHTML = html;
-        // v1.5修正: 凡例は自動表示しない（ユーザーがコンパクトバーの📍ボタンで手動表示）
     }
 
     function drawRouteLines() {
@@ -231,7 +226,7 @@ const RouteManager = (() => {
         return address.substring(0, 10);
     }
 
-    // v1.7改修 - 会社名と住所を別々のフィールドで返す（Phase E: 2フィールド対応）
+    // v1.7改修 - 会社名と住所を別々のフィールドで返す（2フィールド対応）
     function buildDestinationText(orderedCustomers) {
         const companies = []; const compSet = new Set();
         for (const c of orderedCustomers) {
@@ -240,7 +235,6 @@ const RouteManager = (() => {
         }
         const areas = []; const areaSet = new Set();
         for (const c of orderedCustomers) {
-            // 住所を市区町村レベルに切り詰め（_trimToCityと同じロジック）
             const addr = (c.address || '').trim();
             const match = addr.match(/^(.+?(?:都|道|府|県).+?(?:市|郡|区)(?:.+?区)?)/);
             const area = match ? match[1] : extractArea(c.address);
@@ -303,32 +297,32 @@ const RouteManager = (() => {
         }
     }
 
-    // v1.7改修 - 行先(会社名/住所)と走行距離をメイン精算書に反映
+    // v1.8修正 - AppCore.switchTabとmapSwitchTabの競合を解消
+    // 先にフィールドへデータを書き込んでから、最後にメインタブを切り替える
     function applyDistanceToExpense(totalKm, dest) {
+        // ① 行先（会社名）を反映
+        const destC = document.getElementById('expDestCompany');
+        if (destC && dest && dest.company) destC.value = dest.company;
+        // ② 行先（住所）を反映
+        const destA = document.getElementById('expDestAddress');
+        if (destA && dest && dest.address) destA.value = dest.address;
+        // ③ 走行距離を精算書の最初の行に反映
+        const firstRow = document.querySelector('#tab-expense .exp-row');
+        if (firstRow) {
+            const distInput = firstRow.querySelector('.exp-distance');
+            if (distInput) {
+                distInput.value = totalKm;
+                if (typeof ExpenseManager !== 'undefined') {
+                    ExpenseManager.onDistanceChange(distInput);
+                }
+            }
+            const transport = firstRow.querySelector('.exp-transport');
+            if (transport && !transport.value) transport.value = '高速道路';
+        }
+        // ④ 最後にメインタブを精算書に切り替え（これを最後にすることで競合を防ぐ）
         if (typeof AppCore !== 'undefined' && AppCore.switchTab) {
             AppCore.switchTab('expense');
         }
-        setTimeout(() => {
-            // 行先（会社名）を反映
-            const destC = document.getElementById('expDestCompany');
-            if (destC && dest && dest.company) destC.value = dest.company;
-            // 行先（住所）を反映
-            const destA = document.getElementById('expDestAddress');
-            if (destA && dest && dest.address) destA.value = dest.address;
-            // 走行距離を精算書の最初の行に反映
-            const firstRow = document.querySelector('#tab-expense .exp-row');
-            if (firstRow) {
-                const distInput = firstRow.querySelector('.exp-distance');
-                if (distInput) {
-                    distInput.value = totalKm;
-                    if (typeof ExpenseManager !== 'undefined') {
-                        ExpenseManager.onDistanceChange(distInput);
-                    }
-                }
-                const transport = firstRow.querySelector('.exp-transport');
-                if (transport && !transport.value) transport.value = '高速道路';
-            }
-        }, 200);
     }
 
     return {
