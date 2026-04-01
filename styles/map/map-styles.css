@@ -1,4 +1,4 @@
-/* [CULOchanGyomuPro統合] v1.8 2026-04-01 - 凡例ボタン追加＋タブ縦パディング拡大 */
+/* [CULOchanGyomuPro統合] v1.9 2026-04-01 - タブ文字切れ修正（flex-column方式） */
 /* メンテナンスマップ - 全スタイル定義 */
 
 /* --- CSS変数（v1.4 ダークテーマ対応） --- */
@@ -109,15 +109,17 @@
 }
 
 /* --- 下部パネル --- */
+/* v1.9修正: flex-column方式でhandle+tabsは常時表示、contentだけスクロール */
 .bottom-panel {
     position: relative; background: var(--surface);
     border-radius: 16px 16px 0 0; box-shadow: 0 -4px 16px rgba(0,0,0,0.1);
-    z-index: 150; max-height: 55vh; transition: transform 0.3s ease, max-height 0.3s ease;
+    z-index: 150; max-height: 55vh; display: flex; flex-direction: column;
+    transition: max-height 0.3s ease;
 }
-.bottom-panel.collapsed { transform: translateY(calc(100% - 44px)); }
-.panel-handle { display: flex; justify-content: center; padding: 10px; cursor: pointer; }
+.bottom-panel.collapsed { max-height: 44px; overflow: hidden; }
+.panel-handle { display: flex; justify-content: center; padding: 10px; cursor: pointer; flex-shrink: 0; }
 .handle-bar { width: 40px; height: 4px; background: #5a7089; border-radius: 2px; }
-.panel-tabs { display: flex; border-bottom: 1px solid var(--border); padding: 0 8px; }
+.panel-tabs { display: flex; border-bottom: 1px solid var(--border); padding: 0 8px; flex-shrink: 0; }
 /* v1.8修正: タブボタンの縦パディングを拡大（8px→12px） */
 .tab {
     flex: 1; padding: 12px 4px; border: none; background: none;
@@ -125,7 +127,7 @@
     color: var(--text-light); border-bottom: 2px solid transparent; transition: all 0.2s;
 }
 .tab.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 700; }
-.panel-content { overflow-y: auto; max-height: calc(55vh - 90px); }
+.panel-content { overflow-y: auto; flex: 1; min-height: 0; }
 .tab-content { display: none; padding: 8px; }
 .tab-content.active { display: block; }
 
@@ -217,12 +219,12 @@
 /* --- タブ内統合用スタイル（#tab-mapスコープ） --- */
 #tab-map { position: relative; overflow-y: auto; overflow-x: hidden; }
 .map-compact-bar { position: sticky; top: 0; z-index: 100; }
-/* v1.7修正: bottom-panelのcollapsedをmax-height方式に変更 */
+/* v1.9修正: flex-column方式 — overflow:hiddenはcollapsed時のみ */
 #tab-map .bottom-panel {
     position: relative; max-height: 55vh; border-radius: 0;
-    box-shadow: 0 -2px 8px rgba(0,0,0,0.1); overflow: hidden; transition: max-height 0.3s ease;
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.1); transition: max-height 0.3s ease;
 }
-#tab-map .bottom-panel.collapsed { max-height: 44px; }
+#tab-map .bottom-panel.collapsed { max-height: 44px; overflow: hidden; }
 #tab-map .panel-content { max-height: 40vh; }
 #tab-map .legend { position: absolute; z-index: 50; }
 #tab-map .menu-panel { position: absolute; top: 48px; right: 8px; }
