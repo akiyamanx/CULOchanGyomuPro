@@ -1,10 +1,10 @@
 // ==========================================
-// CULOchan業務Pro — Service Worker v3.1
+// CULOchan業務Pro — Service Worker v3.2
 // CACHE_NAMEはデプロイごとにインクリメントすること！
-// v3.1 2026-04-01 - collapsed時max-height修正（タブ文字チラ見え解消）
+// v3.2 2026-04-01 - 地図フル画面化＋マップタブフル幅化
 // ==========================================
 
-const CACHE_NAME = 'gyomupro-v22';
+const CACHE_NAME = 'gyomupro-v23';
 const ASSETS = [
     './',
     './index.html',
