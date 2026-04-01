@@ -1,4 +1,4 @@
-/* [CULOchanGyomuPro統合] v1.9 2026-04-01 - タブ文字切れ修正（flex-column方式） */
+/* [CULOchanGyomuPro統合] v1.10 2026-04-01 - collapsed時max-height修正（44px→24px） */
 /* メンテナンスマップ - 全スタイル定義 */
 
 /* --- CSS変数（v1.4 ダークテーマ対応） --- */
@@ -116,7 +116,8 @@
     z-index: 150; max-height: 55vh; display: flex; flex-direction: column;
     transition: max-height 0.3s ease;
 }
-.bottom-panel.collapsed { max-height: 44px; overflow: hidden; }
+/* v1.10修正: collapsed時はhandle-barのみ表示（24px = padding10*2 + bar4） */
+.bottom-panel.collapsed { max-height: 24px; overflow: hidden; }
 .panel-handle { display: flex; justify-content: center; padding: 10px; cursor: pointer; flex-shrink: 0; }
 .handle-bar { width: 40px; height: 4px; background: #5a7089; border-radius: 2px; }
 .panel-tabs { display: flex; border-bottom: 1px solid var(--border); padding: 0 8px; flex-shrink: 0; }
@@ -224,7 +225,7 @@
     position: relative; max-height: 55vh; border-radius: 0;
     box-shadow: 0 -2px 8px rgba(0,0,0,0.1); transition: max-height 0.3s ease;
 }
-#tab-map .bottom-panel.collapsed { max-height: 44px; overflow: hidden; }
+#tab-map .bottom-panel.collapsed { max-height: 24px; overflow: hidden; }
 #tab-map .panel-content { max-height: 40vh; }
 #tab-map .legend { position: absolute; z-index: 50; }
 #tab-map .menu-panel { position: absolute; top: 48px; right: 8px; }
