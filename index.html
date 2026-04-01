@@ -19,7 +19,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
-    <!-- v1.7 デバッグ用: eruda ※本番で削除 -->
+    <!-- v1.7 デバッグ用: eruda ※Phase E完了後に削除予定 -->
     <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
     <script>eruda.init();</script>
 </head>
@@ -101,7 +101,9 @@
                         <div class="exp-fg"><label>提出日</label><input type="date" class="exp-input" id="expSubmitDate"></div>
                         <div class="exp-fg"><label>SS名</label><input type="text" class="exp-input" id="expSSName" value="千葉西SS"></div>
                     </div>
-                    <div class="exp-fg"><label>行先（お客様名）</label><textarea class="exp-textarea" id="expDestination" rows="2" placeholder="逗子市&#10;クラフティ北村"></textarea></div>
+                    <!-- v1.2追加 - 行先を会社名行と住所行の2フィールドに分割 -->
+                    <div class="exp-fg"><label>行先（会社名）</label><textarea class="exp-textarea" id="expDestCompany" rows="2" placeholder="東京ガス㈱ → ㈱マーフィード → 千葉スバル㈱新港店"></textarea></div>
+                    <div class="exp-fg"><label>行先（住所）</label><textarea class="exp-textarea" id="expDestAddress" rows="2" placeholder="千葉県袖ケ浦市 → 東京都足立区 → 千葉県千葉市美浜区"></textarea></div>
                     <div class="exp-fg"><label>氏名</label><input type="text" class="exp-input" id="expEmployeeName" value="小出晃也"></div>
                 </div>
             </div>
@@ -132,7 +134,6 @@
         <!-- v1.8 マップタブ: 凡例ボタン追加 -->
         <div class="tab-panel" id="tab-map">
             <div id="countBadge" style="display:none;">0件</div>
-            <!-- v1.8 コンパクトバー: 凡例ボタン追加 -->
             <div class="map-compact-bar">
                 <button class="compact-ws-btn" id="compactWsBtn" onclick="showWorkspaceMenu()">📅 --</button>
                 <button class="compact-legend-btn" onclick="toggleLegend()">📍</button>
@@ -218,11 +219,9 @@
     <script src="map/map-core.js"></script>
     <script src="map/route-manager.js"></script>
     <script src="map/map-expense-form.js"></script>
-    <script src="map/map-expense-pdf.js"></script>
     <script src="map/route-order.js"></script>
     <script src="map/segment-dialog.js"></script>
     <script src="map/distance-calc.js"></script>
-    <script src="map/etc-reader.js"></script>
     <script src="map/ui-actions.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
