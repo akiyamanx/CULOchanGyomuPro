@@ -1,11 +1,11 @@
-// [CULOchanGyomuPro統合] v1.8 2026-04-02 - applyDistanceToExpenseのタブ切替競合を修正
+// [CULOchanGyomuPro統合] v1.9 2026-04-02 - 行先住所を会社名と1対1で並べるよう修正
 // ============================================
 // メンテナンスマップ v2.2.4 - route-manager.js
-// ルート管理・色分け・PDF出力・凡例
 // v1.5修正 - updateLegendの自動display:block廃止
 // v1.6改修 - applyDistanceToExpenseをExpenseManager直接呼び出しに変更
 // v1.7改修 - buildDestinationTextを{company,address}の2フィールド対応に変更
-// v1.8修正 - AppCore.switchTabとmapSwitchTabの競合を修正（遷移後にsetTimeoutで反映）
+// v1.8修正 - AppCore.switchTabとmapSwitchTabの競合を修正
+// v1.9修正 - buildDestinationTextで住所の重複排除を廃止→会社名と1対1で並べる
 // ============================================
 
 const RouteManager = (() => {
@@ -226,19 +226,21 @@ const RouteManager = (() => {
         return address.substring(0, 10);
     }
 
-    // v1.7改修 - 会社名と住所を別々のフィールドで返す（2フィールド対応）
+    // v1.9修正 - 会社名と住所を1対1で並べる（住所の重複排除を廃止）
+    // 例: A社→B社→C社（同区）→D社 に対して
+    //     東京都江東区→東京都中央区→東京都中央区→品川区 と件数分並べる
     function buildDestinationText(orderedCustomers) {
-        const companies = []; const compSet = new Set();
+        const companies = [];
+        const areas = [];
         for (const c of orderedCustomers) {
+            // 会社名
             const name = (c.company || '').trim();
-            if (name && !compSet.has(name)) { compSet.add(name); companies.push(name); }
-        }
-        const areas = []; const areaSet = new Set();
-        for (const c of orderedCustomers) {
+            if (name) companies.push(name);
+            // 住所は市区町村レベルに切り詰め（会社名と1対1で並べるため重複排除なし）
             const addr = (c.address || '').trim();
             const match = addr.match(/^(.+?(?:都|道|府|県).+?(?:市|郡|区)(?:.+?区)?)/);
             const area = match ? match[1] : extractArea(c.address);
-            if (area && !areaSet.has(area)) { areaSet.add(area); areas.push(area); }
+            areas.push(area || addr.substring(0, 10));
         }
         return { company: companies.join(' → '), address: areas.join(' → ') };
     }
@@ -297,16 +299,12 @@ const RouteManager = (() => {
         }
     }
 
-    // v1.8修正 - AppCore.switchTabとmapSwitchTabの競合を解消
-    // 先にフィールドへデータを書き込んでから、最後にメインタブを切り替える
+    // v1.8修正 - 先にフィールドへデータを書き込んでから最後にswitchTab
     function applyDistanceToExpense(totalKm, dest) {
-        // ① 行先（会社名）を反映
         const destC = document.getElementById('expDestCompany');
         if (destC && dest && dest.company) destC.value = dest.company;
-        // ② 行先（住所）を反映
         const destA = document.getElementById('expDestAddress');
         if (destA && dest && dest.address) destA.value = dest.address;
-        // ③ 走行距離を精算書の最初の行に反映
         const firstRow = document.querySelector('#tab-expense .exp-row');
         if (firstRow) {
             const distInput = firstRow.querySelector('.exp-distance');
@@ -319,7 +317,6 @@ const RouteManager = (() => {
             const transport = firstRow.querySelector('.exp-transport');
             if (transport && !transport.value) transport.value = '高速道路';
         }
-        // ④ 最後にメインタブを精算書に切り替え（これを最後にすることで競合を防ぐ）
         if (typeof AppCore !== 'undefined' && AppCore.switchTab) {
             AppCore.switchTab('expense');
         }
