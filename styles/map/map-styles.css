@@ -1,4 +1,4 @@
-/* [CULOchanGyomuPro統合] v1.10 2026-04-01 - collapsed時max-height修正（44px→24px） */
+/* [CULOchanGyomuPro統合] v1.11 2026-04-01 - 地図フル画面化＋マップタブフル幅化 */
 /* メンテナンスマップ - 全スタイル定義 */
 
 /* --- CSS変数（v1.4 ダークテーマ対応） --- */
@@ -218,7 +218,15 @@
 .info-btn-delete { background: var(--danger); color: white; }
 
 /* --- タブ内統合用スタイル（#tab-mapスコープ） --- */
-#tab-map { position: relative; overflow-y: auto; overflow-x: hidden; }
+/* v1.11修正: マップタブをフル幅化＋地図を画面いっぱいに表示 */
+#tab-map {
+    position: relative; overflow-y: auto; overflow-x: hidden;
+    margin: -12px; margin-bottom: 0;
+}
+#tab-map #map {
+    /* 100vhからheader(48px)+tabnav(66px)+compactbar(40px)+collapsed-handle(24px)を引く */
+    height: calc(100vh - 178px); min-height: 300px;
+}
 .map-compact-bar { position: sticky; top: 0; z-index: 100; }
 /* v1.9修正: flex-column方式 — overflow:hiddenはcollapsed時のみ */
 #tab-map .bottom-panel {
