@@ -1,11 +1,11 @@
 // ==========================================
-// CULOchan業務Pro — Service Worker v4.2
+// CULOchan業務Pro — Service Worker v4.3
 // CACHE_NAMEはデプロイごとにインクリメントすること！
-// v4.1 2026-04-02 - Phase F 駐車場利用明細機能追加
-// v4.2 2026-04-02 - 設定モーダル統合（Gemini+Maps APIキーを1画面に）
+// v4.2 2026-04-02 - 設定モーダル統合
+// v4.3 2026-04-02 - 駐車場PDF日本語対応+レシート90度回転
 // ==========================================
 
-const CACHE_NAME = 'gyomupro-v33';
+const CACHE_NAME = 'gyomupro-v34';
 const ASSETS = [
     './',
     './index.html',
