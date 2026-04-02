@@ -1,11 +1,11 @@
 // ==========================================
-// CULOchan業務Pro — Service Worker v4.3
+// CULOchan業務Pro — Service Worker v4.4
 // CACHE_NAMEはデプロイごとにインクリメントすること！
-// v4.2 2026-04-02 - 設定モーダル統合
 // v4.3 2026-04-02 - 駐車場PDF日本語対応+レシート90度回転
+// v4.4 2026-04-02 - 保存済みレシート削除機能+重複防止
 // ==========================================
 
-const CACHE_NAME = 'gyomupro-v34';
+const CACHE_NAME = 'gyomupro-v35';
 const ASSETS = [
     './',
     './index.html',
