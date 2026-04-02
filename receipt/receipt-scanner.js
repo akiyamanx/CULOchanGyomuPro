@@ -1,9 +1,10 @@
 // ==========================================
-// CULOchan業務Pro — レシートスキャナー v1.3
+// CULOchan業務Pro — レシートスキャナー v1.4
 // このファイルはスキャナーからのレシート取り込み・検出・AI認識を担当する
 // v1.1変更: Geminiモデル名修正、エラーデバッグ強化
 // v1.2追加: getRecognizedReceipts() — 駐車場明細連携用データ取得メソッド
 // v1.3追加: 保存済みレシートの削除機能＋重複保存防止
+// v1.4改修: チェックボックス式削除UI（誤削除防止の3ステップ削除）
 //
 // 依存: app-core.js, receipt-image-utils.js（ImageUtils）
 // ==========================================
@@ -12,6 +13,7 @@ const ReceiptScanner = (() => {
     let _scanImageDataUrl = null;
     let _detectedImages = [];
     let _recognizedReceipts = [];
+    let _deleteMode = false; // v1.4追加 - 削除モードフラグ
 
     function handleFileSelect(event) {
         var file = event.target.files[0];
@@ -366,7 +368,9 @@ const ReceiptScanner = (() => {
     }
 
     // ==========================================
-    // v1.3改修 - 保存済みレシート表示（削除ボタン付き）
+    // v1.4改修 - 保存済みレシート表示（チェックボックス式削除UI）
+    // 通常モード: ✕ボタンなし、下部に🗑️削除ボタン
+    // 削除モード: 各行にチェックボックス＋「選択を削除」「キャンセル」
     // ==========================================
     function renderSavedReceipts() {
         var container = document.getElementById('savedReceiptList');
@@ -374,6 +378,7 @@ const ReceiptScanner = (() => {
         var saved = JSON.parse(localStorage.getItem('gyomupro_receipts') || '[]');
         if (saved.length === 0) {
             container.innerHTML = '<p class="empty-msg">保存されたレシートはありません</p>';
+            _deleteMode = false;
             return;
         }
         var groups = {};
@@ -387,34 +392,69 @@ const ReceiptScanner = (() => {
             html += '<div class="saved-date-group">'
                 + '<div class="saved-date-header">📅 ' + date + '</div>';
             groups[date].forEach(function(r) {
-                // v1.3追加 - 各アイテムに削除ボタン
-                html += '<div class="saved-item">'
-                    + '<span class="saved-item-store">' + _escHtml(r.store || '不明') + '</span>'
+                html += '<div class="saved-item">';
+                // v1.4 - 削除モード時のみチェックボックス表示
+                if (_deleteMode) {
+                    html += '<input type="checkbox" class="saved-del-check" '
+                        + 'data-id="' + r.id + '">';
+                }
+                html += '<span class="saved-item-store">' + _escHtml(r.store || '不明') + '</span>'
                     + '<span class="saved-item-amount">¥' + (r.total || 0).toLocaleString() + '</span>'
-                    + '<button class="saved-item-del" onclick="ReceiptScanner.deleteSaved(\'' + r.id + '\')">✕</button>'
                     + '</div>';
             });
             html += '</div>';
         });
-        // v1.3追加 - 全削除ボタン
-        html += '<div style="margin-top:8px;text-align:right;">'
-            + '<button class="btn-small" style="color:var(--text-muted);font-size:11px;" '
-            + 'onclick="ReceiptScanner.clearAllSaved()">🗑️ 全て削除</button></div>';
+        // v1.4 - 下部ボタン（モードで切替）
+        html += '<div class="saved-btn-bar">';
+        if (_deleteMode) {
+            html += '<button class="btn-small saved-btn-cancel" '
+                + 'onclick="ReceiptScanner.cancelDeleteMode()">キャンセル</button>'
+                + '<button class="btn-small saved-btn-exec" '
+                + 'onclick="ReceiptScanner.executeDelete()">🗑️ 選択を削除</button>';
+        } else {
+            html += '<button class="btn-small saved-btn-del" '
+                + 'onclick="ReceiptScanner.enterDeleteMode()">🗑️ 削除</button>';
+        }
+        html += '</div>';
         container.innerHTML = html;
     }
 
-    // v1.3追加 - 保存済みレシートを1件削除
-    function deleteSaved(id) {
-        var saved = JSON.parse(localStorage.getItem('gyomupro_receipts') || '[]');
-        saved = saved.filter(function(r) { return r.id !== id; });
-        localStorage.setItem('gyomupro_receipts', JSON.stringify(saved));
+    // v1.4追加 - 削除モード開始
+    function enterDeleteMode() {
+        _deleteMode = true;
         renderSavedReceipts();
     }
 
-    // v1.3追加 - 保存済みレシートを全削除
+    // v1.4追加 - 削除モードキャンセル
+    function cancelDeleteMode() {
+        _deleteMode = false;
+        renderSavedReceipts();
+    }
+
+    // v1.4追加 - チェック済みアイテムを削除実行
+    function executeDelete() {
+        var checks = document.querySelectorAll('.saved-del-check:checked');
+        if (checks.length === 0) {
+            alert('削除するレシートを選択してください');
+            return;
+        }
+        if (!confirm(checks.length + '件のレシートを削除しますか？')) return;
+        var deleteIds = [];
+        checks.forEach(function(cb) { deleteIds.push(cb.getAttribute('data-id')); });
+        var saved = JSON.parse(localStorage.getItem('gyomupro_receipts') || '[]');
+        saved = saved.filter(function(r) {
+            return deleteIds.indexOf(r.id) === -1;
+        });
+        localStorage.setItem('gyomupro_receipts', JSON.stringify(saved));
+        _deleteMode = false;
+        renderSavedReceipts();
+    }
+
+    // v1.3互換 - 保存済みレシートを全削除（clearAllSaved残す）
     function clearAllSaved() {
         if (!confirm('保存済みレシートを全て削除しますか？')) return;
         localStorage.removeItem('gyomupro_receipts');
+        _deleteMode = false;
         renderSavedReceipts();
     }
 
@@ -440,7 +480,9 @@ const ReceiptScanner = (() => {
         generateA4Pdf: generateA4Pdf,
         saveAll: saveAll,
         getRecognizedReceipts: getRecognizedReceipts,
-        deleteSaved: deleteSaved,
+        enterDeleteMode: enterDeleteMode,     // v1.4追加
+        cancelDeleteMode: cancelDeleteMode,   // v1.4追加
+        executeDelete: executeDelete,         // v1.4追加
         clearAllSaved: clearAllSaved
     };
 })();
