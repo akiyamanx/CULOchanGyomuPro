@@ -1,12 +1,11 @@
 // ==========================================
-// CULOchan業務Pro — Service Worker v4.1
+// CULOchan業務Pro — Service Worker v4.2
 // CACHE_NAMEはデプロイごとにインクリメントすること！
-// v4.0 2026-04-02 - 行先セル高さ・margin調整(expense-pdf.js v1.2)
 // v4.1 2026-04-02 - Phase F 駐車場利用明細機能追加
-//   parking-manager.js, parking-pdf.js, parking.css を追加
+// v4.2 2026-04-02 - 設定モーダル統合（Gemini+Maps APIキーを1画面に）
 // ==========================================
 
-const CACHE_NAME = 'gyomupro-v32';
+const CACHE_NAME = 'gyomupro-v33';
 const ASSETS = [
     './',
     './index.html',
