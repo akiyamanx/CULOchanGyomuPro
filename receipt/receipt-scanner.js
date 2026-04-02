@@ -1,10 +1,11 @@
 // ==========================================
-// CULOchan業務Pro — レシートスキャナー v1.4
+// CULOchan業務Pro — レシートスキャナー v1.5
 // このファイルはスキャナーからのレシート取り込み・検出・AI認識を担当する
 // v1.1変更: Geminiモデル名修正、エラーデバッグ強化
 // v1.2追加: getRecognizedReceipts() — 駐車場明細連携用データ取得メソッド
 // v1.3追加: 保存済みレシートの削除機能＋重複保存防止
 // v1.4改修: チェックボックス式削除UI（誤削除防止の3ステップ削除）
+// v1.5追加: Phase G — Gemini OCRプロンプトにaddress/enterTime読み取り追加
 //
 // 依存: app-core.js, receipt-image-utils.js（ImageUtils）
 // ==========================================
@@ -150,14 +151,20 @@ const ReceiptScanner = (() => {
         var model = 'gemini-2.5-flash-lite';
         var endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/'
             + model + ':generateContent?key=' + apiKey;
+        // v1.5追加 - Phase G: 駐車場マッチング用にaddress/enterTimeを追加読み取り
         var prompt = 'このレシート画像を読み取ってください。\n\n'
             + '以下のJSON形式のみで回答してください。説明文やマークダウンは不要です。\n\n'
             + '{"date":"YYYY-MM-DD","store":"店名","total":合計金額の数値,'
-            + '"type":"種別","items":[{"name":"品名","amount":金額}]}\n\n'
+            + '"type":"種別",'
+            + '"address":"住所またはunknown",'
+            + '"enterTime":"HH:MMまたはunknown",'
+            + '"items":[{"name":"品名","amount":金額}]}\n\n'
             + 'typeの値: shopping（買い物）, parking（駐車場）, highway（高速道路）, other（その他）\n'
             + '日付が読めない場合はdateを"unknown"にしてください。\n'
             + '金額は数値のみ（円やカンマなし）。税込合計を使ってください。\n'
-            + '小計・消費税・合計の行はitemsに含めないでください。';
+            + '小計・消費税・合計の行はitemsに含めないでください。\n'
+            + '駐車場レシートの場合: addressは駐車場の住所（印字されていれば）、enterTimeは入庫時刻。\n'
+            + 'それ以外のレシートや読めない場合はaddress・enterTimeを"unknown"にしてください。';
         var body = {
             contents: [{ parts: [
                 { inline_data: { mime_type: mimeType, data: base64 } },
