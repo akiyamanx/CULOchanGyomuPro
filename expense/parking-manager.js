@@ -1,21 +1,16 @@
 // ==========================================
-// CULOchan業務Pro — 駐車場利用明細マネージャー v1.1
-// このファイルは駐車場利用明細の入力・管理を担当する
-// レシートスキャナーで認識したパーキングレシートを取り込み
-// 各レシートに日付・訪問先名・機械名・目的を紐付ける
-//
-// v1.1追加:
-//   - レシート画像の回転UI（🔄ボタンで90度ずつ回転）
-//   - rotationフィールド追加（0/90/180/270）
-//   - サムネイルのCSS transform回転プレビュー
-//
-// 依存: app-core.js, receipt-scanner.js（認識データ参照）
+// CULOchan業務Pro — 駐車場利用明細マネージャー v1.2
+// 駐車場利用明細の入力・管理・レシート取り込みを担当
+// v1.1: 回転UI（🔄ボタン・rotationフィールド・CSSプレビュー）
+// v1.2: Phase G自動マッチング連携（🔍ボタン・OCRデータ保持）
+// 依存: app-core.js, receipt-scanner.js, parking-matcher.js
 // ==========================================
 
 const ParkingManager = (() => {
     // 駐車場利用データ配列
-    // 各要素: { id, imageDataUrl, date, visitCompany, machineName, purpose, amount, rotation }
+    // 各要素: { id, imageDataUrl, date, visitCompany, machineName, purpose, amount, rotation, ocrAddress, ocrEnterTime, ocrStore }
     // rotation: 0/90/180/270 (PDF出力時の回転角度)
+    // v1.2追加 - ocrAddress/ocrEnterTime/ocrStore: マッチング用OCRデータ
     let _parkingItems = [];
     const STORAGE_KEY = 'gyomupro_parking';
 
@@ -50,24 +45,74 @@ const ParkingManager = (() => {
         }
 
         var importCount = 0;
+        var newIds = []; // v1.2追加 - マッチング対象のID
         checked.forEach(function(r) {
             var d = r.data || {};
+            var newId = 'park_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
             _parkingItems.push({
-                id: 'park_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                id: newId,
                 imageDataUrl: r.imageDataUrl || '',
                 date: d.date || '',
                 visitCompany: '',
                 machineName: d.store || '',
                 purpose: 'メンテナンス',
                 amount: d.total || 0,
-                rotation: 0 // v1.1追加 - 回転角度（0/90/180/270）
+                rotation: 0,
+                // v1.2追加 - マッチング用OCRデータ
+                ocrAddress: d.address || 'unknown',
+                ocrEnterTime: d.enterTime || 'unknown',
+                ocrStore: d.store || ''
             });
+            if (d.type === 'parking') newIds.push(newId);
             importCount++;
         });
 
         _saveToStorage();
         renderParkingList();
         alert('✅ ' + importCount + '件の駐車場レシートを取り込みました');
+
+        // v1.2追加 - 駐車場タイプのレシートは自動マッチング実行
+        if (newIds.length > 0 && typeof ParkingMatcher !== 'undefined') {
+            _runAutoMatchBatch(newIds);
+        }
+    }
+
+    // v1.2追加 - 複数レシートを順次自動マッチング
+    async function _runAutoMatchBatch(ids) {
+        var matchCount = 0;
+        for (var i = 0; i < ids.length; i++) {
+            var item = _parkingItems.find(function(it) { return it.id === ids[i]; });
+            if (!item || item.visitCompany) continue;
+            var result = await _runAutoMatchSingle(item);
+            if (result) matchCount++;
+        }
+        if (matchCount > 0) {
+            _saveToStorage();
+            renderParkingList();
+            console.log('[Parking] 自動マッチング完了: ' + matchCount + '件');
+        }
+    }
+
+    // v1.2追加 - 1件の自動マッチング（最有力候補を自動入力）
+    async function _runAutoMatchSingle(item) {
+        try {
+            var receipt = {
+                date: item.date,
+                store: item.ocrStore || item.machineName || '',
+                address: item.ocrAddress || 'unknown',
+                enterTime: item.ocrEnterTime || 'unknown',
+                total: item.amount || 0,
+                type: 'parking'
+            };
+            var candidates = await ParkingMatcher.findCandidates(receipt);
+            if (candidates.length > 0 && candidates[0].score >= 0.3) {
+                item.visitCompany = candidates[0].customer.company;
+                return true;
+            }
+        } catch (e) {
+            console.warn('[Parking] 自動マッチングエラー:', e);
+        }
+        return false;
     }
 
     // ==========================================
@@ -194,6 +239,13 @@ const ParkingManager = (() => {
                     + '📍</button>';
             }
 
+            // v1.2追加 - 🔍自動マッチングボタン（ParkingMatcher利用可能時）
+            if (typeof ParkingMatcher !== 'undefined') {
+                html += '<button class="parking-match-btn" '
+                    + 'onclick="ParkingMatcher.autoMatch(\'' + item.id + '\')" '
+                    + 'title="自動マッチング">🔍</button>';
+            }
+
             html += '</div></div></div>';
 
             // 3行目: 機械名 + 目的
@@ -302,20 +354,15 @@ const ParkingManager = (() => {
             alert('マップに顧客データがありません');
             return;
         }
-
-        // シンプルなドロップダウンリストで選択
         var names = customers.map(function(c) { return c.company || ''; }).filter(function(n) { return n; });
         var unique = [];
         names.forEach(function(n) {
             if (unique.indexOf(n) === -1) unique.push(n);
         });
-
         if (unique.length === 0) {
             alert('マップに会社名が設定された顧客がありません');
             return;
         }
-
-        // 選択用モーダル
         var html = '<div class="parking-picker-title">📍 訪問先を選択</div>'
             + '<div class="parking-picker-list">';
         unique.forEach(function(name) {
@@ -325,7 +372,6 @@ const ParkingManager = (() => {
         });
         html += '</div>'
             + '<button class="parking-picker-cancel" onclick="ParkingManager.closeCustomerPicker()">キャンセル</button>';
-
         var overlay = document.getElementById('parkingCustomerPicker');
         if (!overlay) {
             overlay = document.createElement('div');
@@ -349,6 +395,13 @@ const ParkingManager = (() => {
     }
 
     // ==========================================
+    // v1.2追加 - アイテム取得（マッチング連携用）
+    // ==========================================
+    function getItemById(id) {
+        return _parkingItems.find(function(it) { return it.id === id; }) || null;
+    }
+
+    // ==========================================
     // データの取得（PDF出力用）
     // ==========================================
     function getItems() {
@@ -359,24 +412,26 @@ const ParkingManager = (() => {
     // localStorage 保存/読み込み
     // ==========================================
     function _saveToStorage() {
-        // 画像データは大きいので別キーに分ける
         var itemsForSave = _parkingItems.map(function(item) {
             return {
                 id: item.id,
-                imageDataUrl: item.imageDataUrl, // 一旦そのまま保存
+                imageDataUrl: item.imageDataUrl,
                 date: item.date,
                 visitCompany: item.visitCompany,
                 machineName: item.machineName,
                 purpose: item.purpose,
                 amount: item.amount,
-                rotation: item.rotation || 0 // v1.1追加 - 回転角度
+                rotation: item.rotation || 0, // v1.1追加 - 回転角度
+                // v1.2追加 - マッチング用OCRデータ
+                ocrAddress: item.ocrAddress || 'unknown',
+                ocrEnterTime: item.ocrEnterTime || 'unknown',
+                ocrStore: item.ocrStore || ''
             };
         });
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(itemsForSave));
         } catch (e) {
             console.warn('[Parking] localStorage保存エラー:', e.message);
-            // 画像データが大きすぎる場合は画像なしで保存
             var noImg = itemsForSave.map(function(item) {
                 var copy = Object.assign({}, item);
                 copy.imageDataUrl = '';
@@ -421,6 +476,7 @@ const ParkingManager = (() => {
         showCustomerPicker: showCustomerPicker,
         applyCustomerPick: applyCustomerPick,
         closeCustomerPicker: closeCustomerPicker,
+        getItemById: getItemById, // v1.2追加 - マッチング連携用
         getItems: getItems
     };
 })();
