@@ -11,6 +11,8 @@
     <link rel="stylesheet" href="styles/common.css">
     <link rel="stylesheet" href="styles/receipt.css">
     <link rel="stylesheet" href="styles/expense.css">
+    <!-- v2.0追加 - 駐車場利用明細スタイル -->
+    <link rel="stylesheet" href="styles/parking.css">
     <link rel="stylesheet" href="styles/map/map-styles.css">
     <link rel="stylesheet" href="styles/map/map-expense-styles.css">
     <link rel="stylesheet" href="styles/map/route-order-styles.css">
@@ -19,7 +21,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
-    <!-- v1.7 デバッグ用: eruda ※Phase E完了後に削除予定 -->
+    <!-- v1.7 デバッグ用: eruda ※Phase F完了後に削除予定 -->
     <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
     <script>eruda.init();</script>
 </head>
@@ -130,6 +132,26 @@
                 <div class="card-title">📁 下書き一覧</div>
                 <div id="expDraftList"><p class="empty-msg">下書きはありません</p></div>
             </div>
+            <!-- v2.0追加 - Phase F 駐車場利用明細セクション -->
+            <div class="panel-card parking-section">
+                <div class="card-title">🅿️ 駐車場利用明細</div>
+                <p class="card-desc">パーキングレシートの管理・明細PDF出力</p>
+                <div class="parking-btn-row">
+                    <button class="btn btn-primary" onclick="ParkingManager.importFromScanner()">📸 レシートから取り込み</button>
+                    <button class="btn btn-save" onclick="ParkingManager.addItem()">➕ 手動追加</button>
+                </div>
+                <div id="parkingItemList" style="margin-top:10px;">
+                    <p class="empty-msg">駐車場利用データはありません</p>
+                </div>
+                <div class="parking-total-bar">
+                    <span class="parking-total-label">駐車場合計</span>
+                    <span class="parking-total-amount" id="parkingTotal">¥0</span>
+                </div>
+                <div class="parking-btn-row">
+                    <button class="btn btn-pdf" onclick="ParkingPdf.generate()">🖨️ 駐車場明細PDF出力</button>
+                    <button class="btn" style="background:var(--bg-card-hover);color:var(--text-secondary);border:1px solid var(--border);" onclick="ParkingManager.clearAll()">🗑️ クリア</button>
+                </div>
+            </div>
         </div>
         <!-- v1.8 マップタブ: 凡例ボタン追加 -->
         <div class="tab-panel" id="tab-map">
@@ -213,6 +235,9 @@
     <script src="expense/expense-manager.js"></script>
     <script src="expense/expense-pdf.js"></script>
     <script src="expense/expense-etc.js"></script>
+    <!-- v2.0追加 - Phase F 駐車場利用明細 -->
+    <script src="expense/parking-manager.js"></script>
+    <script src="expense/parking-pdf.js"></script>
     <script src="map/map-data-storage.js"></script>
     <script src="map/v1-converter.js"></script>
     <script src="map/csv-handler.js"></script>
@@ -226,6 +251,7 @@
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             ExpenseManager.init();
+            ParkingManager.init();
             DataStorage.migrateIfNeeded();
             updateWsButton();
             var fi = document.getElementById('fileInput');
