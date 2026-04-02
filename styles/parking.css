@@ -1,7 +1,8 @@
 /* ==========================================
- * CULOchan業務Pro — 駐車場利用明細スタイル v1.1
+ * CULOchan業務Pro — 駐車場利用明細スタイル v1.2
  * このファイルは駐車場利用明細タブのスタイルを担当する
  * v1.1追加: 回転ボタン・回転プレビュー関連スタイル
+ * v1.2追加: 🔍自動マッチングボタン・候補モーダルスタイル
  * ========================================== */
 
 /* ==========================================
@@ -316,4 +317,72 @@
     color: var(--text-muted);
     font-size: 14px;
     cursor: pointer;
+}
+
+/* ==========================================
+ * v1.2追加 - 🔍自動マッチングボタン
+ * ========================================== */
+.parking-match-btn {
+    flex-shrink: 0;
+    width: 36px;
+    height: 34px;
+    background: var(--bg-card-hover);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.parking-match-btn:active {
+    background: var(--accent);
+}
+.parking-match-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* v1.2追加 - マッチング候補リスト */
+.parking-match-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+.parking-match-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    font-size: 14px;
+    color: var(--text-primary);
+    flex-wrap: wrap;
+}
+.parking-match-item:active {
+    background: var(--accent);
+    color: #fff;
+}
+.match-rank {
+    font-size: 18px;
+    flex-shrink: 0;
+}
+.match-company {
+    flex: 1;
+    font-weight: 600;
+    min-width: 0;
+    word-break: break-all;
+}
+.match-info {
+    font-size: 12px;
+    color: var(--text-muted);
+    width: 100%;
+    padding-left: 30px;
 }
