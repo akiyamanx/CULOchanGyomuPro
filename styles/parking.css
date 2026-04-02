@@ -1,6 +1,7 @@
 /* ==========================================
- * CULOchan業務Pro — 駐車場利用明細スタイル v1.0
+ * CULOchan業務Pro — 駐車場利用明細スタイル v1.1
  * このファイルは駐車場利用明細タブのスタイルを担当する
+ * v1.1追加: 回転ボタン・回転プレビュー関連スタイル
  * ========================================== */
 
 /* ==========================================
@@ -34,6 +35,10 @@
 .parking-thumb-wrap {
     flex-shrink: 0;
     width: 60px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
 }
 
 .parking-thumb {
@@ -43,10 +48,38 @@
     border-radius: 6px;
     border: 1px solid var(--border);
     cursor: pointer;
+    transition: transform 0.3s ease;
 }
 
 .parking-thumb:active {
     opacity: 0.7;
+}
+
+/* v1.1追加 - 回転ボタン */
+.parking-rotate-btn {
+    width: 36px;
+    height: 28px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-card);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+.parking-rotate-btn:active {
+    background: var(--accent-light);
+    transform: scale(0.95);
+}
+
+/* v1.1追加 - 回転角度ラベル */
+.parking-rotate-label {
+    font-size: 10px;
+    color: var(--text-sub);
+    line-height: 1;
 }
 
 /* 入力フォームエリア */
