@@ -1,5 +1,5 @@
 // ==========================================
-// CULOchan業務Pro — 駐車場利用明細PDF出力 v1.1
+// CULOchan業務Pro — 駐車場利用明細PDF出力 v1.2
 // このファイルは駐車場利用明細のPDF出力を担当する
 // A4横向きにレシート画像を上段4枚+下段4枚で配置
 // 各レシートの下に日付・訪問先・機械名・目的のテキスト情報
@@ -8,27 +8,42 @@
 // v1.1修正:
 //   - 日本語文字化け対策: テキストをCanvasで描画→画像としてPDF配置
 //   - レシート画像を90度右回転して縦向きに配置
+// v1.2修正:
+//   - _rotateImage90を汎用化→_rotateImageByDeg(任意角度:0/90/180/270)
+//   - item.rotationフィールドに応じた回転角度でPDF配置
 //
 // 依存: app-core.js, parking-manager.js, receipt-image-utils.js, jsPDF
 // ==========================================
 
 const ParkingPdf = (() => {
 
-    // v1.1 - 画像を90度右回転するヘルパー
+    // v1.2 - 画像を指定角度で回転するヘルパー（0/90/180/270度対応）
     // Canvasに描画して回転した画像のdataURLを返す
-    async function _rotateImage90(dataUrl) {
+    // deg=0はそのまま返す（処理スキップ）
+    async function _rotateImageByDeg(dataUrl, deg) {
+        // 0度の場合は回転不要
+        if (!deg || deg === 0) return dataUrl;
+        // 正規化（0-359に収める）
+        var d = ((deg % 360) + 360) % 360;
+        if (d === 0) return dataUrl;
+
         return new Promise(function(resolve, reject) {
             var img = new Image();
             img.onload = function() {
                 var canvas = document.createElement('canvas');
-                // 90度回転: 幅と高さが入れ替わる
-                canvas.width = img.height;
-                canvas.height = img.width;
+                // 90度/270度は幅と高さが入れ替わる
+                if (d === 90 || d === 270) {
+                    canvas.width = img.height;
+                    canvas.height = img.width;
+                } else {
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                }
                 var ctx = canvas.getContext('2d');
-                // 右回転（時計回り90度）
-                ctx.translate(canvas.width, 0);
-                ctx.rotate(Math.PI / 2);
-                ctx.drawImage(img, 0, 0);
+                // Canvas中心に移動→回転→描画位置補正
+                ctx.translate(canvas.width / 2, canvas.height / 2);
+                ctx.rotate(d * Math.PI / 180);
+                ctx.drawImage(img, -img.width / 2, -img.height / 2);
                 resolve(canvas.toDataURL('image/jpeg', 0.92));
             };
             img.onerror = function() { resolve(dataUrl); }; // 失敗時は元画像
@@ -144,11 +159,12 @@ const ParkingPdf = (() => {
                     pdf.setLineWidth(0.3);
                     pdf.rect(cellX, cellY, cellW, cellH);
 
-                    // v1.1 - レシート画像を90度右回転して配置
+                    // v1.2 - レシート画像をitem.rotationの角度で回転して配置
                     if (item.imageDataUrl) {
                         try {
                             AppCore.showLoading('画像処理中... (' + (i + 1) + '/' + withImage.length + ')');
-                            var rotatedDataUrl = await _rotateImage90(item.imageDataUrl);
+                            var rotDeg = item.rotation || 0;
+                            var rotatedDataUrl = await _rotateImageByDeg(item.imageDataUrl, rotDeg);
                             var img = await ImageUtils.loadImage(rotatedDataUrl);
                             var ratio = Math.min(imgMaxW / img.width, imgMaxH / img.height);
                             var dw = img.width * ratio;
