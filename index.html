@@ -103,7 +103,6 @@
                         <div class="exp-fg"><label>提出日</label><input type="date" class="exp-input" id="expSubmitDate"></div>
                         <div class="exp-fg"><label>SS名</label><input type="text" class="exp-input" id="expSSName" value="千葉西SS"></div>
                     </div>
-                    <!-- v1.2追加 - 行先を会社名行と住所行の2フィールドに分割 -->
                     <div class="exp-fg"><label>行先（会社名）</label><textarea class="exp-textarea" id="expDestCompany" rows="2" placeholder="東京ガス㈱ → ㈱マーフィード → 千葉スバル㈱新港店"></textarea></div>
                     <div class="exp-fg"><label>行先（住所）</label><textarea class="exp-textarea" id="expDestAddress" rows="2" placeholder="千葉県袖ケ浦市 → 東京都足立区 → 千葉県千葉市美浜区"></textarea></div>
                     <div class="exp-fg"><label>氏名</label><input type="text" class="exp-input" id="expEmployeeName" value="小出晃也"></div>
@@ -153,7 +152,7 @@
                 </div>
             </div>
         </div>
-        <!-- v1.8 マップタブ: 凡例ボタン追加 -->
+        <!-- マップタブ -->
         <div class="tab-panel" id="tab-map">
             <div id="countBadge" style="display:none;">0件</div>
             <div class="map-compact-bar">
@@ -196,10 +195,9 @@
                 <button onclick="exportBackup()">💾 バックアップ保存</button>
                 <button onclick="importBackup()">📂 バックアップ復元</button>
                 <input type="file" id="backupInput" accept=".json" style="display:none">
-                <button onclick="showMapSettingsModal()">⚙️ 設定</button>
+                <button onclick="AppCore.openSettings()">⚙️ 設定</button>
                 <button onclick="showResetConfirm()">🗑️ 全データ削除</button>
             </div>
-            <!-- v1.9: インラインstyle削除、CSS側(map-styles.css)で高さ制御 -->
             <div id="map"></div>
             <div class="legend" id="legend" style="display:none;">
                 <div class="legend-title">📍 ルート凡例 <button class="legend-close" onclick="toggleLegend()">✕</button></div>
@@ -222,12 +220,45 @@
             </div>
             <div class="modal-overlay" id="addModal" style="display:none;"><div class="modal"><h2>➕ メンテナンス先を追加</h2><div class="modal-row"><label>会社名 *</label><input type="text" id="addCompany" placeholder="例：㈱サンプル会社"></div><div class="modal-row"><label>住所 *</label><input type="text" id="addAddress" placeholder="例：東京都港区虎ノ門1-1-1"></div><div class="modal-row"><label>電話番号</label><input type="tel" id="addPhone" placeholder="例：03-1234-5678"></div><div class="modal-row"><label>担当者</label><input type="text" id="addContact" placeholder="例：山田様"></div><div class="modal-row"><label>目的</label><select id="addPurpose"><option value="">未設定</option><option value="メンテナンス">メンテナンス</option><option value="修理">修理</option><option value="本体設置">本体設置</option><option value="その他">その他</option></select></div><div class="modal-row"><label>備考</label><textarea id="addNote" placeholder="台数や機種、駐車場情報など..."></textarea></div><div class="modal-buttons"><button class="modal-cancel" onclick="hideAddModal()">キャンセル</button><button class="modal-submit" onclick="addNewLocation()">追加する</button></div></div></div>
             <div class="modal-overlay" id="editModal" style="display:none;"><div class="modal"><h2>📝 詳細編集</h2><div class="modal-row"><label>会社名</label><input type="text" id="editCompany"></div><div class="modal-row"><label>住所</label><input type="text" id="editAddress"></div><div class="modal-row"><label>電話番号</label><input type="tel" id="editPhone"></div><div class="modal-row"><label>担当者</label><input type="text" id="editContact"></div><div class="modal-row"><label>ルート</label><select id="editRoute"></select></div><div class="modal-row"><label>アポ日時</label><input type="datetime-local" id="editAppoDate"></div><div class="modal-row"><label>ステータス</label><select id="editStatus"><option value="pending">未アポ</option><option value="appointed">アポ済み</option><option value="completed">完了</option></select></div><div class="modal-row"><label>目的</label><select id="editPurpose"><option value="">未設定</option><option value="メンテナンス">メンテナンス</option><option value="修理">修理</option><option value="本体設置">本体設置</option><option value="その他">その他</option></select></div><div class="modal-row"><label>備考</label><textarea id="editNote"></textarea></div><div class="modal-buttons"><button class="modal-cancel" onclick="hideEditModal()">キャンセル</button><button class="modal-delete" onclick="deleteLocation()">🗑️ 削除</button><button class="modal-submit" onclick="saveEdit()">保存</button></div></div></div>
-            <div class="modal-overlay" id="mapSettingsModal" style="display:none;"><div class="modal"><h2>⚙️ マップ設定</h2><div class="modal-row"><label>自宅住所（出発点）</label><input type="text" id="settingHomeAddress" placeholder="例：千葉県袖ケ浦市..."></div><div class="modal-row"><label>Google Maps APIキー</label><input type="text" id="settingApiKey" placeholder="APIキーを入力"></div><div class="modal-buttons"><button class="modal-cancel" onclick="hideMapSettingsModal()">キャンセル</button><button class="modal-submit" onclick="saveMapSettings()">保存</button></div></div></div>
             <div class="modal-overlay" id="resetModal" style="display:none;"><div class="modal"><h2>🗑️ データをリセット</h2><p class="confirm-text">現在のワークスペースのデータをすべて削除しますか？<br>この操作は取り消せません。<br><strong id="resetCount">0件</strong>のデータが削除されます</p><div class="modal-buttons"><button class="modal-cancel" onclick="hideResetConfirm()">キャンセル</button><button class="modal-delete" onclick="resetAllData()">削除する</button></div></div></div>
             <div class="loading-overlay" id="mapLoading" style="display:none;"><div class="loading-content"><div class="loading-spinner"></div><p>📍 処理中...</p><p id="mapLoadingProgress"></p></div></div>
         </div>
     </main>
-    <div class="modal-overlay" id="settingsModal" style="display:none;" onclick="AppCore.closeSettings(event)"><div class="modal-content" onclick="event.stopPropagation()"><div class="modal-header"><span class="modal-title">⚙️ 設定</span><button class="btn-small btn-clear" onclick="AppCore.closeSettings()">✕</button></div><div class="modal-body"><div class="setting-group"><label class="setting-label">🔑 Gemini APIキー</label><p class="setting-hint">レシートのAI読み取りに使用します</p><input type="password" id="settingGeminiKey" class="setting-input" placeholder="AIza..."><p class="setting-hint" style="margin-top:8px;"><a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--accent-light);">Google AI Studio でAPIキーを取得 →</a></p></div></div><div class="modal-footer"><button class="btn btn-save" onclick="AppCore.saveSettings()">💾 保存する</button></div></div></div>
+    <!-- v2.1改修 - 統合設定モーダル（Gemini API + Maps API + 自宅住所を1箇所で管理） -->
+    <div class="modal-overlay" id="settingsModal" style="display:none;" onclick="AppCore.closeSettings(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span class="modal-title">⚙️ 設定</span>
+                <button class="btn-small btn-clear" onclick="AppCore.closeSettings()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="setting-group">
+                    <label class="setting-label">🔑 Gemini APIキー</label>
+                    <p class="setting-hint">レシートのAI読み取りに使用します</p>
+                    <input type="password" id="settingGeminiKey" class="setting-input" placeholder="AIza...">
+                    <p class="setting-hint" style="margin-top:8px;">
+                        <a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--accent-light);">Google AI Studio でAPIキーを取得 →</a>
+                    </p>
+                </div>
+                <div class="setting-group" style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px;">
+                    <label class="setting-label">🗺️ Google Maps APIキー</label>
+                    <p class="setting-hint">マップの地図表示・距離計算に使用します</p>
+                    <input type="password" id="settingMapsKey" class="setting-input" placeholder="AIza...">
+                    <p class="setting-hint" style="margin-top:8px;">
+                        <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color:var(--accent-light);">Google Cloud Console でAPIキーを取得 →</a>
+                    </p>
+                </div>
+                <div class="setting-group" style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px;">
+                    <label class="setting-label">🏠 自宅住所（出発点）</label>
+                    <p class="setting-hint">マップの距離計算の出発点として使用します</p>
+                    <input type="text" id="settingHomeAddr" class="setting-input" placeholder="例：千葉県袖ケ浦市...">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-save" onclick="AppCore.saveSettings()">💾 保存する</button>
+            </div>
+        </div>
+    </div>
     <div class="loading-overlay" id="loading" style="display:none;"><div class="loading-spinner"></div><div class="loading-text" id="loadingText">処理中...</div></div>
     <script src="shared/app-core.js"></script>
     <script src="receipt/receipt-image-utils.js"></script>
@@ -235,7 +266,6 @@
     <script src="expense/expense-manager.js"></script>
     <script src="expense/expense-pdf.js"></script>
     <script src="expense/expense-etc.js"></script>
-    <!-- v2.0追加 - Phase F 駐車場利用明細 -->
     <script src="expense/parking-manager.js"></script>
     <script src="expense/parking-pdf.js"></script>
     <script src="map/map-data-storage.js"></script>
@@ -266,9 +296,6 @@
                 document.body.appendChild(s);
             }
         });
-        function showMapSettingsModal() { var s = DataStorage.getSettings(); document.getElementById('settingHomeAddress').value = s.homeAddress || ''; document.getElementById('settingApiKey').value = s.apiKey || ''; document.getElementById('mapSettingsModal').style.display = 'flex'; }
-        function hideMapSettingsModal() { document.getElementById('mapSettingsModal').style.display = 'none'; }
-        function saveMapSettings() { var s = DataStorage.getSettings(); s.homeAddress = document.getElementById('settingHomeAddress').value.trim(); s.apiKey = document.getElementById('settingApiKey').value.trim(); DataStorage.saveSettings(s); hideMapSettingsModal(); alert('✅ マップ設定を保存しました！\nページをリロードします。'); location.reload(); }
     </script>
 </body>
 </html>
