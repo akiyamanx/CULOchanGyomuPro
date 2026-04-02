@@ -1,16 +1,81 @@
 // ==========================================
-// CULOchan業務Pro — 駐車場利用明細PDF出力 v1.0
+// CULOchan業務Pro — 駐車場利用明細PDF出力 v1.1
 // このファイルは駐車場利用明細のPDF出力を担当する
 // A4横向きにレシート画像を上段4枚+下段4枚で配置
 // 各レシートの下に日付・訪問先・機械名・目的のテキスト情報
 // 9枚以上の場合は次ページに続く
+//
+// v1.1修正:
+//   - 日本語文字化け対策: テキストをCanvasで描画→画像としてPDF配置
+//   - レシート画像を90度右回転して縦向きに配置
 //
 // 依存: app-core.js, parking-manager.js, receipt-image-utils.js, jsPDF
 // ==========================================
 
 const ParkingPdf = (() => {
 
-    // v1.0 - PDF生成メイン
+    // v1.1 - 画像を90度右回転するヘルパー
+    // Canvasに描画して回転した画像のdataURLを返す
+    async function _rotateImage90(dataUrl) {
+        return new Promise(function(resolve, reject) {
+            var img = new Image();
+            img.onload = function() {
+                var canvas = document.createElement('canvas');
+                // 90度回転: 幅と高さが入れ替わる
+                canvas.width = img.height;
+                canvas.height = img.width;
+                var ctx = canvas.getContext('2d');
+                // 右回転（時計回り90度）
+                ctx.translate(canvas.width, 0);
+                ctx.rotate(Math.PI / 2);
+                ctx.drawImage(img, 0, 0);
+                resolve(canvas.toDataURL('image/jpeg', 0.92));
+            };
+            img.onerror = function() { resolve(dataUrl); }; // 失敗時は元画像
+            img.src = dataUrl;
+        });
+    }
+
+    // v1.1 - テキストをCanvas画像として描画するヘルパー
+    // jsPDFのデフォルトフォントは日本語非対応なのでCanvasで描画して画像化
+    function _textToImage(lines, cellW_px) {
+        var lineH = 18; // 1行の高さ(px)
+        var padX = 6;
+        var height = lines.length * lineH + 8;
+        var canvas = document.createElement('canvas');
+        canvas.width = cellW_px;
+        canvas.height = height;
+        var ctx = canvas.getContext('2d');
+        // 背景は白
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // テキスト描画
+        ctx.fillStyle = '#333333';
+        ctx.font = '13px "Hiragino Kaku Gothic ProN", "MS Gothic", sans-serif';
+        ctx.textBaseline = 'top';
+        for (var i = 0; i < lines.length; i++) {
+            ctx.fillText(lines[i], padX, 4 + i * lineH);
+        }
+        return canvas.toDataURL('image/png');
+    }
+
+    // v1.1 - タイトルをCanvas画像として描画
+    function _titleToImage(text, width_px) {
+        var canvas = document.createElement('canvas');
+        canvas.width = width_px;
+        canvas.height = 36;
+        var ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#000000';
+        ctx.font = 'bold 22px "Hiragino Kaku Gothic ProN", "MS Gothic", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+        return canvas.toDataURL('image/png');
+    }
+
+    // v1.1 - PDF生成メイン（日本語対応＋回転対応版）
     async function generate() {
         var items = ParkingManager.getItems();
         if (!items || items.length === 0) {
@@ -20,10 +85,8 @@ const ParkingPdf = (() => {
 
         // 画像があるアイテムだけ対象
         var withImage = items.filter(function(item) { return item.imageDataUrl; });
-        var withoutImage = items.filter(function(item) { return !item.imageDataUrl; });
-
-        if (withImage.length === 0 && withoutImage.length === 0) {
-            alert('出力するデータがありません');
+        if (withImage.length === 0) {
+            alert('レシート画像があるデータがありません');
             return;
         }
 
@@ -33,104 +96,89 @@ const ParkingPdf = (() => {
             var jsPDF = window.jspdf.jsPDF;
             // A4横向き
             var pdf = new jsPDF('landscape', 'mm', 'a4');
-            var pageW = pdf.internal.pageSize.getWidth(); // 297mm
+            var pageW = pdf.internal.pageSize.getWidth();  // 297mm
             var pageH = pdf.internal.pageSize.getHeight(); // 210mm
 
             // レイアウト定数
             var marginX = 8;
-            var marginTop = 15; // タイトル分の余白
-            var cols = 4;       // 1行4枚
-            var rowsPerPage = 2; // 上段・下段
+            var marginTop = 18; // タイトル分の余白
+            var cols = 4;
+            var rowsPerPage = 2;
             var maxPerPage = cols * rowsPerPage; // 8枚/ページ
 
-            var cellW = (pageW - marginX * 2) / cols; // 各セルの横幅
-            var availH = pageH - marginTop - 5;       // 使える縦幅
-            var cellH = availH / rowsPerPage;          // 各セルの縦幅
-            var textAreaH = 20; // テキスト情報エリアの高さ(mm)
-            var imgMaxH = cellH - textAreaH - 4; // 画像に使える最大高さ
-            var imgMaxW = cellW - 6;  // 画像に使える最大横幅
-            var pad = 3; // セル内パディング
+            var cellW = (pageW - marginX * 2) / cols;
+            var availH = pageH - marginTop - 5;
+            var cellH = availH / rowsPerPage;
+            var textAreaH = 22; // テキスト情報エリア(mm)
+            var imgMaxH = cellH - textAreaH - 4;
+            var imgMaxW = cellW - 6;
+            var pad = 3;
+
+            // Canvas用のpx変換（300dpi想定、1mm≒3.78px → 簡易で×3）
+            var cellW_px = Math.floor(cellW * 3);
 
             // ページ数計算
             var totalPages = Math.ceil(withImage.length / maxPerPage);
-            if (totalPages === 0) totalPages = 1;
 
-            // 画像ありレシートをページ分割して配置
             for (var page = 0; page < totalPages; page++) {
                 if (page > 0) pdf.addPage();
 
-                // タイトル
-                pdf.setFontSize(14);
-                pdf.setFont('helvetica', 'bold');
-                pdf.text('駐車場利用明細', pageW / 2, 10, { align: 'center' });
+                // v1.1 - タイトルをCanvas画像で描画（日本語対応）
+                var titleImg = _titleToImage('駐車場利用明細', Math.floor(pageW * 3));
+                pdf.addImage(titleImg, 'PNG', 0, 2, pageW, 12);
 
                 var startIdx = page * maxPerPage;
                 var endIdx = Math.min(startIdx + maxPerPage, withImage.length);
 
                 for (var i = startIdx; i < endIdx; i++) {
                     var item = withImage[i];
-                    var pi = i - startIdx; // ページ内インデックス
+                    var pi = i - startIdx;
                     var col = pi % cols;
                     var row = Math.floor(pi / cols);
 
                     var cellX = marginX + col * cellW;
                     var cellY = marginTop + row * cellH;
 
-                    // セル枠線（薄いグレー）
+                    // セル枠線
                     pdf.setDrawColor(200, 200, 200);
                     pdf.setLineWidth(0.3);
                     pdf.rect(cellX, cellY, cellW, cellH);
 
-                    // レシート画像を配置（縦向き、上側に配置）
+                    // v1.1 - レシート画像を90度右回転して配置
                     if (item.imageDataUrl) {
                         try {
-                            var img = await ImageUtils.loadImage(item.imageDataUrl);
+                            AppCore.showLoading('画像処理中... (' + (i + 1) + '/' + withImage.length + ')');
+                            var rotatedDataUrl = await _rotateImage90(item.imageDataUrl);
+                            var img = await ImageUtils.loadImage(rotatedDataUrl);
                             var ratio = Math.min(imgMaxW / img.width, imgMaxH / img.height);
                             var dw = img.width * ratio;
                             var dh = img.height * ratio;
-                            // 画像はセル上部に中央配置
                             var imgX = cellX + pad + (imgMaxW - dw) / 2;
                             var imgY = cellY + pad;
-                            pdf.addImage(item.imageDataUrl, 'JPEG', imgX, imgY, dw, dh);
+                            pdf.addImage(rotatedDataUrl, 'JPEG', imgX, imgY, dw, dh);
                         } catch (imgErr) {
-                            console.warn('[ParkingPdf] 画像読込エラー:', imgErr.message);
+                            console.warn('[ParkingPdf] 画像処理エラー:', imgErr.message);
                         }
                     }
 
-                    // テキスト情報（画像の下、セル下部に配置）
+                    // v1.1 - テキスト情報をCanvas画像で描画（日本語対応）
+                    var textLines = [
+                        _formatDate(item.date),
+                        item.visitCompany || '-',
+                        item.machineName || '-',
+                        (item.purpose || '') + '  ¥' + (item.amount || 0).toLocaleString()
+                    ];
+                    var textImg = _textToImage(textLines, cellW_px);
                     var textY = cellY + cellH - textAreaH;
+                    // 区切り線
                     pdf.setDrawColor(220, 220, 220);
                     pdf.setLineWidth(0.2);
                     pdf.line(cellX + pad, textY, cellX + cellW - pad, textY);
-
-                    pdf.setFontSize(7);
-                    pdf.setFont('helvetica', 'normal');
-                    pdf.setTextColor(0, 0, 0);
-
-                    var lineH = 4; // テキスト行間
-                    var tx = cellX + pad + 1;
-                    var ty = textY + lineH;
-
-                    // 日付
-                    pdf.text(_formatDate(item.date), tx, ty);
-                    ty += lineH;
-
-                    // 訪問先名
-                    var visitText = item.visitCompany || '-';
-                    pdf.text(visitText.substring(0, 20), tx, ty);
-                    ty += lineH;
-
-                    // 機械名
-                    var machText = item.machineName || '-';
-                    pdf.text(machText.substring(0, 20), tx, ty);
-                    ty += lineH;
-
-                    // 目的 + 金額
-                    var purposeText = (item.purpose || '') + '  ¥' + (item.amount || 0).toLocaleString();
-                    pdf.text(purposeText, tx, ty);
+                    // テキスト画像を配置
+                    pdf.addImage(textImg, 'PNG', cellX + 1, textY + 0.5, cellW - 2, textAreaH - 1);
                 }
 
-                // ページ番号（右下）
+                // ページ番号
                 if (totalPages > 1) {
                     pdf.setFontSize(8);
                     pdf.setTextColor(150, 150, 150);
@@ -156,13 +204,9 @@ const ParkingPdf = (() => {
         if (!dateStr || dateStr === 'unknown') return '日付不明';
         try {
             var parts = dateStr.split('-');
-            if (parts.length === 3) {
-                return parts[1] + '/' + parts[2];
-            }
+            if (parts.length === 3) return parts[1] + '/' + parts[2];
             return dateStr;
-        } catch (e) {
-            return dateStr;
-        }
+        } catch (e) { return dateStr; }
     }
 
     return { generate: generate };
