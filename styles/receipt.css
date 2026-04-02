@@ -1,6 +1,7 @@
 /* ==========================================
- * CULOchan業務Pro — レシートスキャナー スタイル v1.0
+ * CULOchan業務Pro — レシートスキャナー スタイル v1.1
  * このファイルはレシートタブ固有のスタイルを定義する
+ * v1.1追加: チェックボックス式削除UIスタイル
  * ========================================== */
 
 /* --- スキャン画像取り込みエリア --- */
@@ -282,4 +283,70 @@
 
 @keyframes ai-shimmer {
     to { left: 100%; }
+}
+
+/* ==========================================
+ * v1.1追加 - チェックボックス式削除UI
+ * ========================================== */
+
+/* 保存済みレシートのチェックボックス */
+.saved-del-check {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+    margin-right: 4px;
+}
+
+/* 下部ボタンバー */
+.saved-btn-bar {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+}
+
+/* 削除ボタン（通常モード） */
+.saved-btn-del {
+    color: var(--text-muted);
+    font-size: 11px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 10px;
+    cursor: pointer;
+}
+
+.saved-btn-del:active {
+    background: rgba(255, 80, 80, 0.1);
+}
+
+/* キャンセルボタン（削除モード） */
+.saved-btn-cancel {
+    color: var(--text-muted);
+    font-size: 12px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+    cursor: pointer;
+}
+
+/* 選択を削除ボタン（削除モード） */
+.saved-btn-exec {
+    color: #ff5050;
+    font-size: 12px;
+    font-weight: bold;
+    background: rgba(255, 80, 80, 0.1);
+    border: 1px solid rgba(255, 80, 80, 0.3);
+    border-radius: 6px;
+    padding: 6px 12px;
+    cursor: pointer;
+}
+
+.saved-btn-exec:active {
+    background: rgba(255, 80, 80, 0.25);
 }
