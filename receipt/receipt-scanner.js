@@ -1,7 +1,8 @@
 // ==========================================
-// CULOchan業務Pro — レシートスキャナー v1.1
+// CULOchan業務Pro — レシートスキャナー v1.2
 // このファイルはスキャナーからのレシート取り込み・検出・AI認識を担当する
 // v1.1変更: Geminiモデル名修正、エラーデバッグ強化
+// v1.2追加: getRecognizedReceipts() — 駐車場明細連携用データ取得メソッド
 //
 // 依存: app-core.js, receipt-image-utils.js（ImageUtils）
 // ==========================================
@@ -169,7 +170,6 @@ const ReceiptScanner = (() => {
         var mimeMatch = imageDataUrl.match(/^data:(image\/[a-z]+);base64,/);
         var mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
 
-        // v1.1 - モデル名修正: 安定版エイリアスを使用
         var model = 'gemini-2.5-flash-lite';
         var endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/'
             + model + ':generateContent?key=' + apiKey;
@@ -202,7 +202,6 @@ const ReceiptScanner = (() => {
             body: JSON.stringify(body)
         });
 
-        // v1.1 - レスポンスエラーの詳細ログ
         if (!res.ok) {
             var errText = '';
             try { errText = await res.text(); } catch (e) {}
@@ -213,7 +212,6 @@ const ReceiptScanner = (() => {
         var data = await res.json();
         console.log('[Scanner] APIレスポンス:', JSON.stringify(data).substring(0, 300));
 
-        // v1.1 - レスポンス解析の強化
         var text = '';
         if (data.candidates && data.candidates[0]) {
             var candidate = data.candidates[0];
@@ -222,14 +220,12 @@ const ReceiptScanner = (() => {
                     return p.text || '';
                 }).join('');
             }
-            // ブロックされた場合
             if (candidate.finishReason === 'SAFETY') {
                 console.warn('[Scanner] 安全フィルターでブロックされました');
                 throw new Error('安全フィルターでブロック');
             }
         }
 
-        // エラーレスポンスの場合
         if (data.error) {
             console.error('[Scanner] APIエラー:', data.error.message);
             throw new Error(data.error.message);
@@ -242,10 +238,7 @@ const ReceiptScanner = (() => {
 
         console.log('[Scanner] AI生テキスト:', text.substring(0, 200));
 
-        // v1.1 - JSONパースの強化（様々な形式に対応）
-        // マークダウンのコードブロックを除去
         text = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
-        // 先頭・末尾の余分な文字を除去
         var jsonStart = text.indexOf('{');
         var jsonEnd = text.lastIndexOf('}');
         if (jsonStart >= 0 && jsonEnd > jsonStart) {
@@ -434,6 +427,11 @@ const ReceiptScanner = (() => {
         container.innerHTML = html;
     }
 
+    // v1.2追加 - 認識済みレシートを外部に提供（駐車場明細連携用）
+    function getRecognizedReceipts() {
+        return _recognizedReceipts.slice();
+    }
+
     function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
 
     document.addEventListener('DOMContentLoaded', renderSavedReceipts);
@@ -446,6 +444,7 @@ const ReceiptScanner = (() => {
         toggleCheck: toggleCheck,
         toggleSelectAll: toggleSelectAll,
         generateA4Pdf: generateA4Pdf,
-        saveAll: saveAll
+        saveAll: saveAll,
+        getRecognizedReceipts: getRecognizedReceipts
     };
 })();
