@@ -1,15 +1,21 @@
 // ==========================================
-// CULOchan業務Pro — 駐車場利用明細マネージャー v1.0
+// CULOchan業務Pro — 駐車場利用明細マネージャー v1.1
 // このファイルは駐車場利用明細の入力・管理を担当する
 // レシートスキャナーで認識したパーキングレシートを取り込み
 // 各レシートに日付・訪問先名・機械名・目的を紐付ける
+//
+// v1.1追加:
+//   - レシート画像の回転UI（🔄ボタンで90度ずつ回転）
+//   - rotationフィールド追加（0/90/180/270）
+//   - サムネイルのCSS transform回転プレビュー
 //
 // 依存: app-core.js, receipt-scanner.js（認識データ参照）
 // ==========================================
 
 const ParkingManager = (() => {
     // 駐車場利用データ配列
-    // 各要素: { id, imageDataUrl, date, visitCompany, machineName, purpose, amount }
+    // 各要素: { id, imageDataUrl, date, visitCompany, machineName, purpose, amount, rotation }
+    // rotation: 0/90/180/270 (PDF出力時の回転角度)
     let _parkingItems = [];
     const STORAGE_KEY = 'gyomupro_parking';
 
@@ -53,7 +59,8 @@ const ParkingManager = (() => {
                 visitCompany: '',
                 machineName: d.store || '',
                 purpose: 'メンテナンス',
-                amount: d.total || 0
+                amount: d.total || 0,
+                rotation: 0 // v1.1追加 - 回転角度（0/90/180/270）
             });
             importCount++;
         });
@@ -74,7 +81,8 @@ const ParkingManager = (() => {
             visitCompany: '',
             machineName: '',
             purpose: 'メンテナンス',
-            amount: 0
+            amount: 0,
+            rotation: 0 // v1.1追加 - 回転角度
         });
         _saveToStorage();
         renderParkingList();
@@ -103,6 +111,20 @@ const ParkingManager = (() => {
     }
 
     // ==========================================
+    // v1.1追加 - レシート画像回転（90度ずつ）
+    // タップごとに 0→90→180→270→0 と回転
+    // PDF出力時にこの角度で回転して配置する
+    // ==========================================
+    function rotateImage(id) {
+        var item = _parkingItems.find(function(i) { return i.id === id; });
+        if (!item) return;
+        var current = item.rotation || 0;
+        item.rotation = (current + 90) % 360;
+        _saveToStorage();
+        renderParkingList();
+    }
+
+    // ==========================================
     // UI描画
     // ==========================================
     function renderParkingList() {
@@ -122,11 +144,18 @@ const ParkingManager = (() => {
         _parkingItems.forEach(function(item, idx) {
             html += '<div class="parking-item" data-id="' + item.id + '">';
 
-            // レシート画像サムネイル（あれば表示）
+            // レシート画像サムネイル（あれば表示）+ v1.1 回転ボタン
             if (item.imageDataUrl) {
+                var rot = item.rotation || 0;
                 html += '<div class="parking-thumb-wrap">'
                     + '<img class="parking-thumb" src="' + item.imageDataUrl + '" '
-                    + 'alt="レシート" onclick="ParkingManager.previewImage(\'' + item.id + '\')">'
+                    + 'alt="レシート" '
+                    + 'style="transform:rotate(' + rot + 'deg)" '
+                    + 'onclick="ParkingManager.previewImage(\'' + item.id + '\')">'
+                    + '<button class="parking-rotate-btn" '
+                    + 'onclick="ParkingManager.rotateImage(\'' + item.id + '\')" '
+                    + 'title="90度回転">🔄</button>'
+                    + '<span class="parking-rotate-label">' + rot + '°</span>'
                     + '</div>';
             }
 
@@ -339,7 +368,8 @@ const ParkingManager = (() => {
                 visitCompany: item.visitCompany,
                 machineName: item.machineName,
                 purpose: item.purpose,
-                amount: item.amount
+                amount: item.amount,
+                rotation: item.rotation || 0 // v1.1追加 - 回転角度
             };
         });
         try {
@@ -384,6 +414,7 @@ const ParkingManager = (() => {
         addItem: addItem,
         removeItem: removeItem,
         clearAll: clearAll,
+        rotateImage: rotateImage, // v1.1追加
         renderParkingList: renderParkingList,
         updateField: updateField,
         previewImage: previewImage,
