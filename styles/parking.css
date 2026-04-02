@@ -1,0 +1,286 @@
+/* ==========================================
+ * CULOchan業務Pro — 駐車場利用明細スタイル v1.0
+ * このファイルは駐車場利用明細タブのスタイルを担当する
+ * ========================================== */
+
+/* ==========================================
+ * 駐車場セクション
+ * ========================================== */
+.parking-section {
+    margin-top: 12px;
+    border-top: 2px solid var(--border);
+    padding-top: 12px;
+}
+
+.parking-section .card-title {
+    color: var(--accent-light);
+}
+
+/* ==========================================
+ * 駐車場アイテム（1件）
+ * ========================================== */
+.parking-item {
+    position: relative;
+    display: flex;
+    gap: 10px;
+    padding: 10px;
+    margin-bottom: 10px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+}
+
+/* レシートサムネイル */
+.parking-thumb-wrap {
+    flex-shrink: 0;
+    width: 60px;
+}
+
+.parking-thumb {
+    width: 60px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+}
+
+.parking-thumb:active {
+    opacity: 0.7;
+}
+
+/* 入力フォームエリア */
+.parking-form {
+    flex: 1;
+    min-width: 0;
+}
+
+.parking-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.parking-fg {
+    flex: 1;
+    min-width: 0;
+}
+
+.parking-fg label {
+    display: block;
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-bottom: 2px;
+}
+
+.parking-fg-date {
+    flex: 1.2;
+}
+
+.parking-fg-amount {
+    flex: 0.8;
+}
+
+.parking-fg-full {
+    flex: 1;
+}
+
+.parking-input {
+    width: 100%;
+    padding: 6px 8px;
+    background: var(--bg-main);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 13px;
+    box-sizing: border-box;
+}
+
+.parking-input:focus {
+    border-color: var(--accent);
+    outline: none;
+}
+
+.parking-select {
+    appearance: auto;
+}
+
+/* 訪問先入力 + 📍ピッカーボタン */
+.parking-visit-wrap {
+    display: flex;
+    gap: 4px;
+}
+
+.parking-visit-input {
+    flex: 1;
+}
+
+.parking-pick-btn {
+    flex-shrink: 0;
+    width: 36px;
+    height: 34px;
+    background: var(--bg-card-hover);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.parking-pick-btn:active {
+    background: var(--accent);
+}
+
+/* 削除ボタン */
+.parking-del-btn {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 24px;
+    height: 24px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.parking-del-btn:active {
+    background: rgba(255, 80, 80, 0.2);
+    color: #ff5050;
+}
+
+/* ==========================================
+ * 合計表示
+ * ========================================== */
+.parking-total-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-top: 8px;
+}
+
+.parking-total-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.parking-total-amount {
+    font-size: 18px;
+    font-weight: bold;
+    color: var(--accent-light);
+}
+
+/* ==========================================
+ * ボタン群
+ * ========================================== */
+.parking-btn-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+}
+
+.parking-btn-row .btn {
+    flex: 1;
+    min-width: 120px;
+}
+
+/* ==========================================
+ * 画像プレビューオーバーレイ
+ * ========================================== */
+.parking-preview-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    z-index: 9999;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+}
+
+.parking-preview-img {
+    max-width: 90vw;
+    max-height: 90vh;
+    object-fit: contain;
+    border-radius: 8px;
+}
+
+/* ==========================================
+ * 顧客ピッカーモーダル
+ * ========================================== */
+.parking-picker-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 9990;
+    justify-content: center;
+    align-items: flex-end;
+}
+
+.parking-picker-modal {
+    width: 100%;
+    max-width: 400px;
+    max-height: 70vh;
+    background: var(--bg-card);
+    border-radius: 16px 16px 0 0;
+    padding: 16px;
+    overflow-y: auto;
+}
+
+.parking-picker-title {
+    font-size: 15px;
+    font-weight: bold;
+    color: var(--text-primary);
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+.parking-picker-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.parking-picker-item {
+    padding: 10px 14px;
+    background: var(--bg-main);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 14px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.parking-picker-item:active {
+    background: var(--accent);
+    color: #fff;
+}
+
+.parking-picker-cancel {
+    width: 100%;
+    padding: 10px;
+    margin-top: 10px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-muted);
+    font-size: 14px;
+    cursor: pointer;
+}
