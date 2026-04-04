@@ -1,4 +1,4 @@
-// [CULOchanGyomuPro統合] v1.7 2026-04-01 - erudaデバッグ版＋mapSwitchTab改善
+// [CULOchanGyomuPro統合] v1.8 2026-04-04 - Phase H: Googleカレンダー連携
 // ============================================
 // メンテナンスマップ v2.5 - ui-actions.js
 // グローバルUI関数（モーダル・メニュー・パネル制御）
@@ -8,6 +8,7 @@
 // v1.4追加 - ドロップダウン式ツールバー（toggleMapToolbar）
 // v1.5修正 - mapSwitchTab/reloadAllUIのセレクタを#bottomPanelスコープに限定
 // v1.7修正 - mapSwitchTabデバッグ強化＋eruda対応
+// v1.8追加 - Phase H: Googleカレンダー連携（URLリンク方式）
 // ============================================
 
 // =============================================
@@ -252,13 +253,12 @@ function addNewLocation() {
     updateCompactCount();
 }
 
-function hideEditModal() {
-    document.getElementById('editModal').style.display = 'none';
-}
+// v1.8移動: hideEditModalは末尾のGCal連携セクションで定義（restoreEditButtons込み）
 
 function saveEdit() {
     var id = MapCore.getCurrentEditId();
     if (!id) return;
+    var appoDate = document.getElementById('editAppoDate').value || null;
     DataStorage.updateCustomer(id, {
         company: document.getElementById('editCompany').value.trim(),
         address: document.getElementById('editAddress').value.trim(),
@@ -267,10 +267,20 @@ function saveEdit() {
         note: document.getElementById('editNote').value.trim(),
         status: document.getElementById('editStatus').value,
         routeId: document.getElementById('editRoute').value || null,
-        appoDate: document.getElementById('editAppoDate').value || null,
+        appoDate: appoDate,
         purpose: document.getElementById('editPurpose').value
     });
-    hideEditModal();
+    // v1.8追加: アポ日時があればGCalボタン表示
+    if (appoDate) {
+        var company = document.getElementById('editCompany').value.trim();
+        var address = document.getElementById('editAddress').value.trim();
+        var contact = document.getElementById('editContact').value.trim();
+        var purpose = document.getElementById('editPurpose').value;
+        var note = document.getElementById('editNote').value.trim();
+        showGcalConfirm(company, address, appoDate, contact, purpose, note);
+    } else {
+        hideEditModal();
+    }
     MapCore.refreshAllMarkers();
     RouteManager.updateRoutePanel();
 }
@@ -385,4 +395,94 @@ function mapSwitchTab(tabName) {
 function toggleLegend() {
     var legend = document.getElementById('legend');
     legend.style.display = legend.style.display === 'none' ? 'block' : 'none';
+}
+
+// =============================================
+// v1.8追加 - Phase H: Googleカレンダー連携（URLリンク方式）
+// =============================================
+
+// v1.8 GCal用の日時フォーマット（YYYYMMDDTHHmmSS）
+function formatGcalDate(datetimeLocal) {
+    // datetime-local形式 "2026-04-01T09:00" → "20260401T090000"
+    return datetimeLocal.replace(/[-:]/g, '').replace('T', 'T') + '00';
+}
+
+// v1.8 Googleカレンダー追加URLを生成
+function buildGcalUrl(company, address, appoDate, contact, purpose, note) {
+    var startDate = formatGcalDate(appoDate);
+    // デフォルト1時間の予定
+    var dtObj = new Date(appoDate);
+    dtObj.setHours(dtObj.getHours() + 1);
+    var endStr = dtObj.getFullYear()
+        + String(dtObj.getMonth() + 1).padStart(2, '0')
+        + String(dtObj.getDate()).padStart(2, '0')
+        + 'T' + String(dtObj.getHours()).padStart(2, '0')
+        + String(dtObj.getMinutes()).padStart(2, '0') + '00';
+
+    var title = company;
+    if (purpose) title += '（' + purpose + '）';
+
+    var details = '';
+    if (contact) details += '担当者: ' + contact + '\n';
+    if (purpose) details += '目的: ' + purpose + '\n';
+    if (note) details += '備考: ' + note;
+    details = details.trim();
+
+    var params = [
+        'action=TEMPLATE',
+        'text=' + encodeURIComponent(title),
+        'dates=' + startDate + '/' + endStr,
+        'location=' + encodeURIComponent(address)
+    ];
+    if (details) params.push('details=' + encodeURIComponent(details));
+
+    return 'https://calendar.google.com/calendar/render?' + params.join('&');
+}
+
+// v1.8 保存後にGCal追加を提案するUI
+function showGcalConfirm(company, address, appoDate, contact, purpose, note) {
+    var url = buildGcalUrl(company, address, appoDate, contact, purpose, note);
+    // editModalのボタンエリアをGCal確認UIに差し替え
+    var modal = document.getElementById('editModal');
+    var btnArea = modal.querySelector('.modal-buttons');
+    if (!btnArea) { hideEditModal(); return; }
+
+    // 元のボタンHTML退避
+    if (!btnArea.dataset.originalHtml) {
+        btnArea.dataset.originalHtml = btnArea.innerHTML;
+    }
+
+    var dtObj = new Date(appoDate);
+    var dateStr = (dtObj.getMonth() + 1) + '/' + dtObj.getDate()
+        + ' ' + String(dtObj.getHours()).padStart(2, '0')
+        + ':' + String(dtObj.getMinutes()).padStart(2, '0');
+
+    btnArea.innerHTML =
+        '<div style="text-align:center;width:100%;">'
+        + '<p style="margin:0 0 8px;font-size:14px;">✅ 保存しました</p>'
+        + '<p style="margin:0 0 12px;font-size:13px;color:#888;">'
+        + company + ' ' + dateStr + '</p>'
+        + '<a href="' + url + '" target="_blank" rel="noopener" '
+        + 'class="gcal-add-btn" '
+        + 'onclick="setTimeout(function(){restoreEditButtons();hideEditModal();},300)">'
+        + '📅 Googleカレンダーに追加</a>'
+        + '<button class="modal-cancel" style="margin-top:8px;width:100%;" '
+        + 'onclick="restoreEditButtons();hideEditModal()">閉じる</button>'
+        + '</div>';
+}
+
+// v1.8 editModalのボタンを元に戻す
+function restoreEditButtons() {
+    var modal = document.getElementById('editModal');
+    var btnArea = modal.querySelector('.modal-buttons');
+    if (btnArea && btnArea.dataset.originalHtml) {
+        btnArea.innerHTML = btnArea.dataset.originalHtml;
+        delete btnArea.dataset.originalHtml;
+    }
+}
+
+// v1.8 editModal閉じる時にボタンも復元
+function hideEditModal() {
+    restoreEditButtons();
+    document.getElementById('editModal').style.display = 'none';
 }
