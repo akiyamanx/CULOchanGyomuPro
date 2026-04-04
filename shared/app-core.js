@@ -1,8 +1,9 @@
 // ==========================================
-// CULOchan業務Pro — アプリコア v1.2
+// CULOchan業務Pro — アプリコア v1.3
 // このファイルはタブ切替、共通初期化、ローディング制御、設定管理を担当する
 // v1.1追加: 設定モーダル（Gemini APIキー入力）
 // v1.2改修: 設定モーダルにGoogle Maps APIキー+自宅住所を統合（2箇所バラバラ問題解消）
+// v1.3追加: GCal埋め込みURL設定（スワイプパネル用）
 //
 // 依存: なし
 // ==========================================
@@ -85,6 +86,12 @@ const AppCore = (() => {
             var mapSettings2 = _getMapSettings();
             homeInput.value = mapSettings2.homeAddress || '';
         }
+
+        // v1.3追加 - GCal埋め込みURL読み込み
+        var gcalInput = document.getElementById('settingGcalUrl');
+        if (gcalInput) {
+            gcalInput.value = localStorage.getItem('gyomupro_gcal_embed_url') || '';
+        }
     }
 
     // v1.2 - 設定モーダルを閉じる
@@ -124,6 +131,17 @@ const AppCore = (() => {
             // Maps APIキーが変わった場合はリロード必要
             if (mapsInput && mapsInput.value.trim() !== oldApiKey) {
                 needReload = true;
+            }
+        }
+
+        // ③ GCal埋め込みURL
+        var gcalInput = document.getElementById('settingGcalUrl');
+        if (gcalInput) {
+            var gcalUrl = gcalInput.value.trim();
+            localStorage.setItem('gyomupro_gcal_embed_url', gcalUrl);
+            // カレンダーパネルのiframeを再読み込み
+            if (typeof GcalPanel !== 'undefined' && GcalPanel.reloadCalendar) {
+                GcalPanel.reloadCalendar();
             }
         }
 
