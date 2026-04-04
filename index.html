@@ -225,6 +225,23 @@
             <div class="modal-overlay" id="editModal" style="display:none;"><div class="modal"><h2>📝 詳細編集</h2><div class="modal-row"><label>会社名</label><input type="text" id="editCompany"></div><div class="modal-row"><label>住所</label><input type="text" id="editAddress"></div><div class="modal-row"><label>電話番号</label><input type="tel" id="editPhone"></div><div class="modal-row"><label>担当者</label><input type="text" id="editContact"></div><div class="modal-row"><label>ルート</label><select id="editRoute"></select></div><div class="modal-row"><label>アポ日時</label><input type="datetime-local" id="editAppoDate"></div><div class="modal-row"><label>ステータス</label><select id="editStatus"><option value="pending">未アポ</option><option value="appointed">アポ済み</option><option value="completed">完了</option></select></div><div class="modal-row"><label>目的</label><select id="editPurpose"><option value="">未設定</option><option value="メンテナンス">メンテナンス</option><option value="修理">修理</option><option value="本体設置">本体設置</option><option value="その他">その他</option></select></div><div class="modal-row"><label>備考</label><textarea id="editNote"></textarea></div><div class="modal-buttons"><button class="modal-cancel" onclick="hideEditModal()">キャンセル</button><button class="modal-delete" onclick="deleteLocation()">🗑️ 削除</button><button class="modal-submit" onclick="saveEdit()">保存</button></div></div></div>
             <div class="modal-overlay" id="resetModal" style="display:none;"><div class="modal"><h2>🗑️ データをリセット</h2><p class="confirm-text">現在のワークスペースのデータをすべて削除しますか？<br>この操作は取り消せません。<br><strong id="resetCount">0件</strong>のデータが削除されます</p><div class="modal-buttons"><button class="modal-cancel" onclick="hideResetConfirm()">キャンセル</button><button class="modal-delete" onclick="resetAllData()">削除する</button></div></div></div>
             <div class="loading-overlay" id="mapLoading" style="display:none;"><div class="loading-content"><div class="loading-spinner"></div><p>📍 処理中...</p><p id="mapLoadingProgress"></p></div></div>
+            <!-- v1.9追加 - GCalスワイプパネル -->
+            <div class="gcal-slide-panel" id="gcalSlidePanel">
+                <div class="gcal-panel-header">
+                    <span class="gcal-panel-title">📅 カレンダー</span>
+                    <button class="gcal-panel-close" onclick="GcalPanel.closePanel()">✕</button>
+                </div>
+                <div class="gcal-panel-body">
+                    <iframe id="gcalIframe" class="gcal-iframe" style="display:none;" frameborder="0"></iframe>
+                    <div id="gcalPlaceholder" class="gcal-placeholder">
+                        <p class="gcal-placeholder-icon">📅</p>
+                        <p class="gcal-placeholder-title">カレンダーを表示するには<br>埋め込みURLの設定が必要です</p>
+                        <p class="gcal-placeholder-hint">⚙️ 設定 → Googleカレンダー埋め込みURL<br>に貼り付けてください</p>
+                        <button class="btn btn-primary" onclick="GcalPanel.closePanel(); AppCore.openSettings();" style="margin-top:12px;">⚙️ 設定を開く</button>
+                    </div>
+                </div>
+                <div class="gcal-panel-hint">← 右スワイプで閉じる</div>
+            </div>
         </div>
     </main>
     <!-- v2.1改修 - 統合設定モーダル（Gemini API + Maps API + 自宅住所を1箇所で管理） -->
@@ -256,6 +273,14 @@
                     <p class="setting-hint">マップの距離計算の出発点として使用します</p>
                     <input type="text" id="settingHomeAddr" class="setting-input" placeholder="例：千葉県袖ケ浦市...">
                 </div>
+                <div class="setting-group" style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px;">
+                    <label class="setting-label">📅 Googleカレンダー埋め込みURL</label>
+                    <p class="setting-hint">マップで左スワイプするとカレンダーが表示されます</p>
+                    <input type="text" id="settingGcalUrl" class="setting-input" placeholder="https://calendar.google.com/calendar/embed?src=...">
+                    <p class="setting-hint" style="margin-top:8px;">
+                        取得方法: GCal設定 → カレンダーの統合 → 埋め込みコードからURLをコピー
+                    </p>
+                </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-save" onclick="AppCore.saveSettings()">💾 保存する</button>
@@ -281,11 +306,14 @@
     <script src="map/segment-dialog.js"></script>
     <script src="map/distance-calc.js"></script>
     <script src="map/ui-actions.js"></script>
+    <script src="map/gcal-panel.js"></script>
     <script src="expense/parking-matcher.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             ExpenseManager.init();
             ParkingManager.init();
+            GcalPanel.init();
+            GcalPanel.initPanelSwipe();
             DataStorage.migrateIfNeeded();
             updateWsButton();
             var fi = document.getElementById('fileInput');
