@@ -1,5 +1,5 @@
 // ==========================================
-// CULOchan業務Pro — Service Worker v4.9
+// CULOchan業務Pro — Service Worker v5.0
 // CACHE_NAMEはデプロイごとにインクリメントすること！
 // v4.3 2026-04-02 - 駐車場PDF日本語対応+レシート90度回転
 // v4.4 2026-04-02 - 保存済みレシート削除機能+重複防止
@@ -8,9 +8,10 @@
 // v4.7 2026-04-03 - Phase G: 駐車場×顧客自動マッチング
 // v4.8 2026-04-04 - Phase H: Googleカレンダー連携
 // v4.9 2026-04-04 - Phase H: GCal直接起動ボタン追加
+// v5.0 2026-04-04 - Phase H: GCalスワイプパネル追加
 // ==========================================
 
-const CACHE_NAME = 'gyomupro-v40';
+const CACHE_NAME = 'gyomupro-v41';
 const ASSETS = [
     './',
     './index.html',
@@ -41,6 +42,7 @@ const ASSETS = [
     './map/segment-dialog.js',
     './map/distance-calc.js',
     './map/ui-actions.js',
+    './map/gcal-panel.js',
     './manifest.json'
 ];
 
