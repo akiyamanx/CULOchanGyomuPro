@@ -1,9 +1,10 @@
 // ==========================================
-// CULOchan業務Pro — 駐車場利用明細マネージャー v1.2
+// CULOchan業務Pro — 駐車場利用明細マネージャー v1.3
 // 駐車場利用明細の入力・管理・レシート取り込みを担当
 // v1.1: 回転UI（🔄ボタン・rotationフィールド・CSSプレビュー）
 // v1.2: Phase G自動マッチング連携（🔍ボタン・OCRデータ保持）
-// 依存: app-core.js, receipt-scanner.js, parking-matcher.js
+// v1.3: Phase I IndexedDB移行（localStorage→IDB、画像の安全な永続化）
+// 依存: app-core.js, receipt-scanner.js, parking-matcher.js, parking-idb.js
 // ==========================================
 
 const ParkingManager = (() => {
@@ -12,14 +13,20 @@ const ParkingManager = (() => {
     // rotation: 0/90/180/270 (PDF出力時の回転角度)
     // v1.2追加 - ocrAddress/ocrEnterTime/ocrStore: マッチング用OCRデータ
     let _parkingItems = [];
-    const STORAGE_KEY = 'gyomupro_parking';
 
     // ==========================================
-    // 初期化
+    // v1.3改修 - 初期化（IDB対応: マイグレーション→IDB読み込み）
     // ==========================================
-    function init() {
-        console.log('[Parking] 駐車場利用明細マネージャー初期化');
-        _loadFromStorage();
+    async function init() {
+        console.log('[Parking] 駐車場利用明細マネージャー初期化 (IDB版 v1.3)');
+        // v1.3 - localStorageからの自動マイグレーション（初回のみ）
+        if (typeof ParkingIDB !== 'undefined') {
+            var migResult = await ParkingIDB.migrateFromLocalStorage();
+            if (migResult.migrated) {
+                console.log('[Parking] マイグレーション完了:', migResult.count + '件をIDBに移行');
+            }
+        }
+        await _loadFromStorage();
         renderParkingList();
     }
 
@@ -28,7 +35,7 @@ const ParkingManager = (() => {
     // ==========================================
     // レシートスキャナーの認識済みデータから駐車場レシートを取り込む
     // receipt-scanner.jsの_recognizedReceiptsを参照
-    function importFromScanner() {
+    async function importFromScanner() {
         // ReceiptScannerの認識済みレシートを取得
         var receipts = ReceiptScanner.getRecognizedReceipts
             ? ReceiptScanner.getRecognizedReceipts() : [];
@@ -67,11 +74,9 @@ const ParkingManager = (() => {
             importCount++;
         });
 
-        _saveToStorage();
+        await _saveToStorage();
         renderParkingList();
         alert('✅ ' + importCount + '件の駐車場レシートを取り込みました');
-
-        // v1.2追加 - 駐車場タイプのレシートは自動マッチング実行
         if (newIds.length > 0 && typeof ParkingMatcher !== 'undefined') {
             _runAutoMatchBatch(newIds);
         }
@@ -87,7 +92,7 @@ const ParkingManager = (() => {
             if (result) matchCount++;
         }
         if (matchCount > 0) {
-            _saveToStorage();
+            await _saveToStorage();
             renderParkingList();
             console.log('[Parking] 自動マッチング完了: ' + matchCount + '件');
         }
@@ -118,7 +123,7 @@ const ParkingManager = (() => {
     // ==========================================
     // 手動で1件追加
     // ==========================================
-    function addItem() {
+    async function addItem() {
         _parkingItems.push({
             id: 'park_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
             imageDataUrl: '',
@@ -129,29 +134,37 @@ const ParkingManager = (() => {
             amount: 0,
             rotation: 0 // v1.1追加 - 回転角度
         });
-        _saveToStorage();
+        await _saveToStorage();
         renderParkingList();
     }
 
     // ==========================================
     // 削除
     // ==========================================
-    function removeItem(id) {
+    async function removeItem(id) {
         if (!confirm('この駐車場明細を削除しますか？')) return;
         _parkingItems = _parkingItems.filter(function(item) {
             return item.id !== id;
         });
-        _saveToStorage();
+        // v1.3 - IDBからも個別削除
+        if (typeof ParkingIDB !== 'undefined') {
+            await ParkingIDB.remove(id);
+        }
+        await _saveToStorage();
         renderParkingList();
     }
 
     // ==========================================
     // 全削除
     // ==========================================
-    function clearAll() {
+    async function clearAll() {
         if (!confirm('駐車場利用明細をすべて削除しますか？')) return;
         _parkingItems = [];
-        _saveToStorage();
+        // v1.3 - IDBも全件削除
+        if (typeof ParkingIDB !== 'undefined') {
+            await ParkingIDB.clearAll();
+        }
+        await _saveToStorage();
         renderParkingList();
     }
 
@@ -160,12 +173,12 @@ const ParkingManager = (() => {
     // タップごとに 0→90→180→270→0 と回転
     // PDF出力時にこの角度で回転して配置する
     // ==========================================
-    function rotateImage(id) {
+    async function rotateImage(id) {
         var item = _parkingItems.find(function(i) { return i.id === id; });
         if (!item) return;
         var current = item.rotation || 0;
         item.rotation = (current + 90) % 360;
-        _saveToStorage();
+        await _saveToStorage();
         renderParkingList();
     }
 
@@ -286,7 +299,7 @@ const ParkingManager = (() => {
     // ==========================================
     // フィールド更新
     // ==========================================
-    function updateField(id, field, value) {
+    async function updateField(id, field, value) {
         var item = _parkingItems.find(function(i) { return i.id === id; });
         if (!item) return;
         if (field === 'amount') {
@@ -294,7 +307,7 @@ const ParkingManager = (() => {
         } else {
             item[field] = value;
         }
-        _saveToStorage();
+        await _saveToStorage();
         if (field === 'amount') _updateTotal();
     }
 
@@ -383,8 +396,8 @@ const ParkingManager = (() => {
         overlay.style.display = 'flex';
     }
 
-    function applyCustomerPick(id, name) {
-        updateField(id, 'visitCompany', name);
+    async function applyCustomerPick(id, name) {
+        await updateField(id, 'visitCompany', name);
         closeCustomerPicker();
         renderParkingList();
     }
@@ -409,9 +422,9 @@ const ParkingManager = (() => {
     }
 
     // ==========================================
-    // localStorage 保存/読み込み
+    // v1.3改修 - IndexedDB 保存/読み込み（localStorageから移行）
     // ==========================================
-    function _saveToStorage() {
+    async function _saveToStorage() {
         var itemsForSave = _parkingItems.map(function(item) {
             return {
                 id: item.id,
@@ -421,34 +434,36 @@ const ParkingManager = (() => {
                 machineName: item.machineName,
                 purpose: item.purpose,
                 amount: item.amount,
-                rotation: item.rotation || 0, // v1.1追加 - 回転角度
+                rotation: item.rotation || 0,
                 // v1.2追加 - マッチング用OCRデータ
                 ocrAddress: item.ocrAddress || 'unknown',
                 ocrEnterTime: item.ocrEnterTime || 'unknown',
                 ocrStore: item.ocrStore || ''
             };
         });
-        try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(itemsForSave));
-        } catch (e) {
-            console.warn('[Parking] localStorage保存エラー:', e.message);
-            var noImg = itemsForSave.map(function(item) {
-                var copy = Object.assign({}, item);
-                copy.imageDataUrl = '';
-                return copy;
-            });
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(noImg));
-            console.warn('[Parking] 画像なしで保存しました');
+
+        // v1.3 - IDBが利用可能ならIDBに保存
+        if (typeof ParkingIDB !== 'undefined') {
+            try {
+                await ParkingIDB.putAll(itemsForSave);
+                return;
+            } catch (e) {
+                console.warn('[Parking] IDB保存エラー、フォールバックなし:', e.message);
+            }
         }
     }
 
-    function _loadFromStorage() {
-        try {
-            var data = localStorage.getItem(STORAGE_KEY);
-            if (data) _parkingItems = JSON.parse(data);
-        } catch (e) {
-            console.warn('[Parking] localStorage読み込みエラー:', e.message);
-            _parkingItems = [];
+    async function _loadFromStorage() {
+        // v1.3 - IDBから読み込み
+        if (typeof ParkingIDB !== 'undefined') {
+            try {
+                _parkingItems = await ParkingIDB.getAll();
+                console.log('[Parking] IDBから読み込み:', _parkingItems.length + '件');
+                return;
+            } catch (e) {
+                console.warn('[Parking] IDB読み込みエラー:', e.message);
+                _parkingItems = [];
+            }
         }
     }
 
