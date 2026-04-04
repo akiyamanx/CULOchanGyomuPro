@@ -1,4 +1,4 @@
-// [CULOchanGyomuPro統合] v1.8 2026-04-04 - Phase H: Googleカレンダー連携
+// [CULOchanGyomuPro統合] v1.9 2026-04-04 - Phase H: GCal直接起動ボタン追加
 // ============================================
 // メンテナンスマップ v2.5 - ui-actions.js
 // グローバルUI関数（モーダル・メニュー・パネル制御）
@@ -9,6 +9,7 @@
 // v1.5修正 - mapSwitchTab/reloadAllUIのセレクタを#bottomPanelスコープに限定
 // v1.7修正 - mapSwitchTabデバッグ強化＋eruda対応
 // v1.8追加 - Phase H: Googleカレンダー連携（URLリンク方式）
+// v1.9追加 - ツールバーからGCal直接起動ボタン
 // ============================================
 
 // =============================================
@@ -399,7 +400,13 @@ function toggleLegend() {
 
 // =============================================
 // v1.8追加 - Phase H: Googleカレンダー連携（URLリンク方式）
+// v1.9追加 - ツールバーからGCal直接起動
 // =============================================
+
+// v1.9 ツールバーからGoogleカレンダーを直接開く
+function openGoogleCalendar() {
+    window.open('https://calendar.google.com', '_blank', 'noopener');
+}
 
 // v1.8 GCal用の日時フォーマット（YYYYMMDDTHHmmSS）
 function formatGcalDate(datetimeLocal) {
