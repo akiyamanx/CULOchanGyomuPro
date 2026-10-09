@@ -243,6 +243,14 @@ const RouteManager = (() => {
         allSegments[routeId] = segmentChoices;
         DataStorage.saveSegments(allSegments);
 
+        // 道路設定を選び直した再計算が失敗しても、以前の距離を使わない。
+        const recalculatingRoutes = DataStorage.getRoutes();
+        const recalculatingRoute = recalculatingRoutes.find(item => item.id === routeId);
+        if (!recalculatingRoute) { alert('ルートが変更されました。選び直してください'); return; }
+        if (recalculatingRoute.distanceResults) delete recalculatingRoute.distanceResults[date];
+        DataStorage.saveRoutes(recalculatingRoutes);
+        MapExpenseForm.updateSummary();
+
         const loading = document.getElementById('mapLoading');
         loading.style.display = 'flex';
         document.getElementById('mapLoadingProgress').textContent = '走行距離計算中...';
@@ -302,4 +310,5 @@ const RouteManager = (() => {
         calcDistance, getDistance, distanceSignature, buildDestinationText
     };
 })();
+
 

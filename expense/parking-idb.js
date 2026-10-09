@@ -135,9 +135,9 @@ const ParkingIDB = (() => {
                     console.log('[ParkingIDB] 一括保存完了:', items.length + '件');
                     resolve(true);
                 };
-                tx.onerror = function() {
+                tx.onerror = tx.onabort = function() {
                     console.error('[ParkingIDB] 一括保存エラー:', tx.error);
-                    reject(tx.error);
+                    reject(tx.error || new Error('保存が中断されました'));
                 };
             });
         } catch (e) {
@@ -157,10 +157,11 @@ const ParkingIDB = (() => {
                 var store = tx.objectStore(STORE_NAME);
                 var request = store.delete(id);
 
-                request.onsuccess = function() {
+                tx.oncomplete = function() {
                     console.log('[ParkingIDB] 削除:', id);
                     resolve(true);
                 };
+                tx.onerror = tx.onabort = function() { reject(tx.error || new Error('削除が中断されました')); };
                 request.onerror = function() {
                     console.error('[ParkingIDB] 削除エラー:', request.error);
                     reject(request.error);
@@ -183,10 +184,11 @@ const ParkingIDB = (() => {
                 var store = tx.objectStore(STORE_NAME);
                 var request = store.clear();
 
-                request.onsuccess = function() {
+                tx.oncomplete = function() {
                     console.log('[ParkingIDB] 全件削除完了');
                     resolve(true);
                 };
+                tx.onerror = tx.onabort = function() { reject(tx.error || new Error('削除が中断されました')); };
                 request.onerror = function() {
                     console.error('[ParkingIDB] 全件削除エラー:', request.error);
                     reject(request.error);
@@ -260,8 +262,8 @@ const ParkingIDB = (() => {
 
     // ==========================================
     // localStorageからの自動マイグレーション
-    // 初回のみ実行: localStorageにデータがあり、IDBが空の場合に移行
-    // 移行後はlocalStorageのデータを削除（二重管理防止）
+    // 既存IDBを上書きせず、不足する明細だけを移行する。
+    // 内容の競合・保存失敗がある場合は移行元を保持する。
     // ==========================================
     async function migrateFromLocalStorage() {
         try {
@@ -277,28 +279,36 @@ const ParkingIDB = (() => {
                 return { migrated: false, count: 0 };
             }
 
-            // IDBに既にデータがあるか確認
-            var existingCount = await count();
-            if (existingCount > 0) {
-                console.log('[ParkingIDB] IDBに既にデータあり(' + existingCount + '件)、マイグレーションスキップ');
-                // 念のためlocalStorageも消す（もう不要）
-                localStorage.removeItem(LS_KEY);
-                return { migrated: false, count: 0 };
+            if (items.some(item => !item || typeof item.id !== 'string' || !item.id)) {
+                throw new Error('移行元の駐車場IDを確認できません');
             }
-
-            // IDBに一括保存
-            console.log('[ParkingIDB] マイグレーション開始:', items.length + '件');
-            var success = await putAll(items);
-
-            if (success) {
-                // マイグレーション成功 → localStorageのデータを削除
-                localStorage.removeItem(LS_KEY);
-                console.log('[ParkingIDB] マイグレーション完了！localStorageデータ削除済み');
-                return { migrated: true, count: items.length };
-            } else {
-                console.warn('[ParkingIDB] マイグレーション失敗、localStorageは保持');
-                return { migrated: false, count: 0 };
-            }
+            var db = await _openDB();
+            var result = await new Promise(function(resolve, reject) {
+                var tx = db.transaction(STORE_NAME, 'readwrite');
+                var store = tx.objectStore(STORE_NAME);
+                var request = store.getAll();
+                var added = 0, conflicts = 0;
+                request.onsuccess = function() {
+                    var byId = new Map(request.result.map(item => [item.id, item]));
+                    items.forEach(function(item) {
+                        var existing = byId.get(item.id);
+                        if (existing) {
+                            var keys = new Set(Object.keys(existing).concat(Object.keys(item)));
+                            if (Array.from(keys).some(key => JSON.stringify(existing[key]) !== JSON.stringify(item[key]))) conflicts++;
+                        } else {
+                            store.add(item);
+                            byId.set(item.id, item);
+                            added++;
+                        }
+                    });
+                };
+                request.onerror = function() { reject(request.error); };
+                tx.oncomplete = function() { resolve({ migrated: added > 0, count: added, conflicts: conflicts }); };
+                tx.onerror = tx.onabort = function() { reject(tx.error || new Error('駐車場の移行が中断されました')); };
+            });
+            // 移行中に旧側が編集された場合も、そのデータを消さない。
+            if (!result.conflicts && localStorage.getItem(LS_KEY) === lsData) localStorage.removeItem(LS_KEY);
+            return result;
         } catch (e) {
             console.error('[ParkingIDB] マイグレーションエラー:', e);
             return { migrated: false, count: 0 };
@@ -349,3 +359,4 @@ const ParkingIDB = (() => {
         deleteByMonth: deleteByMonth
     };
 })();
+

@@ -13,7 +13,7 @@
 // v5.2 2026-04-04 - Phase H不要コード整理 + Phase I: IndexedDB移行（parking-idb.js追加）
 // ==========================================
 
-const CACHE_NAME = 'gyomupro-expense-v44';
+const CACHE_NAME = 'gyomupro-expense-v45';
 const ASSETS = [
     './',
     './index.html',
@@ -89,4 +89,5 @@ self.addEventListener('fetch', event => {
             .catch(() => caches.match(event.request))
     );
 });
+
 
