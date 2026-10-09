@@ -224,12 +224,12 @@ const RouteManager = (() => {
         } else { ordered.push(...members); }
 
         const settings = DataStorage.getSettings();
-        if (!settings.homeAddress) { alert('設定で自宅住所（出発点）を登録してください'); return; }
+        if (!settings.homeAddress) { alert('設定で会社住所（出発・帰着）を登録してください'); return; }
 
         const points = [];
-        points.push({ id: 'home_start', address: settings.homeAddress, label: '🏠 自宅（出発）' });
+        points.push({ id: 'home_start', address: settings.homeAddress, label: '🏢 会社（出発）' });
         ordered.forEach(m => { points.push({ id: m.id, address: m.address, label: (m.company || '不明').substring(0, 15) }); });
-        points.push({ id: 'home_end', address: settings.homeAddress, label: '🏠 自宅（帰着）' });
+        points.push({ id: 'home_end', address: settings.homeAddress, label: '🏢 会社（帰着）' });
 
         const workspace = DataStorage.getCurrentWorkspaceId();
         const signature = distanceSignature(routeId, date);
