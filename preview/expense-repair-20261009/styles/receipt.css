@@ -1,0 +1,353 @@
+/* ==========================================
+ * CULOchan業務Pro — レシートスキャナー スタイル v1.1
+ * このファイルはレシートタブ固有のスタイルを定義する
+ * v1.1追加: チェックボックス式削除UIスタイル
+ * ========================================== */
+
+/* --- スキャン画像取り込みエリア --- */
+.scan-input-area {
+    margin-bottom: 16px;
+}
+
+.scan-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 28px 16px;
+    border: 2px dashed var(--border-light);
+    border-radius: var(--radius-lg);
+    background: rgba(0, 180, 216, 0.04);
+    cursor: pointer;
+    transition: all 0.2s;
+    width: 100%;
+}
+
+.scan-btn:active {
+    background: rgba(0, 180, 216, 0.1);
+    border-color: var(--accent);
+}
+
+.scan-btn-icon {
+    font-size: 2rem;
+}
+
+.scan-btn-text {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--accent-light);
+}
+
+.scan-btn-hint {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+}
+
+/* --- スキャン画像プレビュー --- */
+.scan-preview {
+    margin-bottom: 16px;
+}
+
+.preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.preview-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.preview-image-wrap {
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    margin-bottom: 12px;
+    background: #fff;
+}
+
+.preview-image {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.preview-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* --- 検出されたレシート一覧 --- */
+.detection-result {
+    margin-bottom: 16px;
+}
+
+.detected-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.detected-item {
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: 2px solid var(--border);
+    background: #fff;
+    transition: border-color 0.15s;
+}
+
+.detected-item.selected {
+    border-color: var(--accent);
+}
+
+.detected-item img {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.detected-item-label {
+    padding: 4px 8px;
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    background: var(--bg-card);
+    text-align: center;
+    font-weight: 600;
+}
+
+/* --- AI認識済みレシートカード --- */
+.receipt-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.receipt-card {
+    display: flex;
+    gap: 10px;
+    padding: 10px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    background: var(--bg-secondary);
+    align-items: flex-start;
+}
+
+.receipt-card.checked {
+    border-color: var(--accent);
+    background: rgba(0, 180, 216, 0.06);
+}
+
+.receipt-card-check {
+    margin-top: 4px;
+    width: 20px;
+    height: 20px;
+    accent-color: var(--accent);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.receipt-card-thumb {
+    width: 60px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: #fff;
+    flex-shrink: 0;
+}
+
+.receipt-card-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.receipt-card-date {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-bottom: 2px;
+}
+
+.receipt-card-store {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.receipt-card-amount {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--accent-light);
+}
+
+.receipt-card-type {
+    display: inline-block;
+    font-size: 0.6rem;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 6px;
+    vertical-align: middle;
+}
+
+.type-shopping {
+    background: rgba(6, 214, 160, 0.15);
+    color: var(--success);
+}
+
+.type-parking {
+    background: rgba(167, 139, 250, 0.15);
+    color: var(--ai-purple);
+}
+
+.type-highway {
+    background: rgba(255, 209, 102, 0.15);
+    color: var(--warning);
+}
+
+/* --- 保存済みレシート --- */
+.saved-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.saved-date-group {
+    margin-bottom: 12px;
+}
+
+.saved-date-header {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--accent);
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 6px;
+}
+
+.saved-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+}
+
+.saved-item:nth-child(even) {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.saved-item-store {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.saved-item-amount {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-left: 8px;
+}
+
+/* --- AI処理中アニメーション --- */
+.ai-processing {
+    position: relative;
+    overflow: hidden;
+}
+
+.ai-processing::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        90deg, 
+        transparent, 
+        rgba(167, 139, 250, 0.1), 
+        transparent
+    );
+    animation: ai-shimmer 1.5s infinite;
+}
+
+@keyframes ai-shimmer {
+    to { left: 100%; }
+}
+
+/* ==========================================
+ * v1.1追加 - チェックボックス式削除UI
+ * ========================================== */
+
+/* 保存済みレシートのチェックボックス */
+.saved-del-check {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+    margin-right: 4px;
+}
+
+/* 下部ボタンバー */
+.saved-btn-bar {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+}
+
+/* 削除ボタン（通常モード） */
+.saved-btn-del {
+    color: var(--text-muted);
+    font-size: 11px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 10px;
+    cursor: pointer;
+}
+
+.saved-btn-del:active {
+    background: rgba(255, 80, 80, 0.1);
+}
+
+/* キャンセルボタン（削除モード） */
+.saved-btn-cancel {
+    color: var(--text-muted);
+    font-size: 12px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+    cursor: pointer;
+}
+
+/* 選択を削除ボタン（削除モード） */
+.saved-btn-exec {
+    color: #ff5050;
+    font-size: 12px;
+    font-weight: bold;
+    background: rgba(255, 80, 80, 0.1);
+    border: 1px solid rgba(255, 80, 80, 0.3);
+    border-radius: 6px;
+    padding: 6px 12px;
+    cursor: pointer;
+}
+
+.saved-btn-exec:active {
+    background: rgba(255, 80, 80, 0.25);
+}
+
