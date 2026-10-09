@@ -58,15 +58,15 @@ const DistanceCalc = (() => {
             ordered.push(...members);
         }
 
-        // 自宅住所を取得
+        // 会社住所を取得（既存の保存キーhomeAddressを引き続き使用）
         const settings = DataStorage.getSettings();
         const homeAddress = settings.homeAddress;
-        if (!homeAddress) throw new Error('設定で自宅住所（出発点）を登録してください');
+        if (!homeAddress) throw new Error('設定で会社住所（出発・帰着）を登録してください');
 
         // v2.2.3 - segmentChoicesが渡されなかった場合のフォールバック
         const choices = segmentChoices || {};
 
-        // 全ポイントリスト: 自宅 → 各顧客 → 自宅
+        // 全ポイントリスト: 会社 → 各顧客 → 会社
         const points = [];
         points.push({ address: homeAddress, id: 'home_start' });
         ordered.forEach(m => points.push({ address: m.address, id: m.id }));
@@ -129,4 +129,5 @@ const DistanceCalc = (() => {
 
     return { getDistance, calcRouteDistance };
 })();
+
 
