@@ -45,9 +45,9 @@ const ParkingManager = (() => {
         }
 
         // チェック済みレシートのみ取り込み
-        var checked = receipts.filter(function(r) { return r.checked; });
+        var checked = receipts.filter(function(r) { return r.checked && r.data && r.data.type === 'parking'; });
         if (checked.length === 0) {
-            alert('レシートタブでチェック済みのレシートがありません');
+            alert('チェック済みの駐車場レシートがありません。読取結果の種類を確認してください');
             return;
         }
 
@@ -55,6 +55,8 @@ const ParkingManager = (() => {
         var newIds = []; // v1.2追加 - マッチング対象のID
         checked.forEach(function(r) {
             var d = r.data || {};
+            // 同じ画像の再取込で新しい駐車場IDを作らない。
+            if (r.imageDataUrl && _parkingItems.some(item => item.imageDataUrl === r.imageDataUrl)) return;
             var newId = 'park_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
             _parkingItems.push({
                 id: newId,
@@ -495,3 +497,4 @@ const ParkingManager = (() => {
         getItems: getItems
     };
 })();
+
