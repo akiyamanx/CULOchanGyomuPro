@@ -13,6 +13,21 @@ const ExpensePdf = (() => {
 
     let busy = false;
 
+    function destinationLine(value) {
+        return String(value || '').split(/\r?\n/).map(line => line.trim()).filter(Boolean).join(' → ');
+    }
+
+    function pageHeader(header, rows, pageRows) {
+        const result = { ...header };
+        for (const key of ['destCompany', 'destAddress']) {
+            const auto = rows.filter(row => row.destCompany || row.destAddress).map(row => row.month + '/' + row.day + ' ' + row[key]).join('\n');
+            if (auto && header[key] === auto) {
+                result[key] = pageRows.filter(row => row.destCompany || row.destAddress).map(row => row[key]).filter(Boolean).join(' → ');
+            }
+        }
+        return result;
+    }
+
     function _buildPdfDom(header, rows) {
         const old = document.getElementById('expPdfContent');
         if (old) old.remove();
@@ -102,12 +117,14 @@ const ExpensePdf = (() => {
             + '<td style="width:50%;text-align:center;font-size:10px;">経理</td></tr></table></td>'
             + '<td style="border:1px solid black;text-align:center;font-size:10px;">本部</td>'
             + '</tr>'
-            // v1.2修正 - 行先セル: 高さ60px、会社名と住所のmarginを1pxに縮小してゆとり確保
+            // 行先の1マスを上下半分ずつ使う。長い場合も両段を同じ高さで拡張する。
             + '<tr>'
             + '<td colspan="2" style="border:1px solid black;padding:3px 5px;text-align:center;height:60px;">行先<br><span style="font-size:8px;">（お客様名）</span></td>'
-            + '<td colspan="5" style="border:1px solid black;text-align:left;padding:4px 6px;height:60px;vertical-align:middle;">'
-            + '<div style="font-size:11px;margin-bottom:1px;white-space:pre-wrap;">' + _esc(header.destCompany || '') + '</div>'
-            + '<div style="font-size:9px;color:#444;white-space:pre-wrap;">' + _esc(header.destAddress || '') + '</div>'
+            + '<td colspan="5" style="border:1px solid black;text-align:left;padding:0;height:60px;vertical-align:middle;">'
+            + '<div class="pdf-destination" style="display:grid;grid-template-rows:1fr 1fr;min-height:60px;">'
+            + '<div class="pdf-destination-company" style="display:flex;align-items:center;min-height:30px;box-sizing:border-box;padding:4px 6px;font-size:11px;white-space:normal;overflow-wrap:anywhere;">' + _esc(destinationLine(header.destCompany)) + '</div>'
+            + '<div class="pdf-destination-address" style="display:flex;align-items:center;min-height:30px;box-sizing:border-box;padding:4px 6px;font-size:9px;color:#444;white-space:normal;overflow-wrap:anywhere;">' + _esc(destinationLine(header.destAddress)) + '</div>'
+            + '</div>'
             + '</td>'
             + '<td style="border:1px solid black;padding:3px 5px;text-align:center;">氏名</td>'
             + '<td colspan="2" style="border:1px solid black;text-align:left;padding-left:5px;">' + _esc(header.employeeName) + '　印</td>'
@@ -180,13 +197,8 @@ const ExpensePdf = (() => {
             for (let page = 0; page < pages; page++) {
                 if (page) pdf.addPage();
                 const pageRows = rows.slice(page * 6, page * 6 + 6);
-                const pageHeader = { ...header };
-                // 自動生成した行先はページの対象日だけを記載。手入力の行先は保持。
-                for (const key of ['destCompany', 'destAddress']) {
-                    const auto = rows.filter(row => row.destCompany || row.destAddress).map(row => row.month + '/' + row.day + ' ' + row[key]).join('\n');
-                    if (auto && header[key] === auto) pageHeader[key] = pageRows.filter(row => row.destCompany || row.destAddress).map(row => row.month + '/' + row.day + ' ' + row[key]).join('\n');
-                }
-                const dom = _buildPdfDom(pageHeader, pageRows);
+                // 自動生成した行先はこのページの訪問順で会社名・住所をそれぞれ連結。
+                const dom = _buildPdfDom(pageHeader(header, rows, pageRows), pageRows);
                 const footer = document.createElement('div');
                 footer.style.cssText = 'margin-top:8px;display:flex;justify-content:space-between;font-size:12px;';
                 footer.textContent = (pages > 1 ? '表内はこのページの合計 ／ ' : '')
@@ -212,7 +224,25 @@ const ExpensePdf = (() => {
             .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
-    return { generate };
+    // 検証ページから、PDFと同じ行先レイアウトをダウンロードせず確認する。
+    function preview() {
+        const old = document.getElementById('expensePdfPreview');
+        if (old) old.remove();
+        const rows = ExpenseManager.getRowsData();
+        const pageRows = rows.slice(0, 6);
+        const dom = _buildPdfDom(pageHeader(ExpenseManager.getHeaderData(), rows, pageRows), pageRows);
+        dom.style.position = 'relative'; dom.style.left = '0';
+        const overlay = document.createElement('div');
+        overlay.id = 'expensePdfPreview';
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:20000;background:#263442;padding:16px;overflow:auto;';
+        const close = document.createElement('button');
+        close.textContent = 'レイアウト確認を閉じる';
+        close.style.cssText = 'display:block;margin-bottom:12px;padding:10px;';
+        close.onclick = () => overlay.remove();
+        overlay.appendChild(close); overlay.appendChild(dom); document.body.appendChild(overlay);
+    }
+
+    return { generate, preview };
 })();
 
 
