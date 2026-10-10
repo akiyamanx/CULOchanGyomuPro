@@ -5,6 +5,7 @@
 <style>body{padding:20px;max-width:1100px;margin:auto}.tab-panel{display:block!important}.controls{display:flex;gap:8px;flex-wrap:wrap}input,select{color:inherit}pre{white-space:pre-wrap}.exp-row{margin-top:12px}</style>
 <h1>交通費精算 修正の検証</h1><p>すべて架空の会社・料金。Google Maps / Geminiへの通信は行いません。</p>
 <div class="controls"><button class="btn btn-primary" onclick="runExpenseTests()">検証を実行</button><button class="btn btn-pdf" onclick="ExpensePdf.generate()">精算書PDFを出力</button><button class="btn btn-pdf" onclick="RouteListPdf.generate()">訪問先一覧PDFを出力</button><label class="btn btn-save">ETC CSVを選択<input type="file" accept=".csv" onchange="ExpenseEtc.handleFile(event)"></label></div>
+<button class="btn btn-pdf" onclick="ExpensePdf.preview()">精算書のレイアウトを確認</button>
 <pre id="testResults" role="status">未実行</pre><div id="loading" style="display:none"><span id="loadingText"></span></div>
 <div id="tab-expense" class="tab-panel"><input id="expSubmitDate" type="date"><input id="expSSName" value="検証SS"><input id="expEmployeeName" value="検証 太郎"><textarea id="expDestCompany"></textarea><textarea id="expDestAddress"></textarea><div id="expenseRows"></div><div id="expGrandTotal"></div><div id="expDraftList"></div></div>
 <div id="tabExpense"></div>
@@ -20,3 +21,4 @@ const ParkingManager = {getItems:()=>fixture.parking};
 const AppCore = {switchTab:name=>document.getElementById('testResults').dataset.tab=name,showLoading:message=>{document.getElementById('loading').style.display='block';document.getElementById('loadingText').textContent=message;},hideLoading:()=>document.getElementById('loading').style.display='none'};
 </script>
 <script src="../expense/expense-import.js"></script><script src="../shared/pdf-renderer.js"></script><script src="../expense/expense-manager.js"></script><script src="../expense/expense-etc.js"></script><script src="../expense/expense-pdf.js"></script><script src="../map/route-list-pdf.js"></script><script src="../map/route-manager.js"></script><script src="../map/map-expense-form.js"></script><script src="expense-browser-tests.js"></script>
+
