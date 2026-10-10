@@ -25,6 +25,9 @@ const ParkingManager = (() => {
             if (migResult.migrated) {
                 console.log('[Parking] マイグレーション完了:', migResult.count + '件をIDBに移行');
             }
+            if (migResult.conflicts) {
+                alert('旧駐車場データと保存済みデータで内容が異なる明細が ' + migResult.conflicts + '件あります。\n保存済みデータを表示し、旧データも保持しました。上書きせず確認が必要です。');
+            }
         }
         await _loadFromStorage();
         renderParkingList();
@@ -45,9 +48,9 @@ const ParkingManager = (() => {
         }
 
         // チェック済みレシートのみ取り込み
-        var checked = receipts.filter(function(r) { return r.checked; });
+        var checked = receipts.filter(function(r) { return r.checked && r.data && r.data.type === 'parking'; });
         if (checked.length === 0) {
-            alert('レシートタブでチェック済みのレシートがありません');
+            alert('チェック済みの駐車場レシートがありません。読取結果の種類を確認してください');
             return;
         }
 
@@ -55,6 +58,8 @@ const ParkingManager = (() => {
         var newIds = []; // v1.2追加 - マッチング対象のID
         checked.forEach(function(r) {
             var d = r.data || {};
+            // 同じ画像の再取込で新しい駐車場IDを作らない。
+            if (r.imageDataUrl && _parkingItems.some(item => item.imageDataUrl === r.imageDataUrl)) return;
             var newId = 'park_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
             _parkingItems.push({
                 id: newId,
@@ -74,7 +79,11 @@ const ParkingManager = (() => {
             importCount++;
         });
 
-        await _saveToStorage();
+        if (!await _saveToStorage()) {
+            _parkingItems = _parkingItems.filter(item => !newIds.includes(item.id));
+            renderParkingList();
+            return;
+        }
         renderParkingList();
         alert('✅ ' + importCount + '件の駐車場レシートを取り込みました');
         if (newIds.length > 0 && typeof ParkingMatcher !== 'undefined') {
@@ -84,6 +93,7 @@ const ParkingManager = (() => {
 
     // v1.2追加 - 複数レシートを順次自動マッチング
     async function _runAutoMatchBatch(ids) {
+        var previousCompanies = new Map(_parkingItems.map(item => [item.id, item.visitCompany]));
         var matchCount = 0;
         for (var i = 0; i < ids.length; i++) {
             var item = _parkingItems.find(function(it) { return it.id === ids[i]; });
@@ -92,7 +102,11 @@ const ParkingManager = (() => {
             if (result) matchCount++;
         }
         if (matchCount > 0) {
-            await _saveToStorage();
+            if (!await _saveToStorage()) {
+                _parkingItems.forEach(item => { item.visitCompany = previousCompanies.get(item.id) || ""; });
+                renderParkingList();
+                return;
+            }
             renderParkingList();
             console.log('[Parking] 自動マッチング完了: ' + matchCount + '件');
         }
@@ -124,17 +138,18 @@ const ParkingManager = (() => {
     // 手動で1件追加
     // ==========================================
     async function addItem() {
+        var newId = "park_" + Date.now() + "_" + Math.random().toString(36).substr(2, 4);
         _parkingItems.push({
-            id: 'park_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+            id: newId,
             imageDataUrl: '',
-            date: new Date().toISOString().split('T')[0],
+            date: new Date().toLocaleDateString('sv-SE'),
             visitCompany: '',
             machineName: '',
             purpose: 'メンテナンス',
             amount: 0,
             rotation: 0 // v1.1追加 - 回転角度
         });
-        await _saveToStorage();
+        if (!await _saveToStorage()) _parkingItems = _parkingItems.filter(item => item.id !== newId);
         renderParkingList();
     }
 
@@ -143,14 +158,13 @@ const ParkingManager = (() => {
     // ==========================================
     async function removeItem(id) {
         if (!confirm('この駐車場明細を削除しますか？')) return;
-        _parkingItems = _parkingItems.filter(function(item) {
-            return item.id !== id;
-        });
-        // v1.3 - IDBからも個別削除
-        if (typeof ParkingIDB !== 'undefined') {
-            await ParkingIDB.remove(id);
+        try {
+            if (typeof ParkingIDB === 'undefined' || !await ParkingIDB.remove(id)) throw new Error('削除未完了');
+        } catch (error) {
+            alert('駐車場明細を削除できませんでした。明細は保持しています。');
+            return;
         }
-        await _saveToStorage();
+        _parkingItems = _parkingItems.filter(item => item.id !== id);
         renderParkingList();
     }
 
@@ -159,12 +173,13 @@ const ParkingManager = (() => {
     // ==========================================
     async function clearAll() {
         if (!confirm('駐車場利用明細をすべて削除しますか？')) return;
-        _parkingItems = [];
-        // v1.3 - IDBも全件削除
-        if (typeof ParkingIDB !== 'undefined') {
-            await ParkingIDB.clearAll();
+        try {
+            if (typeof ParkingIDB === 'undefined' || !await ParkingIDB.clearAll()) throw new Error('削除未完了');
+        } catch (error) {
+            alert('駐車場明細を削除できませんでした。明細は保持しています。');
+            return;
         }
-        await _saveToStorage();
+        _parkingItems = [];
         renderParkingList();
     }
 
@@ -178,7 +193,7 @@ const ParkingManager = (() => {
         if (!item) return;
         var current = item.rotation || 0;
         item.rotation = (current + 90) % 360;
-        await _saveToStorage();
+        if (!await _saveToStorage()) item.rotation = current;
         renderParkingList();
     }
 
@@ -302,12 +317,16 @@ const ParkingManager = (() => {
     async function updateField(id, field, value) {
         var item = _parkingItems.find(function(i) { return i.id === id; });
         if (!item) return;
+        var previous = item[field];
         if (field === 'amount') {
             item[field] = parseInt(value) || 0;
         } else {
             item[field] = value;
         }
-        await _saveToStorage();
+        if (!await _saveToStorage()) {
+            item[field] = previous;
+            renderParkingList();
+        }
         if (field === 'amount') _updateTotal();
     }
 
@@ -445,12 +464,14 @@ const ParkingManager = (() => {
         // v1.3 - IDBが利用可能ならIDBに保存
         if (typeof ParkingIDB !== 'undefined') {
             try {
-                await ParkingIDB.putAll(itemsForSave);
-                return;
+                if (!await ParkingIDB.putAll(itemsForSave)) throw new Error('保存未完了');
+                return true;
             } catch (e) {
                 console.warn('[Parking] IDB保存エラー、フォールバックなし:', e.message);
             }
         }
+        alert('駐車場明細を保存できませんでした。空き容量やブラウザの保存設定を確認してください。');
+        return false;
     }
 
     async function _loadFromStorage() {
@@ -495,3 +516,5 @@ const ParkingManager = (() => {
         getItems: getItems
     };
 })();
+
+

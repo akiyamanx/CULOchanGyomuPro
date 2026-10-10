@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>交通費精算 修正の検証（架空データ）</title>
+<link rel="stylesheet" href="../styles/common.css"><link rel="stylesheet" href="../styles/expense.css"><link rel="stylesheet" href="../styles/map/map-expense-styles.css">
+<style>body{padding:20px;max-width:1100px;margin:auto}.tab-panel{display:block!important}.controls{display:flex;gap:8px;flex-wrap:wrap}input,select{color:inherit}pre{white-space:pre-wrap}.exp-row{margin-top:12px}</style>
+<h1>交通費精算 修正の検証</h1><p>すべて架空の会社・料金。Google Maps / Geminiへの通信は行いません。</p>
+<div class="controls"><button class="btn btn-primary" onclick="runExpenseTests()">検証を実行</button><button class="btn btn-pdf" onclick="ExpensePdf.generate()">精算書PDFを出力</button><button class="btn btn-pdf" onclick="RouteListPdf.generate()">訪問先一覧PDFを出力</button><label class="btn btn-save">ETC CSVを選択<input type="file" accept=".csv" onchange="ExpenseEtc.handleFile(event)"></label></div>
+<button class="btn btn-pdf" onclick="ExpensePdf.preview()">精算書のレイアウトを確認</button>
+<pre id="testResults" role="status">未実行</pre><div id="loading" style="display:none"><span id="loadingText"></span></div>
+<div id="tab-expense" class="tab-panel"><input id="expSubmitDate" type="date"><input id="expSSName" value="検証SS"><input id="expEmployeeName" value="検証 太郎"><textarea id="expDestCompany"></textarea><textarea id="expDestAddress"></textarea><div id="expenseRows"></div><div id="expGrandTotal"></div><div id="expDraftList"></div></div>
+<div id="tabExpense"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+const fixture = {
+    customers:[{id:'a',routeId:'route_1',company:'検証株式会社',address:'千葉県千葉市中央区中央1-1',appoDate:'2026-10-08T09:00',status:'appointed'}, {id:'b',routeId:'route_1',company:'架空メンテナンス',address:'東京都江東区夢の島2-2',appoDate:'2026-10-09T10:00',status:'appointed'}],
+    routes:[{id:'route_1',name:'検証ルート',color:'#336699',order:['a','b']}],
+    parking:[{id:'park_a',date:'2026-10-08',amount:600},{id:'park_b',date:'2026-10-09',amount:800}]
+};
+const DataStorage = {getCustomers:()=>fixture.customers,getRoutes:()=>fixture.routes,getSettings:()=>({homeAddress:'検証出発点'}),getCurrentWorkspaceId:()=> '2026-10'};
+const ParkingManager = {getItems:()=>fixture.parking};
+const AppCore = {switchTab:name=>document.getElementById('testResults').dataset.tab=name,showLoading:message=>{document.getElementById('loading').style.display='block';document.getElementById('loadingText').textContent=message;},hideLoading:()=>document.getElementById('loading').style.display='none'};
+</script>
+<script src="../expense/expense-import.js"></script><script src="../shared/pdf-renderer.js"></script><script src="../expense/expense-manager.js"></script><script src="../expense/expense-etc.js"></script><script src="../expense/expense-pdf.js"></script><script src="../map/route-list-pdf.js"></script><script src="../map/route-manager.js"></script><script src="../map/map-expense-form.js"></script><script src="expense-browser-tests.js"></script>
+

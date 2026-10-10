@@ -122,7 +122,7 @@
             </div>
             <div class="panel-card">
                 <div class="exp-btn-row">
-                    <button class="btn btn-pdf" onclick="ExpensePdf.generate()">📄 PDF出力</button>
+                    <button class="btn btn-pdf" onclick="ExpensePdf.generate()">📄 精算書PDF出力</button>
                     <button class="btn" style="background:var(--bg-card-hover);color:var(--text-secondary);border:1px solid var(--border);" onclick="ExpenseManager.clearAll()">🗑️ クリア</button>
                 </div>
                 <div class="exp-btn-row"><button class="btn btn-save" onclick="ExpenseManager.saveDraft()">💾 下書き保存</button></div>
@@ -134,7 +134,8 @@
             <!-- v2.0追加 - Phase F 駐車場利用明細セクション -->
             <div class="panel-card parking-section">
                 <div class="card-title">🅿️ 駐車場利用明細</div>
-                <p class="card-desc">パーキングレシートの管理・明細PDF出力</p>
+                <p class="card-desc">日付・金額を確認して、精算書の駐車場代欄へ反映できます。</p>
+                <div class="parking-btn-row"><label for="expParkingMonth">反映する月</label><input class="exp-input" type="month" id="expParkingMonth"><button class="btn btn-save" onclick="ExpenseManager.reflectParkingMonth()">駐車場代を精算書に反映</button></div>
                 <div class="parking-btn-row">
                     <button class="btn btn-primary" onclick="ParkingManager.importFromScanner()">📸 レシートから取り込み</button>
                     <button class="btn btn-save" onclick="ParkingManager.addItem()">➕ 手動追加</button>
@@ -162,6 +163,7 @@
                 <button class="compact-toggle-btn" id="compactToggleBtn" onclick="toggleMapToolbar()">▼</button>
             </div>
             <div class="map-toolbar-dropdown" id="mapToolbarDropdown">
+                <button class="toolbar-item" onclick="mapSwitchTab('expense'); toggleMapToolbar();"><span class="toolbar-icon">🧾</span><span class="toolbar-label">交通費を精算する</span></button>
                 <label class="toolbar-item" for="fileInput">
                     <span class="toolbar-icon">📁</span><span class="toolbar-label">CSV読込</span>
                 </label>
@@ -170,7 +172,7 @@
                     <span class="toolbar-icon">➕</span><span class="toolbar-label">メンテナンス先を追加</span>
                 </button>
                 <button class="toolbar-item" onclick="exportPDF(); toggleMapToolbar();">
-                    <span class="toolbar-icon">📄</span><span class="toolbar-label">PDF出力</span>
+                    <span class="toolbar-icon">📄</span><span class="toolbar-label">訪問先一覧PDF</span>
                 </button>
                 <button class="toolbar-item" onclick="openGoogleCalendar(); toggleMapToolbar();">
                     <span class="toolbar-icon">📅</span><span class="toolbar-label">Googleカレンダー</span>
@@ -253,8 +255,8 @@
                     </p>
                 </div>
                 <div class="setting-group" style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px;">
-                    <label class="setting-label">🏠 自宅住所（出発点）</label>
-                    <p class="setting-hint">マップの距離計算の出発点として使用します</p>
+                    <label class="setting-label">🏢 会社住所（出発・帰着）</label>
+                    <p class="setting-hint">会社から出発し、最後に会社へ戻る距離を計算します</p>
                     <input type="text" id="settingHomeAddr" class="setting-input" placeholder="例：千葉県袖ケ浦市...">
                 </div>
 
@@ -268,6 +270,8 @@
     <script src="shared/app-core.js"></script>
     <script src="receipt/receipt-image-utils.js"></script>
     <script src="receipt/receipt-scanner.js"></script>
+    <script src="expense/expense-import.js"></script>
+    <script src="shared/pdf-renderer.js"></script>
     <script src="expense/expense-manager.js"></script>
     <script src="expense/expense-pdf.js"></script>
     <script src="expense/expense-etc.js"></script>
@@ -279,6 +283,7 @@
     <script src="map/v1-converter.js"></script>
     <script src="map/csv-handler.js"></script>
     <script src="map/map-core.js"></script>
+    <script src="map/route-list-pdf.js"></script>
     <script src="map/route-manager.js"></script>
     <script src="map/map-expense-form.js"></script>
     <script src="map/route-order.js"></script>
@@ -290,6 +295,7 @@
     <script>
         document.addEventListener('DOMContentLoaded', async function() {
             ExpenseManager.init();
+            document.getElementById('expParkingMonth').value = new Date().toLocaleDateString('sv-SE').slice(0, 7);
             await ParkingManager.init();
             GcalPanel.init();
             GcalPanel.initPanelSwipe();
@@ -310,3 +316,5 @@
     </script>
 </body>
 </html>
+
+

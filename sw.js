@@ -13,7 +13,7 @@
 // v5.2 2026-04-04 - Phase H不要コード整理 + Phase I: IndexedDB移行（parking-idb.js追加）
 // ==========================================
 
-const CACHE_NAME = 'gyomupro-v43';
+const CACHE_NAME = 'gyomupro-expense-v45';
 const ASSETS = [
     './',
     './index.html',
@@ -28,6 +28,8 @@ const ASSETS = [
     './shared/app-core.js',
     './receipt/receipt-scanner.js',
     './receipt/receipt-image-utils.js',
+    './expense/expense-import.js',
+    './shared/pdf-renderer.js',
     './expense/expense-manager.js',
     './expense/expense-pdf.js',
     './expense/expense-etc.js',
@@ -39,6 +41,7 @@ const ASSETS = [
     './map/v1-converter.js',
     './map/csv-handler.js',
     './map/map-core.js',
+    './map/route-list-pdf.js',
     './map/route-manager.js',
     './map/map-expense-form.js',
     './map/route-order.js',
@@ -61,7 +64,7 @@ self.addEventListener('activate', event => {
     event.waitUntil(
         caches.keys().then(keys => {
             return Promise.all(
-                keys.filter(k => k !== CACHE_NAME)
+                keys.filter(k => k.startsWith('gyomupro-') && k !== CACHE_NAME)
                     .map(k => caches.delete(k))
             );
         }).then(() => self.clients.claim())
@@ -86,3 +89,5 @@ self.addEventListener('fetch', event => {
             .catch(() => caches.match(event.request))
     );
 });
+
+

@@ -18,16 +18,18 @@ const ExpenseEtc = (() => {
         const file = event.target.files[0];
         if (!file) return;
         const reader = new FileReader();
-        reader.onload = (e) => {
-            const records = _parseEtcCsv(e.target.result);
-            if (records.length === 0) {
-                alert('❌ ETC明細データが見つかりませんでした。\nCSVの形式を確認してください。');
-                return;
-            }
-            _showEtcModal(records);
+        reader.onload = e => {
+            try {
+                let text;
+                try { text = new TextDecoder('utf-8', { fatal: true }).decode(e.target.result); }
+                catch (error) { text = new TextDecoder('shift_jis').decode(e.target.result); }
+                const records = _parseEtcCsv(text);
+                if (!records.length) throw new Error('ETC明細がありません。利用日と料金を確認してください');
+                _showEtcModal(records);
+            } catch (error) { alert('CSVを読み込めません\n' + error.message); }
         };
-        // ETC利用照会サービスはShift_JIS
-        reader.readAsText(file, 'Shift_JIS');
+        reader.onerror = () => alert('CSVファイルを読み込めませんでした');
+        reader.readAsArrayBuffer(file);
         event.target.value = '';
     }
 
@@ -37,72 +39,7 @@ const ExpenseEtc = (() => {
     // 列: 利用年月日 / 利用ＩＣ（自）/ 利用ＩＣ（至）/ 通行料金
     // ==========================================
     function _parseEtcCsv(text) {
-        const lines = text.split(/\r?\n/).filter(l => l.trim());
-        if (lines.length < 2) return [];
-
-        const records = [];
-        let dateCol = -1, entryCol = -1, exitCol = -1, amountCol = -1;
-        let headerFound = false;
-
-        // ヘッダー行を自動検出（先頭5行を走査）
-        for (let i = 0; i < Math.min(5, lines.length); i++) {
-            const cols = lines[i].split(',').map(c => c.replace(/"/g, '').trim());
-            for (let j = 0; j < cols.length; j++) {
-                const c = cols[j];
-                if (c.includes('年月日') || c.includes('利用日') || c.includes('日付')) dateCol = j;
-                // v1.2: 全角ヘッダー「利用ＩＣ（自）」「利用ＩＣ（至）」に対応
-                if (c.includes('入口') || c.includes('入口IC') ||
-                    (c.includes('ＩＣ') && c.includes('自')) ||
-                    (c.includes('IC') && c.includes('自'))) entryCol = j;
-                if (c.includes('出口') || c.includes('出口IC') ||
-                    (c.includes('ＩＣ') && c.includes('至')) ||
-                    (c.includes('IC') && c.includes('至'))) exitCol = j;
-                if (c.includes('通行料金') || c.includes('利用額') ||
-                    c.includes('最終額') || c.includes('金額')) amountCol = j;
-            }
-            if (dateCol >= 0 && amountCol >= 0) {
-                // データ行を読み込み
-                for (let k = i + 1; k < lines.length; k++) {
-                    const dc = lines[k].split(',').map(c => c.replace(/"/g, '').trim());
-                    if (dc.length <= Math.max(dateCol, amountCol)) continue;
-                    const amount = parseInt(dc[amountCol].replace(/[^0-9]/g, '')) || 0;
-                    if (amount > 0) {
-                        records.push({
-                            date: dc[dateCol] || '',
-                            entry: entryCol >= 0 ? (dc[entryCol] || '') : '',
-                            exit: exitCol >= 0 ? (dc[exitCol] || '') : '',
-                            amount: amount
-                        });
-                    }
-                }
-                headerFound = true;
-                break;
-            }
-        }
-
-        // v1.2: ヘッダー未検出時は位置ベースfallback（日付パターンで行を検索）
-        if (!headerFound || records.length === 0) {
-            for (let i = 0; i < lines.length; i++) {
-                const cols = lines[i].split(',').map(c => c.replace(/"/g, '').trim());
-                const dateIdx = cols.findIndex(c => /\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}/.test(c));
-                if (dateIdx >= 0) {
-                    for (let j = cols.length - 1; j > dateIdx; j--) {
-                        const val = parseInt(cols[j].replace(/[^0-9]/g, ''));
-                        if (val > 0) {
-                            records.push({
-                                date: cols[dateIdx],
-                                entry: cols[dateIdx + 1] || '',
-                                exit: cols[dateIdx + 2] || '',
-                                amount: val
-                            });
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
-        return records;
+        return ExpenseImport.parseEtcCsv(text);
     }
 
     // ==========================================
@@ -134,7 +71,7 @@ const ExpenseEtc = (() => {
                 const route = (r.entry || '—') + ' → ' + (r.exit || '—');
                 html += '<label class="exp-picker-item">'
                     + '<input type="checkbox" class="etc-exp-cb" data-idx="' + r.idx + '" checked>'
-                    + '<span class="exp-picker-label">' + route + '</span>'
+                    + '<span class="exp-picker-label">' + ExpenseImport.escapeHtml(route) + '</span>'
                     + '<span style="margin-left:auto;font-weight:bold;color:var(--accent-light);">'
                     + '¥' + r.amount.toLocaleString() + '</span>'
                     + '</label>';
@@ -168,38 +105,19 @@ const ExpenseEtc = (() => {
     }
 
     // ==========================================
-    // 選択したETC明細を精算書の最初の行に反映
+    // 選択したETC明細を利用日ごとの行に反映
     // ==========================================
     function applyToExpense() {
-        const cbs = document.querySelectorAll('.etc-exp-cb:checked');
-        if (cbs.length === 0) { alert('反映するデータを選択してください'); return; }
-
-        let totalAmount = 0;
-        let count = 0;
-        cbs.forEach(chk => {
-            const idx = parseInt(chk.dataset.idx);
-            if (_records[idx]) {
-                totalAmount += _records[idx].amount;
-                count++;
-            }
-        });
-
-        closeModal();
-
-        const firstRow = document.querySelector('#tab-expense .exp-row');
-        if (firstRow) {
-            const hwInput = firstRow.querySelector('.exp-highway');
-            if (hwInput) {
-                const prev = parseInt(hwInput.value.replace(/[^0-9]/g, '')) || 0;
-                hwInput.value = prev ? prev + totalAmount : totalAmount;
-            }
-            const countInput = firstRow.querySelector('.exp-highway-count');
-            if (countInput) countInput.value = count;
-            const transport = firstRow.querySelector('.exp-transport');
-            if (transport && !transport.value) transport.value = '高速道路';
-            ExpenseManager.recalculate();
-        }
-        alert('✅ ETC明細 ' + count + '件（¥' + totalAmount.toLocaleString() + '）を精算書に反映しました！');
+        const selected = Array.from(document.querySelectorAll('.etc-exp-cb:checked'))
+            .map(check => _records[Number(check.dataset.idx)]).filter(Boolean);
+        if (!selected.length) { alert('反映するデータを選択してください'); return; }
+        try {
+            const result = ExpenseManager.applyEtcRecords(selected);
+            closeModal();
+            AppCore.switchTab('expense');
+            alert('ETC ' + result.count + '件（¥' + result.amount.toLocaleString() + '）を利用日ごとに反映しました。'
+                + (result.skipped ? '\n反映済み ' + result.skipped + '件は追加していません。' : ''));
+        } catch (error) { alert('反映できません\n' + error.message); }
     }
 
     // ==========================================
@@ -213,3 +131,4 @@ const ExpenseEtc = (() => {
     // v1.2公開: parseEtcCsvは外部からも使えるように公開（将来の連携用）
     return { handleFile, toggleAll, applyToExpense, closeModal, parseEtcCsv: _parseEtcCsv };
 })();
+

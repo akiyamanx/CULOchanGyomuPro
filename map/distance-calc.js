@@ -35,13 +35,13 @@ const DistanceCalc = (() => {
 
     // v2.2.3変更 - ルート全体の走行距離を計算する
     // 第2引数: segmentChoices = { "fromId_toId": "general"|"highway", ... }
-    async function calcRouteDistance(routeId, segmentChoices) {
+    async function calcRouteDistance(routeId, segmentChoices, date) {
         const routes = DataStorage.getRoutes();
         const route = routes.find(r => r.id === routeId);
         if (!route) throw new Error('ルートが見つかりません');
 
         const customers = DataStorage.getCustomers();
-        const members = customers.filter(c => c.routeId === routeId);
+        const members = customers.filter(c => c.routeId === routeId && (!date || ExpenseImport.normalizeDate(c.appoDate) === date));
         if (members.length === 0) throw new Error('ルートにメンバーがいません');
 
         // 訪問順で並べ替え
@@ -58,15 +58,15 @@ const DistanceCalc = (() => {
             ordered.push(...members);
         }
 
-        // 自宅住所を取得
+        // 会社住所を取得（既存の保存キーhomeAddressを引き続き使用）
         const settings = DataStorage.getSettings();
         const homeAddress = settings.homeAddress;
-        if (!homeAddress) throw new Error('設定で自宅住所（出発点）を登録してください');
+        if (!homeAddress) throw new Error('設定で会社住所（出発・帰着）を登録してください');
 
         // v2.2.3 - segmentChoicesが渡されなかった場合のフォールバック
         const choices = segmentChoices || {};
 
-        // 全ポイントリスト: 自宅 → 各顧客 → 自宅
+        // 全ポイントリスト: 会社 → 各顧客 → 会社
         const points = [];
         points.push({ address: homeAddress, id: 'home_start' });
         ordered.forEach(m => points.push({ address: m.address, id: m.id }));
@@ -116,6 +116,9 @@ const DistanceCalc = (() => {
             }
         }
 
+        if (segments.some(segment => segment.error)) {
+            throw new Error('距離を計算できない区間があります。住所と道路設定を確認してください（精算書には反映していません）');
+        }
         return { totalKm, highwayKm, generalKm, segments };
     }
 
@@ -126,3 +129,5 @@ const DistanceCalc = (() => {
 
     return { getDistance, calcRouteDistance };
 })();
+
+
