@@ -14,8 +14,7 @@ const MapExpenseForm = (() => {
                 + '<div id="mapExpSummary" role="status"></div>'
                 + '<div class="exp-btn-row"><button class="btn btn-primary" onclick="MapExpenseForm.calcDistance()">① 走行距離を計算</button>'
                 + '<button class="btn btn-save" onclick="MapExpenseForm.reflectToExpense()">② 精算書に反映して確認</button></div>'
-                + '<label class="btn btn-primary map-etc-upload">ETC CSVを取り込む<input type="file" accept=".csv" onchange="ExpenseEtc.handleFile(event)" hidden></label>'
-                + '<button class="btn btn-secondary" onclick="MapExpenseForm.openExpenseTab()">精算書を開く</button></div>';
+                + '</div>';
         }
         updateSummary();
     }

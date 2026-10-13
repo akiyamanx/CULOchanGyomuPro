@@ -38,7 +38,7 @@ const ExpenseManager = (() => {
         row.innerHTML = ''
             + '<div class="exp-row-header">'
             + '<span class="exp-row-num">' + _rowCount + '</span>'
-            + '<button class="exp-row-del" onclick="ExpenseManager.deleteRow(' + _rowCount + ')">×</button>'
+            + '<button class="exp-row-del" aria-label="この日の明細を削除" onclick="ExpenseManager.deleteRow(' + _rowCount + ')">削除</button>'
             + '</div>'
             + '<div class="exp-fg"><label>利用日</label><input type="date" class="exp-input exp-date" onchange="ExpenseManager.onRowDateChange(this)"></div>'
             + '<div class="exp-form-row">'
@@ -66,7 +66,7 @@ const ExpenseManager = (() => {
             + '</div>'
             + '<div class="exp-form-row">'
             + '<div class="exp-fg"><label>駐車場代</label><input type="number" min="0" class="exp-input exp-parking" onchange="ExpenseManager.recalculate()"></div>'
-            + '</div><div class="exp-form-row">'
+            + '</div><details class="expense-extra"><summary>その他の交通費・宿泊費</summary><div class="exp-form-row">'
             + '<div class="exp-fg"><label>その他（タクシー等）</label>'
             + '<input type="number" class="exp-input exp-other" placeholder="0" '
             + 'onchange="ExpenseManager.recalculate()"></div>'
@@ -88,11 +88,18 @@ const ExpenseManager = (() => {
             + 'onchange="ExpenseManager.recalculate()"></div>'
             + '<div class="exp-fg"><label>宿泊先</label>'
             + '<input type="text" class="exp-input exp-hotel-name" placeholder=""></div>'
-            + '</div>'
+            + '</div></details>'
             + '<div class="exp-fg"><label>この日の行先</label><input type="text" class="exp-input exp-dest-company"></div>'
             + '<div class="exp-fg"><label>この日の住所</label><input type="text" class="exp-input exp-dest-address"></div>'
             + '<div class="exp-row-total">行合計: <span class="exp-row-total-val">¥0</span></div>';
         container.appendChild(row);
+        row.querySelectorAll('.exp-fg').forEach((group, index) => {
+            const input = group.querySelector('input'), label = group.querySelector('label');
+            if (input && label) {
+                input.id = row.id + '-field-' + index;
+                label.htmlFor = input.id;
+            }
+        });
         _updateRowNumbers();
         return row;
     }
@@ -410,6 +417,9 @@ const ExpenseManager = (() => {
                 row.querySelector('.exp-air').value = rd.air || '';
                 row.querySelector('.exp-hotel').value = rd.hotel || '';
                 row.querySelector('.exp-hotel-name').value = rd.hotelName || '';
+                if (rd.other || rd.ship || rd.train || rd.air || rd.hotel || rd.hotelName) {
+                    row.querySelector('.expense-extra').open = true;
+                }
             });
         } else { addRow(); }
         recalculate();

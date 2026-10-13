@@ -22,6 +22,8 @@ function toggleMapToolbar() {
     const toggleBtn = document.getElementById('compactToggleBtn');
     if (!dropdown || !toggleBtn) return;
     const isExpanded = dropdown.classList.contains('expanded');
+    dropdown.hidden = isExpanded;
+    toggleBtn.setAttribute('aria-expanded', String(!isExpanded));
     if (isExpanded) {
         dropdown.classList.remove('expanded');
         toggleBtn.classList.remove('expanded');
@@ -46,6 +48,8 @@ document.addEventListener('click', function(e) {
     if (compactBar && compactBar.contains(e.target)) return;
     dropdown.classList.remove('expanded');
     toggleBtn.classList.remove('expanded');
+    dropdown.hidden = true;
+    toggleBtn.setAttribute('aria-expanded', 'false');
 });
 
 // =============================================
@@ -124,6 +128,8 @@ function showWorkspaceMenu() {
     var toggleBtn = document.getElementById('compactToggleBtn');
     if (dropdown && dropdown.classList.contains('expanded')) {
         dropdown.classList.remove('expanded');
+        dropdown.hidden = true;
+        if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'false');
         if (toggleBtn) toggleBtn.classList.remove('expanded');
     }
 }
@@ -358,13 +364,14 @@ function togglePanel() {
 
 // v1.7修正: デバッグログ強化＋nullガード
 function mapSwitchTab(tabName) {
+    if (tabName === 'expense') { WorkflowUI.openRouteImport(); return; }
     console.log('[mapSwitchTab] 呼ばれた tabName=' + tabName);
     // v1.7 デバッグ強化: 各ステップの結果を確認
     var allTabs = document.querySelectorAll('#bottomPanel .tab');
     var allContents = document.querySelectorAll('#bottomPanel .tab-content');
     console.log('[mapSwitchTab] tabs=' + allTabs.length + ' contents=' + allContents.length);
     
-    allTabs.forEach(function(t) { t.classList.remove('active'); });
+    allTabs.forEach(function(t) { t.classList.remove('active'); t.setAttribute('aria-pressed', String(t.dataset.tab === tabName)); });
     allContents.forEach(function(t) { t.classList.remove('active'); });
     
     var targetTab = document.querySelector('#bottomPanel .tab[data-tab="' + tabName + '"]');
