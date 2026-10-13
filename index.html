@@ -2,10 +2,10 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CULOchan業務Pro</title>
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#1a1a2e">
+    <meta name="theme-color" content="#16324a">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <link rel="apple-touch-icon" href="icons/icon-192.png">
     <link rel="stylesheet" href="styles/common.css">
@@ -21,37 +21,35 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
-    <!-- v1.7 デバッグ用: eruda ※Phase G完了後に削除予定 -->
-    <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-    <script>eruda.init();</script>
+    <link rel="stylesheet" href="styles/workflow.css">
 </head>
 <body>
+    <a class="skip-link" href="#mainContent">作業画面へ移動</a>
     <header class="app-header">
-        <h1 class="app-title">CULOchan<span class="accent">業務</span>Pro</h1>
-        <button class="settings-btn" onclick="AppCore.openSettings()">⚙️</button>
+        <div class="brand-mark" aria-hidden="true">C</div>
+        <div><h1 class="app-title">CULOchan<span class="accent">業務</span>Pro</h1><p class="app-tagline">訪問から精算まで、ひとつの流れに。</p></div>
+        <button class="settings-btn" onclick="AppCore.openSettings()" aria-label="アプリの設定">⚙ <span>設定</span></button>
     </header>
-    <nav class="tab-nav">
-        <button class="tab-btn active" data-tab="receipt" onclick="AppCore.switchTab('receipt')">
-            <span class="tab-icon">📸</span><span class="tab-label">レシート</span>
-        </button>
-        <button class="tab-btn" data-tab="expense" onclick="AppCore.switchTab('expense')">
-            <span class="tab-icon">🧾</span><span class="tab-label">精算書</span>
-        </button>
-        <button class="tab-btn" data-tab="map" onclick="AppCore.switchTab('map')">
-            <span class="tab-icon">🗺️</span><span class="tab-label">マップ</span>
-        </button>
+    <nav class="tab-nav" aria-label="仕事の流れ">
+        <p class="nav-caption">WORK FLOW <span>仕事の流れ</span></p>
+        <button class="tab-btn active" data-tab="map" aria-current="page" aria-controls="tab-map" onclick="AppCore.switchTab('map')"><span class="tab-icon">01</span><span class="nav-copy"><span class="tab-label">訪問・ルート</span><span class="nav-hint">予定と回る順番を整える</span></span></button>
+        <button class="tab-btn" data-tab="receipt" aria-controls="tab-receipt" onclick="AppCore.switchTab('receipt')"><span class="tab-icon">02</span><span class="nav-copy"><span class="tab-label">レシート</span><span class="nav-hint">現場で使った経費を記録</span></span></button>
+        <button class="tab-btn" data-tab="expense" aria-controls="tab-expense" onclick="AppCore.switchTab('expense')"><span class="tab-icon">03</span><span class="nav-copy"><span class="tab-label">精算・PDF</span><span class="nav-hint">金額を確認して仕上げる</span></span></button>
+        <div class="nav-note">会社を出て、訪問して、会社へ。<br>一日の記録をここに。</div>
     </nav>
-    <main class="main-content">
-        <div class="tab-panel active" id="tab-receipt">
+    <main class="main-content" id="mainContent" tabindex="-1">
+        <div class="tab-panel" id="tab-receipt" aria-labelledby="receiptTitle">
+            <div class="screen-heading"><div><p class="eyebrow">STEP 02 · 経費を記録</p><h2 id="receiptTitle" tabindex="-1">レシートをまとめる</h2><p>画像を選んで読み取り、内容を確認して保存します。</p></div><button class="btn btn-secondary compact-action" onclick="WorkflowUI.openParking()">駐車場代を記録</button></div>
+            <ol class="mini-steps" aria-label="レシートの手順"><li><b>1</b>画像を選択</li><li><b>2</b>読み取り・確認</li><li><b>3</b>保存</li></ol>
             <div class="panel-card">
-                <div class="card-title">📸 レシートスキャナー</div>
-                <p class="card-desc">スキャナーで取り込んだレシートを自動認識・管理</p>
+                <div class="card-title">レシートの画像を選ぶ</div>
+                <p class="card-desc">複数のレシートが写った画像も選べます。読み取り後に金額や日付を確認してください。</p>
                 <div class="scan-input-area">
-                    <label class="scan-btn" id="scanFileBtn">
+                    <label class="scan-btn file-control" id="scanFileBtn">
                         <span class="scan-btn-icon">📄</span>
                         <span class="scan-btn-text">スキャン画像を選択</span>
-                        <span class="scan-btn-hint">JPEG / PNG / PDF</span>
-                        <input type="file" accept="image/*,.pdf" onchange="ReceiptScanner.handleFileSelect(event)" style="display:none">
+                        <span class="scan-btn-hint">JPEG・PNG・PDF</span>
+                        <input type="file" accept="image/*,.pdf" onchange="ReceiptScanner.handleFileSelect(event)" class="file-input">
                     </label>
                 </div>
                 <div id="scanPreview" class="scan-preview" style="display:none;">
@@ -89,56 +87,28 @@
                 </div>
             </div>
             <div class="panel-card">
-                <div class="card-title">📂 保存済みレシート</div>
+                <div class="card-title">保存済みレシート</div>
                 <div id="savedReceiptList" class="saved-list">
                     <p class="empty-msg">保存されたレシートはありません</p>
                 </div>
             </div>
+            <div class="next-action"><div><strong>記録ができたら、精算へ</strong><p>駐車場代・ETC・走行距離をまとめられます。</p></div><button class="btn btn-primary compact-action" onclick="AppCore.switchTab('expense')">精算・PDFへ →</button></div>
         </div>
-        <div class="tab-panel" id="tab-expense">
-            <div class="panel-card">
-                <div class="card-title">📋 基本情報</div>
-                <div class="exp-basic-form">
-                    <div class="exp-basic-row">
-                        <div class="exp-fg"><label>提出日</label><input type="date" class="exp-input" id="expSubmitDate"></div>
-                        <div class="exp-fg"><label>SS名</label><input type="text" class="exp-input" id="expSSName" value="千葉西SS"></div>
-                    </div>
-                    <div class="exp-fg"><label>行先（会社名）</label><textarea class="exp-textarea" id="expDestCompany" rows="2" placeholder="東京ガス㈱ → ㈱マーフィード → 千葉スバル㈱新港店"></textarea></div>
-                    <div class="exp-fg"><label>行先（住所）</label><textarea class="exp-textarea" id="expDestAddress" rows="2" placeholder="千葉県袖ケ浦市 → 東京都足立区 → 千葉県千葉市美浜区"></textarea></div>
-                    <div class="exp-fg"><label>氏名</label><input type="text" class="exp-input" id="expEmployeeName" value="小出晃也"></div>
-                </div>
-            </div>
-            <div class="panel-card">
-                <div class="card-title">🚃 交通費明細</div>
-                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
-                    <a href="https://www.etc-meisai.jp/" target="_blank" class="btn btn-etc" style="flex:1;min-width:140px;">🛣️ ETC利用照会を開く</a>
-                    <label class="btn btn-primary" style="flex:1;min-width:140px;cursor:pointer;text-align:center;">📥 ETC CSV取り込み<input type="file" accept=".csv" onchange="ExpenseEtc.handleFile(event)" style="display:none;"></label>
-                </div>
-                <div id="expenseRows"></div>
-                <button class="btn btn-primary" onclick="ExpenseManager.addRow()" style="margin-top:10px;">➕ 行を追加</button>
-            </div>
-            <div class="panel-card">
-                <div class="exp-total-display"><div class="exp-total-label">合計金額</div><div class="exp-total-amount" id="expGrandTotal">¥0</div></div>
-            </div>
-            <div class="panel-card">
-                <div class="exp-btn-row">
-                    <button class="btn btn-pdf" onclick="ExpensePdf.generate()">📄 精算書PDF出力</button>
-                    <button class="btn" style="background:var(--bg-card-hover);color:var(--text-secondary);border:1px solid var(--border);" onclick="ExpenseManager.clearAll()">🗑️ クリア</button>
-                </div>
-                <div class="exp-btn-row"><button class="btn btn-save" onclick="ExpenseManager.saveDraft()">💾 下書き保存</button></div>
-            </div>
-            <div class="panel-card">
-                <div class="card-title">📁 下書き一覧</div>
-                <div id="expDraftList"><p class="empty-msg">下書きはありません</p></div>
-            </div>
-            <!-- v2.0追加 - Phase F 駐車場利用明細セクション -->
-            <div class="panel-card parking-section">
-                <div class="card-title">🅿️ 駐車場利用明細</div>
+        <div class="tab-panel" id="tab-expense" aria-labelledby="expenseTitle">
+            <div class="screen-heading"><div><p class="eyebrow">STEP 03 · 精算を仕上げる</p><h2 id="expenseTitle" tabindex="-1">交通費を精算する</h2><p>経費を取り込み、明細と合計を確認してPDFにします。</p></div></div>
+            <div class="expense-layout"><div class="expense-work">
+            <section class="expense-imports" aria-labelledby="importTitle">
+                <h3 class="section-title" id="importTitle"><span>1</span> 経費を取り込む</h3>
+                <p class="section-desc">必要なものだけ取り込めます。明細に直接入力しても大丈夫です。</p>
+                <details class="panel-card fold-card" id="routeImport"><summary><span>訪問ルート・走行距離</span><span class="summary-note">日付とルートを選択</span></summary><div class="fold-body" id="tabExpense"></div></details>
+                <div class="panel-card import-etc"><div><h4>高速道路の料金</h4><p class="section-desc">ETCのCSVから利用日ごとに取り込みます。</p></div><label class="btn btn-secondary file-control">ETC CSVを選択<input type="file" accept=".csv" onchange="ExpenseEtc.handleFile(event)" class="file-input"></label><a href="https://www.etc-meisai.jp/" target="_blank" rel="noopener" class="text-link">ETC利用照会を開く ↗</a></div>
+            <details class="panel-card parking-section fold-card" id="parkingSection">
+                <summary><span>駐車場代を取り込む・記録する</span><span class="summary-note">レシート・手入力</span></summary><div class="fold-body">
                 <p class="card-desc">日付・金額を確認して、精算書の駐車場代欄へ反映できます。</p>
                 <div class="parking-btn-row"><label for="expParkingMonth">反映する月</label><input class="exp-input" type="month" id="expParkingMonth"><button class="btn btn-save" onclick="ExpenseManager.reflectParkingMonth()">駐車場代を精算書に反映</button></div>
                 <div class="parking-btn-row">
-                    <button class="btn btn-primary" onclick="ParkingManager.importFromScanner()">📸 レシートから取り込み</button>
-                    <button class="btn btn-save" onclick="ParkingManager.addItem()">➕ 手動追加</button>
+                    <button class="btn btn-secondary" onclick="ParkingManager.importFromScanner()">📸 レシートから取り込み</button>
+                    <button class="btn btn-secondary" onclick="ParkingManager.addItem()">➕ 手動追加</button>
                 </div>
                 <div id="parkingItemList" style="margin-top:10px;">
                     <p class="empty-msg">駐車場利用データはありません</p>
@@ -148,83 +118,96 @@
                     <span class="parking-total-amount" id="parkingTotal">¥0</span>
                 </div>
                 <div class="parking-btn-row">
-                    <button class="btn btn-pdf" onclick="ParkingPdf.generate()">🖨️ 駐車場明細PDF出力</button>
-                    <button class="btn" style="background:var(--bg-card-hover);color:var(--text-secondary);border:1px solid var(--border);" onclick="ParkingManager.clearAll()">🗑️ クリア</button>
+                    <button class="btn btn-secondary" onclick="ParkingPdf.generate()">🖨️ 駐車場明細PDF出力</button>
+                    <button class="btn btn-danger-quiet" onclick="ParkingManager.clearAll()">駐車場記録をクリア</button>
                 </div>
-            </div>
+            </div></details>
+            </section>
+            <h3 class="section-title"><span>2</span> 内容を確認・入力</h3>
+            <section class="panel-card"><h4 class="card-title">提出先・行先</h4>
+                <div class="exp-basic-form">
+                    <div class="exp-basic-row">
+                        <div class="exp-fg"><label for="expSubmitDate">提出日</label><input type="date" class="exp-input" id="expSubmitDate"></div>
+                        <div class="exp-fg"><label for="expSSName">SS名</label><input type="text" class="exp-input" id="expSSName" value="千葉西SS"></div>
+                    </div>
+                    <div class="exp-fg"><label for="expDestCompany">行先（会社名）</label><textarea class="exp-textarea" id="expDestCompany" rows="2" placeholder="東京ガス㈱ → ㈱マーフィード → 千葉スバル㈱新港店"></textarea></div>
+                    <div class="exp-fg"><label for="expDestAddress">行先（住所）</label><textarea class="exp-textarea" id="expDestAddress" rows="2" placeholder="千葉県袖ケ浦市 → 東京都足立区 → 千葉県千葉市美浜区"></textarea></div>
+                    <div class="exp-fg"><label for="expEmployeeName">氏名</label><input type="text" class="exp-input" id="expEmployeeName" value="小出晃也"></div>
+                </div>
+            </section>
+            <section class="panel-card"><div class="section-heading"><h4 class="card-title">日別の交通費</h4><span class="summary-note">利用日ごとに1件</span></div>
+                <div id="expenseRows"></div><button class="btn btn-secondary" onclick="ExpenseManager.addRow()">＋ 別の日の明細を追加</button>
+            </section>
+            </div><aside class="expense-finish" aria-label="精算の仕上げ">
+                <section class="panel-card finish-card"><h3 class="section-title"><span>3</span> 保存・PDF出力</h3>
+                    <div class="exp-total-display"><div class="exp-total-label">精算する合計</div><div class="exp-total-amount" id="expGrandTotal">¥0</div><p class="section-desc">入力中のすべての明細の合計</p></div>
+                    <button class="btn btn-primary" onclick="ExpensePdf.generate()">精算書をPDFにする</button>
+                    <button class="btn btn-secondary" onclick="ExpenseManager.saveDraft()">下書きを保存</button>
+                    <p class="save-hint">途中でやめるときは、下書きを保存してください。</p>
+                    <details class="reset-details"><summary>入力をやり直す</summary><button class="btn btn-danger-quiet" onclick="ExpenseManager.clearAll()">精算書の入力をクリア</button></details>
+                </section>
+                <section class="panel-card"><h3 class="card-title">保存した下書き</h3><div id="expDraftList"><p class="empty-msg">下書きはありません</p></div></section>
+            </aside></div>
         </div>
         <!-- マップタブ -->
-        <div class="tab-panel" id="tab-map">
+        <div class="tab-panel active" id="tab-map" aria-labelledby="mapTitle">
+            <div class="screen-heading"><div><p class="eyebrow">STEP 01 · 訪問を準備</p><h2 id="mapTitle" tabindex="-1">訪問先とルート</h2><p>訪問先を登録して、会社から出発・帰着する順番を整えます。</p></div><button class="btn btn-primary compact-action" onclick="showAddModal()">＋ 訪問先を追加</button></div>
             <div id="countBadge" style="display:none;">0件</div>
             <div class="map-compact-bar">
-                <button class="compact-ws-btn" id="compactWsBtn" onclick="showWorkspaceMenu()">📅 --</button>
-                <button class="compact-legend-btn" onclick="toggleLegend()">📍</button>
-                <div class="compact-count" id="compactCount">0件</div>
-                <button class="compact-toggle-btn" id="compactToggleBtn" onclick="toggleMapToolbar()">▼</button>
+                <span class="workspace-label">対象月</span><button class="compact-ws-btn" id="compactWsBtn" onclick="showWorkspaceMenu()" aria-label="対象月を切り替える">--</button>
+                <div class="compact-count" id="compactCount" role="status">0件</div>
+                <label class="btn btn-secondary file-control compact-action">訪問先をファイルから取込<input type="file" id="fileInput" accept=".csv,.xlsx,.xls" class="file-input"></label>
+                <button class="compact-toggle-btn" id="compactToggleBtn" onclick="toggleMapToolbar()" aria-expanded="false" aria-controls="mapToolbarDropdown">その他 ⋯</button>
             </div>
-            <div class="map-toolbar-dropdown" id="mapToolbarDropdown">
-                <button class="toolbar-item" onclick="mapSwitchTab('expense'); toggleMapToolbar();"><span class="toolbar-icon">🧾</span><span class="toolbar-label">交通費を精算する</span></button>
-                <label class="toolbar-item" for="fileInput">
-                    <span class="toolbar-icon">📁</span><span class="toolbar-label">CSV読込</span>
-                </label>
-                <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" style="display:none">
-                <button class="toolbar-item" onclick="showAddModal(); toggleMapToolbar();">
-                    <span class="toolbar-icon">➕</span><span class="toolbar-label">メンテナンス先を追加</span>
-                </button>
-                <button class="toolbar-item" onclick="exportPDF(); toggleMapToolbar();">
-                    <span class="toolbar-icon">📄</span><span class="toolbar-label">訪問先一覧PDF</span>
-                </button>
-                <button class="toolbar-item" onclick="openGoogleCalendar(); toggleMapToolbar();">
-                    <span class="toolbar-icon">📅</span><span class="toolbar-label">Googleカレンダー</span>
-                </button>
-                <button class="toolbar-item" onclick="toggleMenu(); toggleMapToolbar();">
-                    <span class="toolbar-icon">⚙️</span><span class="toolbar-label">設定・バックアップ</span>
-                </button>
+            <div class="map-toolbar-dropdown" id="mapToolbarDropdown" hidden>
+                <button class="toolbar-item" onclick="exportPDF(); toggleMapToolbar();">訪問先一覧をPDFにする</button>
+                <button class="toolbar-item" onclick="openGoogleCalendar(); toggleMapToolbar();">Googleカレンダーを開く ↗</button>
+                <button class="toolbar-item" onclick="toggleMenu(); toggleMapToolbar();">バックアップ・データ管理</button>
             </div>
             <div class="ws-menu-overlay" id="wsMenuOverlay" style="display:none;" onclick="hideWorkspaceMenu()">
                 <div class="ws-menu" onclick="event.stopPropagation()">
-                    <div class="ws-menu-title">📅 ワークスペース切替</div>
+                    <div class="ws-menu-title">対象月を切り替える</div>
                     <div class="ws-menu-list" id="wsMenuList"></div>
                     <div class="ws-menu-actions"><button class="ws-menu-add" onclick="showAddWorkspaceDialog()">➕ 新しい月を追加</button></div>
                 </div>
             </div>
             <div class="modal-overlay" id="addWsModal" style="display:none;">
                 <div class="modal">
-                    <h2>📅 ワークスペース追加</h2>
-                    <div class="modal-row"><label>年月</label><input type="month" id="addWsMonth"></div>
-                    <div class="modal-row"><label>名前（任意）</label><input type="text" id="addWsName" placeholder="例：3月メンテ"></div>
+                    <h2>対象月を追加</h2>
+                    <div class="modal-row"><label for="addWsMonth">年月</label><input type="month" id="addWsMonth"></div>
+                    <div class="modal-row"><label for="addWsName">名前（任意）</label><input type="text" id="addWsName" placeholder="例：3月メンテ"></div>
                     <div class="modal-buttons"><button class="modal-cancel" onclick="hideAddWorkspaceDialog()">キャンセル</button><button class="modal-submit" onclick="addWorkspace()">作成</button></div>
                 </div>
             </div>
             <div class="menu-panel" id="menuPanel" style="display:none;">
                 <button onclick="exportBackup()">💾 バックアップ保存</button>
                 <button onclick="importBackup()">📂 バックアップ復元</button>
-                <input type="file" id="backupInput" accept=".json" style="display:none">
+                <input type="file" id="backupInput" accept=".json" class="file-input">
                 <button onclick="AppCore.openSettings()">⚙️ 設定</button>
                 <button onclick="showResetConfirm()">🗑️ 全データ削除</button>
             </div>
-            <div id="map"></div>
-            <div class="legend" id="legend" style="display:none;">
-                <div class="legend-title">📍 ルート凡例 <button class="legend-close" onclick="toggleLegend()">✕</button></div>
-                <div id="legendItems"></div>
+            <div class="visit-layout">
+                <section class="bottom-panel" id="bottomPanel" aria-label="訪問先とルートの一覧">
+                    <div class="panel-tabs" aria-label="訪問情報の切り替え">
+                        <button class="tab active" data-tab="list" aria-pressed="true" onclick="mapSwitchTab('list')">訪問先</button>
+                        <button class="tab" data-tab="route" aria-pressed="false" onclick="mapSwitchTab('route')">ルート</button>
+                        <button class="tab" data-tab="summary" aria-pressed="false" onclick="mapSwitchTab('summary')">進捗</button>
+                    </div>
+                    <div class="panel-content">
+                        <div class="tab-content active" id="tabList"><div id="customerList" class="customer-list"></div></div>
+                        <div class="tab-content" id="tabRoute"><div id="routeManager" class="route-manager"></div></div>
+                        <div class="tab-content" id="tabSummary"><div id="summaryContent" class="summary-content"></div></div>
+                    </div>
+                </section>
+                <section class="map-region" aria-label="訪問先の地図">
+                    <div class="map-region-header"><h3>地図</h3><button class="compact-legend-btn" onclick="toggleLegend()">色の説明</button></div>
+                    <div class="map-canvas"><div id="map"></div><div class="map-setup" id="mapSetup"><span class="map-placeholder-icon" aria-hidden="true">⌖</span><h4>地図を使う準備</h4><p id="mapSetupMessage">設定でGoogle Maps APIキーと会社住所を登録すると、地図と距離計算が使えます。</p><button class="btn btn-secondary compact-action" onclick="AppCore.openSettings()">地図の設定を開く</button><p class="map-setup-hint">訪問先の登録・編集は、先に進められます。</p></div></div>
+                    <div class="legend" id="legend" style="display:none;"><div class="legend-title">ルートと状態の色 <button class="legend-close" onclick="toggleLegend()" aria-label="色の説明を閉じる">✕</button></div><div id="legendItems"></div></div>
+                </section>
             </div>
-            <div class="bottom-panel" id="bottomPanel">
-                <div class="panel-handle" onclick="togglePanel()"><div class="handle-bar"></div></div>
-                <div class="panel-tabs">
-                    <button class="tab active" data-tab="list" onclick="mapSwitchTab('list')">📋 リスト</button>
-                    <button class="tab" data-tab="route" onclick="mapSwitchTab('route')">🗺️ ルート</button>
-                    <button class="tab" data-tab="summary" onclick="mapSwitchTab('summary')">📊 集計</button>
-                    <button class="tab" data-tab="expense" onclick="mapSwitchTab('expense')">💰 精算書</button>
-                </div>
-                <div class="panel-content">
-                    <div class="tab-content active" id="tabList"><div id="customerList" class="customer-list"></div></div>
-                    <div class="tab-content" id="tabRoute"><div id="routeManager" class="route-manager"></div></div>
-                    <div class="tab-content" id="tabSummary"><div id="summaryContent" class="summary-content"><p class="empty-msg">ルートを作成すると集計が表示されます</p></div></div>
-                    <div class="tab-content" id="tabExpense"><p class="empty-msg">💰 精算書タブを選択すると表示されます</p></div>
-                </div>
-            </div>
-            <div class="modal-overlay" id="addModal" style="display:none;"><div class="modal"><h2>➕ メンテナンス先を追加</h2><div class="modal-row"><label>会社名 *</label><input type="text" id="addCompany" placeholder="例：㈱サンプル会社"></div><div class="modal-row"><label>住所 *</label><input type="text" id="addAddress" placeholder="例：東京都港区虎ノ門1-1-1"></div><div class="modal-row"><label>電話番号</label><input type="tel" id="addPhone" placeholder="例：03-1234-5678"></div><div class="modal-row"><label>担当者</label><input type="text" id="addContact" placeholder="例：山田様"></div><div class="modal-row"><label>目的</label><select id="addPurpose"><option value="">未設定</option><option value="メンテナンス">メンテナンス</option><option value="修理">修理</option><option value="本体設置">本体設置</option><option value="その他">その他</option></select></div><div class="modal-row"><label>備考</label><textarea id="addNote" placeholder="台数や機種、駐車場情報など..."></textarea></div><div class="modal-buttons"><button class="modal-cancel" onclick="hideAddModal()">キャンセル</button><button class="modal-submit" onclick="addNewLocation()">追加する</button></div></div></div>
-            <div class="modal-overlay" id="editModal" style="display:none;"><div class="modal"><h2>📝 詳細編集</h2><div class="modal-row"><label>会社名</label><input type="text" id="editCompany"></div><div class="modal-row"><label>住所</label><input type="text" id="editAddress"></div><div class="modal-row"><label>電話番号</label><input type="tel" id="editPhone"></div><div class="modal-row"><label>担当者</label><input type="text" id="editContact"></div><div class="modal-row"><label>ルート</label><select id="editRoute"></select></div><div class="modal-row"><label>アポ日時</label><input type="datetime-local" id="editAppoDate"></div><div class="modal-row"><label>ステータス</label><select id="editStatus"><option value="pending">未アポ</option><option value="appointed">アポ済み</option><option value="completed">完了</option></select></div><div class="modal-row"><label>目的</label><select id="editPurpose"><option value="">未設定</option><option value="メンテナンス">メンテナンス</option><option value="修理">修理</option><option value="本体設置">本体設置</option><option value="その他">その他</option></select></div><div class="modal-row"><label>備考</label><textarea id="editNote"></textarea></div><div class="modal-buttons"><button class="modal-cancel" onclick="hideEditModal()">キャンセル</button><button class="modal-delete" onclick="deleteLocation()">🗑️ 削除</button><button class="modal-submit" onclick="saveEdit()">保存</button></div></div></div>
+            <div class="next-action"><div><strong>訪問が終わったら、経費を記録</strong><p>レシートを保存してから、精算書にまとめましょう。</p></div><button class="btn btn-secondary compact-action" onclick="AppCore.switchTab('receipt')">レシートへ →</button><button class="text-link" onclick="WorkflowUI.openRouteImport()">走行距離を精算する →</button></div>
+            <div class="modal-overlay" id="addModal" style="display:none;"><div class="modal"><h2>訪問先を追加</h2><div class="modal-row"><label for="addCompany">会社名 *</label><input type="text" id="addCompany" placeholder="例：㈱サンプル会社"></div><div class="modal-row"><label for="addAddress">住所 *</label><input type="text" id="addAddress" placeholder="例：東京都港区虎ノ門1-1-1"></div><div class="modal-row"><label for="addPhone">電話番号</label><input type="tel" id="addPhone" placeholder="例：03-1234-5678"></div><div class="modal-row"><label for="addContact">担当者</label><input type="text" id="addContact" placeholder="例：山田様"></div><div class="modal-row"><label for="addPurpose">目的</label><select id="addPurpose"><option value="">未設定</option><option value="メンテナンス">メンテナンス</option><option value="修理">修理</option><option value="本体設置">本体設置</option><option value="その他">その他</option></select></div><div class="modal-row"><label for="addNote">備考</label><textarea id="addNote" placeholder="台数や機種、駐車場情報など..."></textarea></div><div class="modal-buttons"><button class="modal-cancel" onclick="hideAddModal()">キャンセル</button><button class="modal-submit" onclick="addNewLocation()">追加する</button></div></div></div>
+            <div class="modal-overlay" id="editModal" style="display:none;"><div class="modal"><h2>📝 詳細編集</h2><div class="modal-row"><label for="editCompany">会社名</label><input type="text" id="editCompany"></div><div class="modal-row"><label for="editAddress">住所</label><input type="text" id="editAddress"></div><div class="modal-row"><label for="editPhone">電話番号</label><input type="tel" id="editPhone"></div><div class="modal-row"><label for="editContact">担当者</label><input type="text" id="editContact"></div><div class="modal-row"><label for="editRoute">ルート</label><select id="editRoute"></select></div><div class="modal-row"><label for="editAppoDate">アポ日時</label><input type="datetime-local" id="editAppoDate"></div><div class="modal-row"><label for="editStatus">ステータス</label><select id="editStatus"><option value="pending">未アポ</option><option value="appointed">アポ済み</option><option value="completed">完了</option></select></div><div class="modal-row"><label for="editPurpose">目的</label><select id="editPurpose"><option value="">未設定</option><option value="メンテナンス">メンテナンス</option><option value="修理">修理</option><option value="本体設置">本体設置</option><option value="その他">その他</option></select></div><div class="modal-row"><label for="editNote">備考</label><textarea id="editNote"></textarea></div><div class="modal-buttons"><button class="modal-cancel" onclick="hideEditModal()">キャンセル</button><button class="modal-delete" onclick="deleteLocation()">🗑️ 削除</button><button class="modal-submit" onclick="saveEdit()">保存</button></div></div></div>
             <div class="modal-overlay" id="resetModal" style="display:none;"><div class="modal"><h2>🗑️ データをリセット</h2><p class="confirm-text">現在のワークスペースのデータをすべて削除しますか？<br>この操作は取り消せません。<br><strong id="resetCount">0件</strong>のデータが削除されます</p><div class="modal-buttons"><button class="modal-cancel" onclick="hideResetConfirm()">キャンセル</button><button class="modal-delete" onclick="resetAllData()">削除する</button></div></div></div>
             <div class="loading-overlay" id="mapLoading" style="display:none;"><div class="loading-content"><div class="loading-spinner"></div><p>📍 処理中...</p><p id="mapLoadingProgress"></p></div></div>
 
@@ -235,11 +218,11 @@
         <div class="modal-content" onclick="event.stopPropagation()">
             <div class="modal-header">
                 <span class="modal-title">⚙️ 設定</span>
-                <button class="btn-small btn-clear" onclick="AppCore.closeSettings()">✕</button>
+                <button class="btn-small btn-clear" onclick="AppCore.closeSettings()" aria-label="設定を閉じる">✕</button>
             </div>
             <div class="modal-body">
                 <div class="setting-group">
-                    <label class="setting-label">🔑 Gemini APIキー</label>
+                    <label class="setting-label" for="settingGeminiKey">🔑 Gemini APIキー</label>
                     <p class="setting-hint">レシートのAI読み取りに使用します</p>
                     <input type="password" id="settingGeminiKey" class="setting-input" placeholder="AIza...">
                     <p class="setting-hint" style="margin-top:8px;">
@@ -247,7 +230,7 @@
                     </p>
                 </div>
                 <div class="setting-group" style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px;">
-                    <label class="setting-label">🗺️ Google Maps APIキー</label>
+                    <label class="setting-label" for="settingMapsKey">🗺️ Google Maps APIキー</label>
                     <p class="setting-hint">マップの地図表示・距離計算に使用します</p>
                     <input type="password" id="settingMapsKey" class="setting-input" placeholder="AIza...">
                     <p class="setting-hint" style="margin-top:8px;">
@@ -255,7 +238,7 @@
                     </p>
                 </div>
                 <div class="setting-group" style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px;">
-                    <label class="setting-label">🏢 会社住所（出発・帰着）</label>
+                    <label class="setting-label" for="settingHomeAddr">🏢 会社住所（出発・帰着）</label>
                     <p class="setting-hint">会社から出発し、最後に会社へ戻る距離を計算します</p>
                     <input type="text" id="settingHomeAddr" class="setting-input" placeholder="例：千葉県袖ケ浦市...">
                 </div>
@@ -292,24 +275,26 @@
     <script src="map/ui-actions.js"></script>
     <script src="map/gcal-panel.js"></script>
     <script src="expense/parking-matcher.js"></script>
+    <script src="shared/workflow-ui.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', async function() {
             ExpenseManager.init();
             document.getElementById('expParkingMonth').value = new Date().toLocaleDateString('sv-SE').slice(0, 7);
             await ParkingManager.init();
-            GcalPanel.init();
-            GcalPanel.initPanelSwipe();
             DataStorage.migrateIfNeeded();
             updateWsButton();
+            WorkflowUI.init();
             var fi = document.getElementById('fileInput');
             if (fi) fi.addEventListener('change', function(e) { CsvHandler.handleFile(e); });
             var bi = document.getElementById('backupInput');
             if (bi) bi.addEventListener('change', function(e) { DataStorage.importBackup(e); });
             var mapSettings = DataStorage.getSettings();
             if (mapSettings.apiKey) {
+                document.getElementById('mapSetupMessage').textContent = '地図を読み込み中です。訪問先の一覧はそのまま使えます。';
                 var s = document.createElement('script');
                 s.src = 'https://maps.googleapis.com/maps/api/js?key=' + mapSettings.apiKey + '&libraries=places,geometry&callback=initMap';
                 s.async = true; s.defer = true;
+                s.onerror = function() { document.getElementById('mapSetupMessage').textContent = '地図を読み込めませんでした。通信状態と地図の設定を確認してください。'; };
                 document.body.appendChild(s);
             }
         });

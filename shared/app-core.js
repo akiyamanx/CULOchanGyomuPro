@@ -11,7 +11,7 @@
 
 const AppCore = (() => {
     // v1.0 - 現在のアクティブタブ
-    let activeTab = 'receipt';
+    let activeTab = 'map';
 
     // v1.0 - アプリ初期化
     function init() {
@@ -21,18 +21,23 @@ const AppCore = (() => {
                 .then(() => console.log('[AppCore] SW登録完了'))
                 .catch(err => console.warn('[AppCore] SW登録失敗:', err));
         }
-        switchTab('receipt');
+        switchTab('map');
     }
 
     // v1.0 - タブ切替
     function switchTab(tabName) {
+        if (!['map', 'receipt', 'expense'].includes(tabName)) return;
         activeTab = tabName;
-        document.querySelectorAll('.tab-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.tab === tabName);
+        document.querySelectorAll('.tab-nav .tab-btn').forEach(btn => {
+            const selected = btn.dataset.tab === tabName;
+            btn.classList.toggle('active', selected);
+            if (selected) btn.setAttribute('aria-current', 'page');
+            else btn.removeAttribute('aria-current');
         });
         document.querySelectorAll('.tab-panel').forEach(panel => {
             panel.classList.toggle('active', panel.id === 'tab-' + tabName);
         });
+        document.dispatchEvent(new CustomEvent('app:tabchange', { detail: tabName }));
         console.log('[AppCore] タブ切替:', tabName);
     }
 
@@ -164,3 +169,4 @@ const AppCore = (() => {
         saveSettings: saveSettings
     };
 })();
+
