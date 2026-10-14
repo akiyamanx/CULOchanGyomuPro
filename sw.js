@@ -13,14 +13,21 @@
 // v5.2 2026-04-04 - Phase H不要コード整理 + Phase I: IndexedDB移行（parking-idb.js追加）
 // ==========================================
 
-const CACHE_NAME = 'gyomupro-v43';
+const CACHE_NAME = 'gyomupro-workflow-v51';
 const ASSETS = [
     './',
     './index.html',
     './styles/common.css',
+    './styles/workflow.css',
+    './styles/request-import.css',
+    './shared/workflow-ui.js',
     './styles/receipt.css',
     './styles/expense.css',
     './styles/parking.css',
+    './styles/parking-workflow.css',
+    './receipt/receipt-photo.js',
+    './receipt/receipt-photo-geometry.js',
+    './expense/parking-document.js',
     './styles/map/map-styles.css',
     './styles/map/map-expense-styles.css',
     './styles/map/route-order-styles.css',
@@ -28,6 +35,8 @@ const ASSETS = [
     './shared/app-core.js',
     './receipt/receipt-scanner.js',
     './receipt/receipt-image-utils.js',
+    './expense/expense-import.js',
+    './shared/pdf-renderer.js',
     './expense/expense-manager.js',
     './expense/expense-pdf.js',
     './expense/expense-etc.js',
@@ -38,7 +47,11 @@ const ASSETS = [
     './map/map-data-storage.js',
     './map/v1-converter.js',
     './map/csv-handler.js',
+    './map/request-parser.js',
+    './map/request-reader.js',
+    './map/request-import.js',
     './map/map-core.js',
+    './map/route-list-pdf.js',
     './map/route-manager.js',
     './map/map-expense-form.js',
     './map/route-order.js',
@@ -61,7 +74,7 @@ self.addEventListener('activate', event => {
     event.waitUntil(
         caches.keys().then(keys => {
             return Promise.all(
-                keys.filter(k => k !== CACHE_NAME)
+                keys.filter(k => k.startsWith('gyomupro-') && k !== CACHE_NAME)
                     .map(k => caches.delete(k))
             );
         }).then(() => self.clients.claim())
@@ -86,3 +99,5 @@ self.addEventListener('fetch', event => {
             .catch(() => caches.match(event.request))
     );
 });
+
+

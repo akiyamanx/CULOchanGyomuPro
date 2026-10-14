@@ -1,497 +1,235 @@
-// ==========================================
-// CULOchan業務Pro — 駐車場利用明細マネージャー v1.3
-// 駐車場利用明細の入力・管理・レシート取り込みを担当
-// v1.1: 回転UI（🔄ボタン・rotationフィールド・CSSプレビュー）
-// v1.2: Phase G自動マッチング連携（🔍ボタン・OCRデータ保持）
-// v1.3: Phase I IndexedDB移行（localStorage→IDB、画像の安全な永続化）
-// 依存: app-core.js, receipt-scanner.js, parking-matcher.js, parking-idb.js
-// ==========================================
-
+// 駐車場明細。保存完了後に画面へ反映し、写真・編集元・訪問情報を一緒に保持する。
 const ParkingManager = (() => {
-    // 駐車場利用データ配列
-    // 各要素: { id, imageDataUrl, date, visitCompany, machineName, purpose, amount, rotation, ocrAddress, ocrEnterTime, ocrStore }
-    // rotation: 0/90/180/270 (PDF出力時の回転角度)
-    // v1.2追加 - ocrAddress/ocrEnterTime/ocrStore: マッチング用OCRデータ
-    let _parkingItems = [];
-
-    // ==========================================
-    // v1.3改修 - 初期化（IDB対応: マイグレーション→IDB読み込み）
-    // ==========================================
+    let items = [], queue = Promise.resolve(), ready = false, pickerId = '', pickerChoices = [], pickerVersion = 0;
+    let editTimer;
+    const pendingEdits=new Map();
+    const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const uid = () => 'park_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
+    function serial(action) {
+        const result = queue.then(action);
+        queue = result.catch(() => {});
+        return result;
+    }
+    async function save(next) {
+        try {
+            if (!ready || !await ParkingIDB.putAll(next)) throw new Error('保存未完了');
+            items = next;
+            return true;
+        } catch (error) {
+            alert('駐車場明細を保存できませんでした。空き容量やブラウザの保存設定を確認してください。');
+            return false;
+        }
+    }
     async function init() {
-        console.log('[Parking] 駐車場利用明細マネージャー初期化 (IDB版 v1.3)');
-        // v1.3 - localStorageからの自動マイグレーション（初回のみ）
-        if (typeof ParkingIDB !== 'undefined') {
-            var migResult = await ParkingIDB.migrateFromLocalStorage();
-            if (migResult.migrated) {
-                console.log('[Parking] マイグレーション完了:', migResult.count + '件をIDBに移行');
-            }
-        }
-        await _loadFromStorage();
-        renderParkingList();
-    }
-
-    // ==========================================
-    // レシートスキャナーからの取り込み
-    // ==========================================
-    // レシートスキャナーの認識済みデータから駐車場レシートを取り込む
-    // receipt-scanner.jsの_recognizedReceiptsを参照
-    async function importFromScanner() {
-        // ReceiptScannerの認識済みレシートを取得
-        var receipts = ReceiptScanner.getRecognizedReceipts
-            ? ReceiptScanner.getRecognizedReceipts() : [];
-        if (!receipts || receipts.length === 0) {
-            alert('先にレシートタブでスキャン→AI読取を行ってください');
-            return;
-        }
-
-        // チェック済みレシートのみ取り込み
-        var checked = receipts.filter(function(r) { return r.checked; });
-        if (checked.length === 0) {
-            alert('レシートタブでチェック済みのレシートがありません');
-            return;
-        }
-
-        var importCount = 0;
-        var newIds = []; // v1.2追加 - マッチング対象のID
-        checked.forEach(function(r) {
-            var d = r.data || {};
-            var newId = 'park_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
-            _parkingItems.push({
-                id: newId,
-                imageDataUrl: r.imageDataUrl || '',
-                date: d.date || '',
-                visitCompany: '',
-                machineName: d.store || '',
-                purpose: 'メンテナンス',
-                amount: d.total || 0,
-                rotation: 0,
-                // v1.2追加 - マッチング用OCRデータ
-                ocrAddress: d.address || 'unknown',
-                ocrEnterTime: d.enterTime || 'unknown',
-                ocrStore: d.store || ''
+        try {
+            const migration = await ParkingIDB.migrateFromLocalStorage();
+            if (migration.conflicts) alert('旧保存と内容の異なる駐車場明細があります。両方の原データを保持しています。');
+            items = await ParkingIDB.getAll();
+            ready = true;
+        } catch (error) { alert('駐車場明細を読み込めません。再読み込みしてから操作してください。'); }
+        const list = document.getElementById('parkingItemList');
+        if (list) {
+            const captureEdit=event=>{
+                const field=event.target.dataset.field;
+                if(!field)return;
+                const id=event.target.closest('[data-id]').dataset.id;
+                const value=event.target.type==='checkbox'?event.target.checked:event.target.value;
+                const previous=pendingEdits.get(id)?.[field] ?? getItemById(id)?.[field] ?? '';
+                if(String(previous)===String(value))return;
+                pendingEdits.set(id,{...pendingEdits.get(id),...fieldPatch(field,value)});
+                clearTimeout(editTimer);
+                editTimer=setTimeout(flushEdits,300);
+            };
+            list.addEventListener('input',captureEdit);
+            list.addEventListener('change',event=>{captureEdit(event);flushEdits();});
+            list.addEventListener('focusout',event=>{if(event.target.dataset.field){captureEdit(event);flushEdits();}});
+            list.addEventListener('click', event => {
+                const button = event.target.closest('button[data-action]');
+                if (!button) return;
+                flushEdits();
+                const id = button.closest('[data-id]').dataset.id;
+                ({visit:showCustomerPicker,edit:id=>ReceiptPhoto.open(id),read:readReceipt,remove:removeItem})[button.dataset.action]?.(id);
             });
-            if (d.type === 'parking') newIds.push(newId);
-            importCount++;
-        });
-
-        await _saveToStorage();
+        }
         renderParkingList();
-        alert('✅ ' + importCount + '件の駐車場レシートを取り込みました');
-        if (newIds.length > 0 && typeof ParkingMatcher !== 'undefined') {
-            _runAutoMatchBatch(newIds);
-        }
     }
-
-    // v1.2追加 - 複数レシートを順次自動マッチング
-    async function _runAutoMatchBatch(ids) {
-        var matchCount = 0;
-        for (var i = 0; i < ids.length; i++) {
-            var item = _parkingItems.find(function(it) { return it.id === ids[i]; });
-            if (!item || item.visitCompany) continue;
-            var result = await _runAutoMatchSingle(item);
-            if (result) matchCount++;
-        }
-        if (matchCount > 0) {
-            await _saveToStorage();
+    function blank() { return {id:uid(), date:'', visitCompany:'', machineName:'', purpose:'', amount:0,
+        imageDataUrl:'', rotation:0, pdfSelected:true, createdAt:new Date().toISOString()}; }
+    async function append(records) {
+        return serial(async () => {
+            const added = [];
+            records.forEach(record => {
+                if (items.concat(added).some(i => (record.sourceHash && i.sourceHash === record.sourceHash)
+                    || (record.imageDataUrl && (i.originalImageDataUrl || i.imageDataUrl) === (record.originalImageDataUrl || record.imageDataUrl)))) return;
+                added.push({...blank(), ...record});
+            });
+            if (!added.length) return 0;
+            if (!await save(items.concat(added))) return -1;
             renderParkingList();
-            console.log('[Parking] 自動マッチング完了: ' + matchCount + '件');
-        }
-    }
-
-    // v1.2追加 - 1件の自動マッチング（最有力候補を自動入力）
-    async function _runAutoMatchSingle(item) {
-        try {
-            var receipt = {
-                date: item.date,
-                store: item.ocrStore || item.machineName || '',
-                address: item.ocrAddress || 'unknown',
-                enterTime: item.ocrEnterTime || 'unknown',
-                total: item.amount || 0,
-                type: 'parking'
-            };
-            var candidates = await ParkingMatcher.findCandidates(receipt);
-            if (candidates.length > 0 && candidates[0].score >= 0.3) {
-                item.visitCompany = candidates[0].customer.company;
-                return true;
-            }
-        } catch (e) {
-            console.warn('[Parking] 自動マッチングエラー:', e);
-        }
-        return false;
-    }
-
-    // ==========================================
-    // 手動で1件追加
-    // ==========================================
-    async function addItem() {
-        _parkingItems.push({
-            id: 'park_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
-            imageDataUrl: '',
-            date: new Date().toISOString().split('T')[0],
-            visitCompany: '',
-            machineName: '',
-            purpose: 'メンテナンス',
-            amount: 0,
-            rotation: 0 // v1.1追加 - 回転角度
+            return added.length;
         });
-        await _saveToStorage();
-        renderParkingList();
     }
-
-    // ==========================================
-    // 削除
-    // ==========================================
+    async function importFromScanner() {
+        const receipts = ReceiptScanner.getRecognizedReceipts?.() || [];
+        const selected = receipts.filter(r=>r.checked && r.data?.type === 'parking');
+        if (!selected.length) { alert('レシートタブで駐車場の領収書を読み取り、チェックしてください。'); return; }
+        const count = await append(selected.map(r=>({imageDataUrl:r.imageDataUrl, originalImageDataUrl:r.imageDataUrl,
+            ...ocrPatch(r.data)})));
+        if (count >= 0) alert(count ? count + '件の駐車場レシートを取り込みました。訪問先を確認してください。' : '同じ写真は取り込み済みです。');
+    }
+    function ocrPatch(data) {
+        return {date:/^\d{4}-\d{2}-\d{2}$/.test(data.date || '') ? data.date : '', amount:Math.max(0,Number(data.total)||0),
+            ocrStore:data.store || '', ocrAddress:data.address || '', ocrEnterTime:data.enterTime || '', ocrRead:true};
+    }
+    async function readReceipt(id) {
+        const item = getItemById(id);
+        if (!item?.imageDataUrl) return;
+        if (!ReceiptScanner.hasApiKey()) { alert('AI読取を使う場合は、設定でGemini APIキーを登録してください。日付・金額は手入力でも保存できます。'); return; }
+        AppCore.showLoading('領収書の日付・金額を読み取り中…');
+        try {
+            const data = await ReceiptScanner.readParkingImage(item.imageDataUrl);
+            if (data.type !== 'parking') { alert('駐車場の領収書か確認してください。読取結果は反映せず、写真を保持しています。'); return; }
+            const patch = ocrPatch(data);
+            // 入力済み情報の再読取は、確認してから反映する。
+            if ((item.date || item.amount) && !confirm('読取結果に変更しますか？\n日付: ' + (patch.date || '不明') + '\n金額: ¥' + patch.amount.toLocaleString())) return;
+            if (await patchItem(id, patch)) renderParkingList();
+        } catch (error) { alert('読み取れませんでした。写真は保存されています。日付・金額を入力できます。\n' + error.message); }
+        finally { AppCore.hideLoading(); }
+    }
+    async function addItem() { await append([{date:new Date().toLocaleDateString('sv-SE')}]); }
+    function patchItem(id, patch) {
+        return serial(async () => {
+            if (!items.some(i=>i.id === id)) return false;
+            return save(items.map(i=>i.id === id ? {...i,...patch} : i));
+        });
+    }
+    function fieldPatch(field,value) {
+        const allowed=['date','amount','visitCompany','machineName','purpose','pdfSelected','pdfScale'];
+        if(!allowed.includes(field))return {};
+        if(field==='amount')value=Math.max(0,parseInt(value)||0);
+        if(field==='pdfScale')value=Math.min(100,Math.max(50,Number(value)||100));
+        const patch={[field]:value};
+        if(field==='date'||field==='visitCompany')Object.assign(patch,{customerId:'',visitConfirmed:false});
+        return patch;
+    }
+    function flushEdits() {
+        clearTimeout(editTimer);
+        if(!pendingEdits.size)return queue;
+        const edits=new Map(pendingEdits);pendingEdits.clear();
+        return serial(async()=>{
+            if(!await save(items.map(i=>edits.has(i.id)?{...i,...edits.get(i.id)}:i)))renderParkingList();
+            updateSummary();
+        });
+    }
+    async function updateField(id,field,value) {
+        flushEdits();
+        if(!await patchItem(id,fieldPatch(field,value)))renderParkingList();
+        updateSummary();
+    }
     async function removeItem(id) {
-        if (!confirm('この駐車場明細を削除しますか？')) return;
-        _parkingItems = _parkingItems.filter(function(item) {
-            return item.id !== id;
+        if (!confirm('この駐車場明細と写真を削除しますか？')) return;
+        await serial(async()=>{
+            try { if (!await ParkingIDB.remove(id)) throw new Error(); items = items.filter(i=>i.id!==id); }
+            catch (error) { alert('駐車場明細を削除できませんでした。明細は保持しています。'); }
+            renderParkingList();
         });
-        // v1.3 - IDBからも個別削除
-        if (typeof ParkingIDB !== 'undefined') {
-            await ParkingIDB.remove(id);
-        }
-        await _saveToStorage();
-        renderParkingList();
     }
-
-    // ==========================================
-    // 全削除
-    // ==========================================
     async function clearAll() {
-        if (!confirm('駐車場利用明細をすべて削除しますか？')) return;
-        _parkingItems = [];
-        // v1.3 - IDBも全件削除
-        if (typeof ParkingIDB !== 'undefined') {
-            await ParkingIDB.clearAll();
-        }
-        await _saveToStorage();
-        renderParkingList();
+        if (!confirm('すべての月の駐車場明細と写真を削除しますか？')) return;
+        await serial(async()=>{
+            try { if (!await ParkingIDB.clearAll()) throw new Error(); items=[]; }
+            catch (error) { alert('駐車場明細を削除できませんでした。明細は保持しています。'); }
+            renderParkingList();
+        });
     }
-
-    // ==========================================
-    // v1.1追加 - レシート画像回転（90度ずつ）
-    // タップごとに 0→90→180→270→0 と回転
-    // PDF出力時にこの角度で回転して配置する
-    // ==========================================
-    async function rotateImage(id) {
-        var item = _parkingItems.find(function(i) { return i.id === id; });
-        if (!item) return;
-        var current = item.rotation || 0;
-        item.rotation = (current + 90) % 360;
-        await _saveToStorage();
-        renderParkingList();
+    function filters() { return {month:document.getElementById('parkingFilterMonth')?.value || '', day:document.getElementById('parkingFilterDay')?.value || ''}; }
+    function visibleItems() {
+        const {month,day} = filters();
+        return items.filter(i=>(!month || !i.date || i.date.startsWith(month)) && (!day || !i.date || i.date===day));
     }
-
-    // ==========================================
-    // UI描画
-    // ==========================================
+    function field(item, name, label, type = 'text', placeholder = '') {
+        return '<label>' + label + '<input class="parking-input" data-field="' + name + '" type="' + type + '" value="' + esc(item[name]) + '" placeholder="' + esc(placeholder) + '"' + (type==='number'?' min="0" step="1"':'') + '></label>';
+    }
     function renderParkingList() {
-        var container = document.getElementById('parkingItemList');
-        if (!container) return;
-
-        if (_parkingItems.length === 0) {
-            container.innerHTML = '<p class="empty-msg">駐車場利用データはありません</p>';
-            _updateTotal();
-            return;
-        }
-
-        // マップ顧客リストを取得（訪問先ドロップダウン用）
-        var customers = _getMapCustomersForDropdown();
-
-        var html = '';
-        _parkingItems.forEach(function(item, idx) {
-            html += '<div class="parking-item" data-id="' + item.id + '">';
-
-            // レシート画像サムネイル（あれば表示）+ v1.1 回転ボタン
-            if (item.imageDataUrl) {
-                var rot = item.rotation || 0;
-                html += '<div class="parking-thumb-wrap">'
-                    + '<img class="parking-thumb" src="' + item.imageDataUrl + '" '
-                    + 'alt="レシート" '
-                    + 'style="transform:rotate(' + rot + 'deg)" '
-                    + 'onclick="ParkingManager.previewImage(\'' + item.id + '\')">'
-                    + '<button class="parking-rotate-btn" '
-                    + 'onclick="ParkingManager.rotateImage(\'' + item.id + '\')" '
-                    + 'title="90度回転">🔄</button>'
-                    + '<span class="parking-rotate-label">' + rot + '°</span>'
-                    + '</div>';
-            }
-
-            // 入力フォーム
-            html += '<div class="parking-form">';
-
-            // 1行目: 日付 + 金額
-            html += '<div class="parking-row">'
-                + '<div class="parking-fg parking-fg-date">'
-                + '<label>日付</label>'
-                + '<input type="date" class="parking-input" value="' + (item.date || '') + '" '
-                + 'onchange="ParkingManager.updateField(\'' + item.id + '\',\'date\',this.value)">'
-                + '</div>'
-                + '<div class="parking-fg parking-fg-amount">'
-                + '<label>金額</label>'
-                + '<input type="number" class="parking-input" value="' + (item.amount || '') + '" '
-                + 'placeholder="300" '
-                + 'onchange="ParkingManager.updateField(\'' + item.id + '\',\'amount\',this.value)">'
-                + '</div>'
-                + '</div>';
-
-            // 2行目: 訪問先（ドロップダウン付き）
-            html += '<div class="parking-row">'
-                + '<div class="parking-fg parking-fg-full">'
-                + '<label>訪問先名</label>'
-                + '<div class="parking-visit-wrap">'
-                + '<input type="text" class="parking-input parking-visit-input" '
-                + 'value="' + _escAttr(item.visitCompany || '') + '" '
-                + 'placeholder="㈱マーフィード" '
-                + 'onchange="ParkingManager.updateField(\'' + item.id + '\',\'visitCompany\',this.value)">';
-
-            // 顧客データがあればドロップダウンボタン
-            if (customers.length > 0) {
-                html += '<button class="parking-pick-btn" '
-                    + 'onclick="ParkingManager.showCustomerPicker(\'' + item.id + '\')">'
-                    + '📍</button>';
-            }
-
-            // v1.2追加 - 🔍自動マッチングボタン（ParkingMatcher利用可能時）
-            if (typeof ParkingMatcher !== 'undefined') {
-                html += '<button class="parking-match-btn" '
-                    + 'onclick="ParkingMatcher.autoMatch(\'' + item.id + '\')" '
-                    + 'title="自動マッチング">🔍</button>';
-            }
-
-            html += '</div></div></div>';
-
-            // 3行目: 機械名 + 目的
-            html += '<div class="parking-row">'
-                + '<div class="parking-fg">'
-                + '<label>機械名</label>'
-                + '<input type="text" class="parking-input" '
-                + 'value="' + _escAttr(item.machineName || '') + '" '
-                + 'placeholder="パーキングメーター" '
-                + 'onchange="ParkingManager.updateField(\'' + item.id + '\',\'machineName\',this.value)">'
-                + '</div>'
-                + '<div class="parking-fg">'
-                + '<label>目的</label>'
-                + '<select class="parking-input parking-select" '
-                + 'onchange="ParkingManager.updateField(\'' + item.id + '\',\'purpose\',this.value)">'
-                + '<option value="メンテナンス"' + (item.purpose === 'メンテナンス' ? ' selected' : '') + '>メンテナンス</option>'
-                + '<option value="修理"' + (item.purpose === '修理' ? ' selected' : '') + '>修理</option>'
-                + '<option value="本体設置"' + (item.purpose === '本体設置' ? ' selected' : '') + '>本体設置</option>'
-                + '<option value="営業"' + (item.purpose === '営業' ? ' selected' : '') + '>営業</option>'
-                + '<option value="その他"' + (item.purpose === 'その他' ? ' selected' : '') + '>その他</option>'
-                + '</select>'
-                + '</div>'
-                + '</div>';
-
-            html += '</div>'; // .parking-form
-
-            // 削除ボタン
-            html += '<button class="parking-del-btn" '
-                + 'onclick="ParkingManager.removeItem(\'' + item.id + '\')">✕</button>';
-
-            html += '</div>'; // .parking-item
+        const list = document.getElementById('parkingItemList');
+        if (!list) return;
+        list.innerHTML = visibleItems().map((item,index)=>'<article class="parking-record" data-id="' + esc(item.id) + '">' +
+            '<div class="parking-photo-col">' + (item.imageDataUrl ? '<label class="parking-pdf-check"><input type="checkbox" data-field="pdfSelected" ' + (item.pdfSelected!==false?'checked':'') + '> PDFに載せる</label><button class="parking-photo-button" data-action="edit" aria-label="写真' + (index+1) + 'を調整"><img alt="領収書' + (index+1) + '" src="' + esc(item.imageDataUrl) + '" style="transform:rotate(' + (Number(item.rotation)||0) + 'deg)"></button><button class="btn btn-secondary" data-action="edit">写真を調整</button>' : '<p>写真なし・精算用の手入力</p>') + '</div>' +
+            '<div class="parking-record-fields"><div class="parking-field-grid">' + field(item,'date','利用日','date') + field(item,'amount','駐車場代（円）','number') + '</div>' +
+            '<button class="btn btn-secondary" data-action="visit">その日の訪問先から選ぶ</button>' +
+            '<div class="parking-field-grid">' + field(item,'visitCompany','訪問先の会社名','text','○○株式会社') + field(item,'machineName','訪問先の機種名','text','DP400') + '</div>' +
+            '<label>作業内容<input class="parking-input" data-field="purpose" list="parkingPurposes" value="' + esc(item.purpose) + '" placeholder="メンテナンス・修理・本体設置"></label>' +
+            '<p class="parking-caption">' + (item.customerId?'訪問情報を反映済み。領収書と内容を確認してください。':'日付・会社名・機種名・作業内容を確認してからPDFにします。') + '</p>' +
+            (item.ocrStore?'<p class="parking-caption">駐車場：' + esc(item.ocrStore) + '</p>':'') +
+            '<div class="parking-actions">' + (item.imageDataUrl?'<button class="btn btn-secondary" data-action="read">日付・金額をAI読取</button>':'') + '<button class="btn btn-danger-quiet" data-action="remove">この明細を削除</button></div></div></article>').join('') || '<p class="empty-msg">領収書の写真を追加してください。日付不明の写真もここで確認できます。</p>';
+        updateSummary();
+    }
+    function updateSummary() {
+        const total = document.getElementById('parkingTotal');
+        if (total) total.textContent = '¥' + visibleItems().reduce((s,i)=>s+(Number(i.amount)||0),0).toLocaleString();
+        const counter = document.getElementById('parkingPdfCount');
+        if (counter) counter.textContent = getSelectedItems().length + '枚をPDFに出力';
+    }
+    function getSelectedItems() {
+        // 日付不明を黙って除外せず、PDFの入力チェックへ渡す。
+        return visibleItems().filter(i=>i.imageDataUrl && i.pdfSelected!==false)
+            .sort((a,b)=>(a.date||'').localeCompare(b.date||'') || (a.createdAt||a.id).localeCompare(b.createdAt||b.id));
+    }
+    function selectVisible(checked) {
+        return serial(async()=>{
+            const ids = new Set(visibleItems().map(i=>i.id));
+            if (await save(items.map(i=>ids.has(i.id)?{...i,pdfSelected:checked}:i))) renderParkingList();
         });
-
-        container.innerHTML = html;
-        _updateTotal();
     }
-
-    // ==========================================
-    // フィールド更新
-    // ==========================================
-    async function updateField(id, field, value) {
-        var item = _parkingItems.find(function(i) { return i.id === id; });
-        if (!item) return;
-        if (field === 'amount') {
-            item[field] = parseInt(value) || 0;
-        } else {
-            item[field] = value;
-        }
-        await _saveToStorage();
-        if (field === 'amount') _updateTotal();
-    }
-
-    // ==========================================
-    // 合計金額更新
-    // ==========================================
-    function _updateTotal() {
-        var total = _parkingItems.reduce(function(sum, item) {
-            return sum + (item.amount || 0);
-        }, 0);
-        var el = document.getElementById('parkingTotal');
-        if (el) el.textContent = '¥' + total.toLocaleString();
-    }
-
-    // ==========================================
-    // レシート画像プレビュー
-    // ==========================================
-    function previewImage(id) {
-        var item = _parkingItems.find(function(i) { return i.id === id; });
-        if (!item || !item.imageDataUrl) return;
-
-        var overlay = document.getElementById('parkingPreviewOverlay');
-        if (!overlay) {
-            overlay = document.createElement('div');
-            overlay.id = 'parkingPreviewOverlay';
-            overlay.className = 'parking-preview-overlay';
-            overlay.onclick = function() { overlay.style.display = 'none'; };
-            overlay.innerHTML = '<img class="parking-preview-img" alt="プレビュー">';
-            document.body.appendChild(overlay);
-        }
-        var img = overlay.querySelector('img');
-        if (img) img.src = item.imageDataUrl;
-        overlay.style.display = 'flex';
-    }
-
-    // ==========================================
-    // マップ顧客ドロップダウン
-    // ==========================================
-    function _getMapCustomersForDropdown() {
-        try {
-            // 現在の月のワークスペースを探す
-            var now = new Date();
-            var ym = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
-            var data = localStorage.getItem('mm_customers_' + ym);
-            if (data) return JSON.parse(data);
-            // フォールバック: 旧形式
-            var old = localStorage.getItem('mm_customers');
-            return old ? JSON.parse(old) : [];
-        } catch (e) {
-            return [];
-        }
-    }
-
-    function showCustomerPicker(id) {
-        var customers = _getMapCustomersForDropdown();
-        if (customers.length === 0) {
-            alert('マップに顧客データがありません');
-            return;
-        }
-        var names = customers.map(function(c) { return c.company || ''; }).filter(function(n) { return n; });
-        var unique = [];
-        names.forEach(function(n) {
-            if (unique.indexOf(n) === -1) unique.push(n);
-        });
-        if (unique.length === 0) {
-            alert('マップに会社名が設定された顧客がありません');
-            return;
-        }
-        var html = '<div class="parking-picker-title">📍 訪問先を選択</div>'
-            + '<div class="parking-picker-list">';
-        unique.forEach(function(name) {
-            html += '<button class="parking-picker-item" '
-                + 'onclick="ParkingManager.applyCustomerPick(\'' + _escAttr(id) + '\',\'' + _escAttr(name) + '\')">'
-                + _escHtml(name) + '</button>';
-        });
-        html += '</div>'
-            + '<button class="parking-picker-cancel" onclick="ParkingManager.closeCustomerPicker()">キャンセル</button>';
-        var overlay = document.getElementById('parkingCustomerPicker');
-        if (!overlay) {
-            overlay = document.createElement('div');
-            overlay.id = 'parkingCustomerPicker';
-            overlay.className = 'parking-picker-overlay';
-            document.body.appendChild(overlay);
-        }
-        overlay.innerHTML = '<div class="parking-picker-modal">' + html + '</div>';
-        overlay.style.display = 'flex';
-    }
-
-    async function applyCustomerPick(id, name) {
-        await updateField(id, 'visitCompany', name);
-        closeCustomerPicker();
-        renderParkingList();
-    }
-
-    function closeCustomerPicker() {
-        var el = document.getElementById('parkingCustomerPicker');
-        if (el) el.style.display = 'none';
-    }
-
-    // ==========================================
-    // v1.2追加 - アイテム取得（マッチング連携用）
-    // ==========================================
-    function getItemById(id) {
-        return _parkingItems.find(function(it) { return it.id === id; }) || null;
-    }
-
-    // ==========================================
-    // データの取得（PDF出力用）
-    // ==========================================
-    function getItems() {
-        return _parkingItems.slice();
-    }
-
-    // ==========================================
-    // v1.3改修 - IndexedDB 保存/読み込み（localStorageから移行）
-    // ==========================================
-    async function _saveToStorage() {
-        var itemsForSave = _parkingItems.map(function(item) {
-            return {
-                id: item.id,
-                imageDataUrl: item.imageDataUrl,
-                date: item.date,
-                visitCompany: item.visitCompany,
-                machineName: item.machineName,
-                purpose: item.purpose,
-                amount: item.amount,
-                rotation: item.rotation || 0,
-                // v1.2追加 - マッチング用OCRデータ
-                ocrAddress: item.ocrAddress || 'unknown',
-                ocrEnterTime: item.ocrEnterTime || 'unknown',
-                ocrStore: item.ocrStore || ''
+    async function showCustomerPicker(id) {
+        await flushEdits();
+        pickerId = id;
+        let dialog = document.getElementById('parkingVisitDialog');
+        if (!dialog) {
+            dialog = document.createElement('dialog'); dialog.id='parkingVisitDialog'; dialog.className='parking-dialog';
+            dialog.innerHTML='<h2>訪問先を選ぶ</h2><p id="parkingVisitDate"></p><label><input id="parkingOtherDays" type="checkbox"> この月の他の日・日付未定の訪問先も表示</label><p id="parkingVisitHint" class="parking-caption" role="status"></p><div id="parkingVisitChoices"></div><button class="btn btn-secondary" id="parkingVisitClose">閉じる</button>';
+            document.body.appendChild(dialog);
+            dialog.querySelector('#parkingOtherDays').onchange=renderChoices;
+            dialog.querySelector('#parkingVisitClose').onclick=()=>dialog.close();
+            dialog.querySelector('#parkingVisitChoices').onclick=async event=>{
+                const button=event.target.closest('[data-choice]');
+                if (!button) return;
+                const choice=pickerChoices[Number(button.dataset.choice)];
+                if (await patchItem(pickerId,ParkingDocument.visitPatch(choice.customer,choice.workspaceId))) {dialog.close();renderParkingList();}
             };
-        });
-
-        // v1.3 - IDBが利用可能ならIDBに保存
-        if (typeof ParkingIDB !== 'undefined') {
-            try {
-                await ParkingIDB.putAll(itemsForSave);
-                return;
-            } catch (e) {
-                console.warn('[Parking] IDB保存エラー、フォールバックなし:', e.message);
-            }
         }
+        dialog.querySelector('#parkingOtherDays').checked=false;
+        renderChoices(); dialog.showModal();
     }
-
-    async function _loadFromStorage() {
-        // v1.3 - IDBから読み込み
-        if (typeof ParkingIDB !== 'undefined') {
-            try {
-                _parkingItems = await ParkingIDB.getAll();
-                console.log('[Parking] IDBから読み込み:', _parkingItems.length + '件');
-                return;
-            } catch (e) {
-                console.warn('[Parking] IDB読み込みエラー:', e.message);
-                _parkingItems = [];
-            }
-        }
+    function renderChoices() {
+        const version=++pickerVersion;
+        const item=getItemById(pickerId);
+        const workspaceId=item.date?.slice(0,7) || DataStorage.getCurrentWorkspaceId();
+        const includeOther=document.getElementById('parkingOtherDays').checked;
+        document.getElementById('parkingVisitDate').textContent=item.date ? item.date + ' の訪問先（必要な会社だけ選択）' : '先に領収書の利用日を入力すると、その日の訪問先を表示できます。';
+        try {
+            const customers=workspaceId ? DataStorage.getCustomersForWorkspace(workspaceId) : DataStorage.getCustomers();
+            pickerChoices=ParkingDocument.candidates(customers,item.date,includeOther).map(customer=>({customer,workspaceId}));
+            paintChoices();
+            if (!includeOther && pickerChoices.length && typeof ParkingMatcher !== 'undefined' && (item.ocrAddress || item.ocrStore)) rankChoices(item,version);
+        } catch (error) { document.getElementById('parkingVisitChoices').textContent='訪問先を読み込めませんでした。明細への手入力もできます。'; }
     }
-
-    // ==========================================
-    // ユーティリティ
-    // ==========================================
-    function _escHtml(str) {
-        return (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    function paintChoices() {
+            document.getElementById('parkingVisitHint').textContent='訪問先を選ぶと、会社名・機種名・作業内容を反映します。';
+            document.getElementById('parkingVisitChoices').innerHTML=pickerChoices.map(({customer:c},i)=>'<button class="parking-visit-choice" data-choice="'+i+'"><strong>'+esc(c.company)+'</strong><span>'+esc([c.appoDate?.replace('T',' '), c.equipType,c.purpose].filter(Boolean).join(' ／ '))+'</span><small>'+esc(c.address)+'</small></button>').join('') || '<p>候補がありません。利用日や訪問予定を確認するか、この月の他の訪問先を表示してください。会社名などを直接入力することもできます。</p>';
     }
-    function _escAttr(str) {
-        return (str || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;')
-            .replace(/</g, '&lt;').replace(/'/g, '&#39;');
+    async function rankChoices(item,version) {
+        try {
+            const scores=await ParkingMatcher.findCandidates({date:item.date,address:item.ocrAddress,store:item.ocrStore,enterTime:item.ocrEnterTime},pickerChoices.map(c=>c.customer));
+            if(version!==pickerVersion || !document.getElementById('parkingVisitDialog').open || !scores.length)return;
+            const rank=new Map(scores.filter(s=>s.score>=.3).map((s,i)=>[s.customer.id,i]));
+            if(!rank.size)return;
+            pickerChoices.sort((a,b)=>(rank.get(a.customer.id)??99)-(rank.get(b.customer.id)??99));paintChoices();
+            document.getElementById('parkingVisitHint').textContent='住所・入庫時刻から近い候補を上に並べました。確定ではありません。会社名と作業内容を確認して選んでください。';
+        } catch(error) { /* 候補検索が使えなくても同日の訪問先を選べる。 */ }
     }
-
-    return {
-        init: init,
-        importFromScanner: importFromScanner,
-        addItem: addItem,
-        removeItem: removeItem,
-        clearAll: clearAll,
-        rotateImage: rotateImage, // v1.1追加
-        renderParkingList: renderParkingList,
-        updateField: updateField,
-        previewImage: previewImage,
-        showCustomerPicker: showCustomerPicker,
-        applyCustomerPick: applyCustomerPick,
-        closeCustomerPicker: closeCustomerPicker,
-        getItemById: getItemById, // v1.2追加 - マッチング連携用
-        getItems: getItems
-    };
+    function getItemById(id) { const item=items.find(i=>i.id===id); return item ? {...item} : null; }
+    function getItems() { return items.map(i=>({...i})); }
+    return {init,importFromScanner,addItem,append,patchItem,readReceipt,removeItem,clearAll,renderParkingList,updateField,
+        showCustomerPicker,getItemById,getItems,getSelectedItems,selectVisible,settled:()=>flushEdits()};
 })();

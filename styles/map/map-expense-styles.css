@@ -165,3 +165,12 @@
     cursor: pointer; flex-shrink: 0; margin-left: 8px;
 }
 .exp-draft-del:active { background: #b91c1c; }
+
+
+/* 利用日・ルート選択はタブレットでも縦に読める配置。 */
+.map-exp-bridge label { display:block; margin:10px 0 4px; text-align:left; }
+.map-exp-bridge .exp-input { width:100%; min-height:44px; }
+.map-exp-bridge .exp-btn-row { display:flex; flex-wrap:wrap; gap:8px; }
+.map-exp-bridge .exp-btn-row .btn { flex:1; min-width:160px; }
+.map-etc-upload { cursor:pointer; text-align:center !important; margin:10px 0 !important; }
+[hidden] { display:none !important; }
