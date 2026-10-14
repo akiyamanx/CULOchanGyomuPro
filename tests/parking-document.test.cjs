@@ -27,12 +27,13 @@ test('6枚を基本に改ページし、4枚も選べる。空欄のまま提出
 });
 
 const vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
-function managerFixture() {
+function managerFixture(withDom=false) {
+    const listeners={};const list={addEventListener:(name,fn)=>listeners[name]=fn,innerHTML:''};
     let records=[{id:'legacy',date:'2026-09-01',amount:300,originalImageDataUrl:'original',imageDataUrl:'edited',customField:'keep'}];
-    const context=vm.createContext({console,Date,Math,document:{getElementById:()=>null},alert(){},confirm:()=>true,
+    const context=vm.createContext({console,Date,Math,setTimeout,clearTimeout,document:{getElementById:id=>withDom&&id==='parkingItemList'?list:null},alert(){},confirm:()=>true,
         ParkingIDB:{migrateFromLocalStorage:async()=>({}),getAll:async()=>structuredClone(records),putAll:async list=>{records=structuredClone(list);return true;}}});
     vm.runInContext(fs.readFileSync(path.join(__dirname,'../expense/parking-manager.js'),'utf8'),context);
-    return {context,records:()=>records};
+    return {context,listeners,records:()=>records};
 }
 test('連続撮影・同時編集を直列保存し、元画像と旧明細を失わない',async()=>{
     const f=managerFixture();await vm.runInContext('ParkingManager.init()',f.context);
@@ -48,4 +49,16 @@ test('日付の変更で前の日の訪問先との確定リンクを解除す�
     await vm.runInContext("ParkingManager.updateField('legacy','date','2026-10-14')",f.context);
     assert.equal(f.records()[0].customerId,'');assert.equal(f.records()[0].visitConfirmed,false);
     assert.equal(f.records()[0].visitCompany,'架空会社');
+});
+
+
+test('手入力イベントだけでもPDF前に保存を完了し、再読込できる',async()=>{
+    const f=managerFixture(true);await vm.runInContext('ParkingManager.init()',f.context);
+    for(const [field,value] of [['visitCompany','架空商事'],['machineName','DP400'],['purpose','修理']]) {
+        f.listeners.input({target:{dataset:{field},type:'text',value,closest:()=>({dataset:{id:'legacy'}})}});
+    }
+    await vm.runInContext('ParkingManager.settled()',f.context);
+    assert.equal(f.records()[0].visitCompany,'架空商事');
+    assert.equal(f.records()[0].machineName,'DP400');
+    assert.equal(f.records()[0].purpose,'修理');
 });
