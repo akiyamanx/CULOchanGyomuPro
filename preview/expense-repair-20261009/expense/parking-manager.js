@@ -1,6 +1,8 @@
 // 駐車場明細。保存完了後に画面へ反映し、写真・編集元・訪問情報を一緒に保持する。
 const ParkingManager = (() => {
-    let items = [], queue = Promise.resolve(), ready = false, pickerId = '', pickerChoices = [];
+    let items = [], queue = Promise.resolve(), ready = false, pickerId = '', pickerChoices = [], pickerVersion = 0;
+    let editTimer;
+    const pendingEdits=new Map();
     const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const uid = () => 'park_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
     function serial(action) {
@@ -27,14 +29,24 @@ const ParkingManager = (() => {
         } catch (error) { alert('駐車場明細を読み込めません。再読み込みしてから操作してください。'); }
         const list = document.getElementById('parkingItemList');
         if (list) {
-            list.addEventListener('change', event => {
-                const field = event.target.dataset.field;
-                if (field) updateField(event.target.closest('[data-id]').dataset.id, field,
-                    event.target.type === 'checkbox' ? event.target.checked : event.target.value);
-            });
+            const captureEdit=event=>{
+                const field=event.target.dataset.field;
+                if(!field)return;
+                const id=event.target.closest('[data-id]').dataset.id;
+                const value=event.target.type==='checkbox'?event.target.checked:event.target.value;
+                const previous=pendingEdits.get(id)?.[field] ?? getItemById(id)?.[field] ?? '';
+                if(String(previous)===String(value))return;
+                pendingEdits.set(id,{...pendingEdits.get(id),...fieldPatch(field,value)});
+                clearTimeout(editTimer);
+                editTimer=setTimeout(flushEdits,300);
+            };
+            list.addEventListener('input',captureEdit);
+            list.addEventListener('change',event=>{captureEdit(event);flushEdits();});
+            list.addEventListener('focusout',event=>{if(event.target.dataset.field){captureEdit(event);flushEdits();}});
             list.addEventListener('click', event => {
                 const button = event.target.closest('button[data-action]');
                 if (!button) return;
+                flushEdits();
                 const id = button.closest('[data-id]').dataset.id;
                 ({visit:showCustomerPicker,edit:id=>ReceiptPhoto.open(id),read:readReceipt,remove:removeItem})[button.dataset.action]?.(id);
             });
@@ -91,14 +103,27 @@ const ParkingManager = (() => {
             return save(items.map(i=>i.id === id ? {...i,...patch} : i));
         });
     }
-    async function updateField(id, field, value) {
-        const allowed = ['date','amount','visitCompany','machineName','purpose','pdfSelected','pdfScale'];
-        if (!allowed.includes(field)) return;
-        if (field === 'amount') value = Math.max(0,parseInt(value)||0);
-        if (field === 'pdfScale') value = Math.min(100,Math.max(50,Number(value)||100));
-        const patch = {[field]:value};
-        if (field === 'date' || field === 'visitCompany') Object.assign(patch,{customerId:'',visitConfirmed:false});
-        if (!await patchItem(id,patch)) renderParkingList();
+    function fieldPatch(field,value) {
+        const allowed=['date','amount','visitCompany','machineName','purpose','pdfSelected','pdfScale'];
+        if(!allowed.includes(field))return {};
+        if(field==='amount')value=Math.max(0,parseInt(value)||0);
+        if(field==='pdfScale')value=Math.min(100,Math.max(50,Number(value)||100));
+        const patch={[field]:value};
+        if(field==='date'||field==='visitCompany')Object.assign(patch,{customerId:'',visitConfirmed:false});
+        return patch;
+    }
+    function flushEdits() {
+        clearTimeout(editTimer);
+        if(!pendingEdits.size)return queue;
+        const edits=new Map(pendingEdits);pendingEdits.clear();
+        return serial(async()=>{
+            if(!await save(items.map(i=>edits.has(i.id)?{...i,...edits.get(i.id)}:i)))renderParkingList();
+            updateSummary();
+        });
+    }
+    async function updateField(id,field,value) {
+        flushEdits();
+        if(!await patchItem(id,fieldPatch(field,value)))renderParkingList();
         updateSummary();
     }
     async function removeItem(id) {
@@ -156,12 +181,13 @@ const ParkingManager = (() => {
             if (await save(items.map(i=>ids.has(i.id)?{...i,pdfSelected:checked}:i))) renderParkingList();
         });
     }
-    function showCustomerPicker(id) {
+    async function showCustomerPicker(id) {
+        await flushEdits();
         pickerId = id;
         let dialog = document.getElementById('parkingVisitDialog');
         if (!dialog) {
             dialog = document.createElement('dialog'); dialog.id='parkingVisitDialog'; dialog.className='parking-dialog';
-            dialog.innerHTML='<h2>訪問先を選ぶ</h2><p id="parkingVisitDate"></p><label><input id="parkingOtherDays" type="checkbox"> この月の他の日・日付未定の訪問先も表示</label><div id="parkingVisitChoices"></div><button class="btn btn-secondary" id="parkingVisitClose">閉じる</button>';
+            dialog.innerHTML='<h2>訪問先を選ぶ</h2><p id="parkingVisitDate"></p><label><input id="parkingOtherDays" type="checkbox"> この月の他の日・日付未定の訪問先も表示</label><p id="parkingVisitHint" class="parking-caption" role="status"></p><div id="parkingVisitChoices"></div><button class="btn btn-secondary" id="parkingVisitClose">閉じる</button>';
             document.body.appendChild(dialog);
             dialog.querySelector('#parkingOtherDays').onchange=renderChoices;
             dialog.querySelector('#parkingVisitClose').onclick=()=>dialog.close();
@@ -176,6 +202,7 @@ const ParkingManager = (() => {
         renderChoices(); dialog.showModal();
     }
     function renderChoices() {
+        const version=++pickerVersion;
         const item=getItemById(pickerId);
         const workspaceId=item.date?.slice(0,7) || DataStorage.getCurrentWorkspaceId();
         const includeOther=document.getElementById('parkingOtherDays').checked;
@@ -183,11 +210,26 @@ const ParkingManager = (() => {
         try {
             const customers=workspaceId ? DataStorage.getCustomersForWorkspace(workspaceId) : DataStorage.getCustomers();
             pickerChoices=ParkingDocument.candidates(customers,item.date,includeOther).map(customer=>({customer,workspaceId}));
-            document.getElementById('parkingVisitChoices').innerHTML=pickerChoices.map(({customer:c},i)=>'<button class="parking-visit-choice" data-choice="'+i+'"><strong>'+esc(c.company)+'</strong><span>'+esc([c.appoDate?.replace('T',' '), c.equipType,c.purpose].filter(Boolean).join(' ／ '))+'</span><small>'+esc(c.address)+'</small></button>').join('') || '<p>候補がありません。利用日や訪問予定を確認するか、この月の他の訪問先を表示してください。会社名などを直接入力することもできます。</p>';
+            paintChoices();
+            if (!includeOther && pickerChoices.length && typeof ParkingMatcher !== 'undefined' && (item.ocrAddress || item.ocrStore)) rankChoices(item,version);
         } catch (error) { document.getElementById('parkingVisitChoices').textContent='訪問先を読み込めませんでした。明細への手入力もできます。'; }
+    }
+    function paintChoices() {
+            document.getElementById('parkingVisitHint').textContent='訪問先を選ぶと、会社名・機種名・作業内容を反映します。';
+            document.getElementById('parkingVisitChoices').innerHTML=pickerChoices.map(({customer:c},i)=>'<button class="parking-visit-choice" data-choice="'+i+'"><strong>'+esc(c.company)+'</strong><span>'+esc([c.appoDate?.replace('T',' '), c.equipType,c.purpose].filter(Boolean).join(' ／ '))+'</span><small>'+esc(c.address)+'</small></button>').join('') || '<p>候補がありません。利用日や訪問予定を確認するか、この月の他の訪問先を表示してください。会社名などを直接入力することもできます。</p>';
+    }
+    async function rankChoices(item,version) {
+        try {
+            const scores=await ParkingMatcher.findCandidates({date:item.date,address:item.ocrAddress,store:item.ocrStore,enterTime:item.ocrEnterTime},pickerChoices.map(c=>c.customer));
+            if(version!==pickerVersion || !document.getElementById('parkingVisitDialog').open || !scores.length)return;
+            const rank=new Map(scores.filter(s=>s.score>=.3).map((s,i)=>[s.customer.id,i]));
+            if(!rank.size)return;
+            pickerChoices.sort((a,b)=>(rank.get(a.customer.id)??99)-(rank.get(b.customer.id)??99));paintChoices();
+            document.getElementById('parkingVisitHint').textContent='住所・入庫時刻から近い候補を上に並べました。確定ではありません。会社名と作業内容を確認して選んでください。';
+        } catch(error) { /* 候補検索が使えなくても同日の訪問先を選べる。 */ }
     }
     function getItemById(id) { const item=items.find(i=>i.id===id); return item ? {...item} : null; }
     function getItems() { return items.map(i=>({...i})); }
     return {init,importFromScanner,addItem,append,patchItem,readReceipt,removeItem,clearAll,renderParkingList,updateField,
-        showCustomerPicker,getItemById,getItems,getSelectedItems,selectVisible,settled:()=>queue};
+        showCustomerPicker,getItemById,getItems,getSelectedItems,selectVisible,settled:()=>flushEdits()};
 })();

@@ -33,3 +33,6 @@
 .pdf-preview-dialog{width:min(1150px,96vw);max-width:96vw}
 .parking-dialog :focus-visible{outline:3px solid #e09a22;outline-offset:3px}
 @media(max-width:650px){.parking-record{grid-template-columns:100px minmax(0,1fr);gap:12px}.parking-field-grid,.parking-filter-grid{grid-template-columns:1fr}.parking-photo-button{height:140px}.parking-record .btn{font-size:13px;padding:9px}.photo-editor-grid{grid-template-columns:1fr}.parking-dialog{padding:16px}.parking-dialog-footer{bottom:-16px}#receiptEditCanvas{max-height:none}.photo-editor-controls .parking-field-grid{grid-template-columns:1fr 1fr}}
+
+.parking-dialog{margin:auto}
+.parking-dialog-footer .btn{width:auto;flex:1 1 150px}
