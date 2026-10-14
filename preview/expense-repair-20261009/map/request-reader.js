@@ -2,6 +2,13 @@
 const RequestReader = (() => {
     const PDF_BASE = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.6.205/';
     let pdfLibrary, ocrScript;
+    function excelDate(value) {
+        // SheetJS represents an Excel calendar date in local time. UTC conversion
+        // moves Japanese midnight to the previous calendar day.
+        const pad = number => String(number).padStart(2,'0');
+        const date = `${value.getFullYear()}-${pad(value.getMonth()+1)}-${pad(value.getDate())}`;
+        return value.getHours() || value.getMinutes() ? `${date} ${pad(value.getHours())}:${pad(value.getMinutes())}` : date;
+    }
     function loadOcr() {
         if (!ocrScript) ocrScript = new Promise((resolve, reject) => {
             const script = document.createElement('script');
@@ -90,8 +97,7 @@ const RequestReader = (() => {
                 // Date cells keep their year, rather than a display format that hides it.
                 for (const [ref,cell] of Object.entries(sheet)) {
                     if (!ref.startsWith('!') && cell.t === 'd' && cell.v instanceof Date) {
-                        const iso = cell.v.toISOString();
-                        cell.w = iso.slice(11,16) === '00:00' ? iso.slice(0,10) : iso.slice(0,16).replace('T',' ');
+                        cell.w = excelDate(cell.v);
                     }
                 }
                 const rows = XLSX.utils.sheet_to_json(sheet,{header:1,raw:false,defval:''});
@@ -101,5 +107,6 @@ const RequestReader = (() => {
         if (!result.length) throw new Error('会社名と住所を含む一覧表、または対応する業務依頼書が見つかりません。');
         return result;
     }
-    return {read};
+    return {read,excelDate};
 })();
+if (typeof module !== 'undefined' && module.exports) module.exports = RequestReader;

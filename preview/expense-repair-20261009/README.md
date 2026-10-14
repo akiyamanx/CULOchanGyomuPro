@@ -1,9 +1,7 @@
 # 修正確認用画面
 
-Source: repair commit 1e992224d283dabe67fdaa21e9de23fa1168513c.
+Source: repair commit 718ca98a1a7ebc5de5c82d4c7d6aff1448cf377c.
 
-保存キーは culo_preview_expense_20261009:、駐車場IDBも別名。SW・PWAインストールは無効。本番の保存データとは共有しない。
+保存キーは culo_preview_expense_20261009:、駐車場IDBも別名。SW・PWAインストールは無効。本番データは共有しない。
 
-2026-10-14: Excel一覧・個票、CSV、PDF依頼書の確認・追加登録に対応。画像PDFは端末内OCR。複数ファイル選択、登録先の月、重複候補、内容修正に対応。
-
-公開するのはコードと架空のテストのみ。原本・取引先データ・APIキーは含まない。
+Excel一覧・業務依頼書・CSV・PDFに対応。登録前に内容・対象月・重複候補を確認し追加。画像PDFは端末内OCR。日付はExcelの暦日を保持。原本・取引先データは公開コードに含まない。

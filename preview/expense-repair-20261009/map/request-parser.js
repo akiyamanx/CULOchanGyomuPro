@@ -139,7 +139,7 @@ const RequestParser = (() => {
     function parsePdfText(raw, source = '') {
         const lines = text(raw).normalize('NFKC').split(/\r?\n/).map(line => line.trim()).filter(Boolean);
         // OCRが日本語の間へ入れた空白だけ除去し、英語名の単語区切りは残す。
-        const joined = lines.map(line => line.replace(/(?<=[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}])\s+(?=[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}])/gu,'')).join('\n');
+        const joined = lines.map(line => line.replace(/(?<=[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}ー])\s+(?=[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}ー])/gu,'')).join('\n');
         const value = (labels, stop = '') => {
             for (const label of labels) {
                 const flexible = [...label].join('\\s*');
@@ -155,11 +155,15 @@ const RequestParser = (() => {
         item.phone = (value(['TEL','電話']).match(/0[\d() -]{8,18}\d/) || [''])[0];
         item.equipType = value(['本体種類','機種','浄水器名'], '数量');
         item.managementNo = value(['管理No','管理NO','管理番号']).replace(/^[. :]+/,'');
+        if (item.managementNo && !/^[A-Z0-9][A-Z0-9-]{0,30}$/i.test(item.managementNo)) {
+            item.managementNo = '';
+            item.warnings.push('管理番号を正しく読み取れませんでした。必要に応じて原本から入力してください。');
+        }
         item.purpose = purpose(value(['依頼内容','依頼業務内容']));
         if (!item.purpose && /設置業務依頼書/.test(norm(joined))) item.purpose = '本体設置';
         const dateText = value(['設置日','工事予定日時','作業希望日']);
         item.appoDate = appointment(dateText);
-        const noteIndex = joined.search(/備\s*考/);
+        const noteIndex = joined.search(/備\s*考|【\s*(?:物置|本体|電気)/);
         item.note = unique([dateText && `設置・予定日（原文）: ${dateText}`, noteIndex >= 0 ? joined.slice(noteIndex).trim() : '']).join('\n');
         item.warnings.push('PDFの読取結果です。会社名・住所・電話・日程を原本と照合してください。');
         return [item]; // 読めない項目も空欄で表示し、確認画面で補える。
