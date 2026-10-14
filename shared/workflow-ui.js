@@ -23,12 +23,16 @@ const WorkflowUI = (() => {
     function labelControls() {
         document.querySelectorAll('.main-content input, .main-content select, .main-content textarea, .modal-overlay input, .modal-overlay select, .modal-overlay textarea').forEach(input => {
             if (input.type === 'hidden' || input.closest('label') || input.getAttribute('aria-label')) return;
-            const group = input.closest('.exp-fg, .modal-row, .setting-group');
+            const group = input.closest('.exp-fg, .parking-fg, .modal-row, .setting-group');
             const label = group && group.querySelector('label');
             if (label) {
                 if (!input.id) input.id = 'workflow-field-' + (++fieldNumber);
                 if (!label.htmlFor) label.htmlFor = input.id;
             }
+        });
+        const names = { '.parking-pick-btn': '登録した訪問先から選ぶ', '.parking-match-btn': '訪問先の候補を探す', '.parking-del-btn': 'この駐車場記録を削除', '.exp-draft-del': 'この下書きを削除', '.parking-rotate-btn': 'レシート画像を回転' };
+        Object.entries(names).forEach(([selector, name]) => {
+            document.querySelectorAll(selector).forEach(button => button.setAttribute('aria-label', name));
         });
         document.querySelectorAll('.route-header[onclick], .route-stop[onclick], .ws-menu-item[onclick], .exp-draft-info[onclick]').forEach(el => {
             if (/^(BUTTON|A|INPUT|SELECT|TEXTAREA|LABEL|SUMMARY)$/.test(el.tagName)) return;
