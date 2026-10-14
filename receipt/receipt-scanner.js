@@ -478,6 +478,8 @@ const ReceiptScanner = (() => {
     document.addEventListener('DOMContentLoaded', renderSavedReceipts);
 
     return {
+        hasApiKey: () => Boolean(getGeminiApiKey()),
+        readParkingImage: image => callGeminiOcr(image, getGeminiApiKey()),
         handleFileSelect: handleFileSelect,
         clearScan: clearScan,
         startDetection: startDetection,
@@ -493,3 +495,4 @@ const ReceiptScanner = (() => {
         clearAllSaved: clearAllSaved
     };
 })();
+

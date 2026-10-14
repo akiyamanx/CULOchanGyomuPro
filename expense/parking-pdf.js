@@ -1,229 +1,82 @@
-// ==========================================
-// CULOchan業務Pro — 駐車場利用明細PDF出力 v1.2
-// このファイルは駐車場利用明細のPDF出力を担当する
-// A4横向きにレシート画像を上段4枚+下段4枚で配置
-// 各レシートの下に日付・訪問先・機械名・目的のテキスト情報
-// 9枚以上の場合は次ページに続く
-//
-// v1.1修正:
-//   - 日本語文字化け対策: テキストをCanvasで描画→画像としてPDF配置
-//   - レシート画像を90度右回転して縦向きに配置
-// v1.2修正:
-//   - _rotateImage90を汎用化→_rotateImageByDeg(任意角度:0/90/180/270)
-//   - item.rotationフィールドに応じた回転角度でPDF配置
-//
-// 依存: app-core.js, parking-manager.js, receipt-image-utils.js, jsPDF
-// ==========================================
-
+// 提出前に全ページを確認。A4横・6枚（3列×2段）を標準に、4枚にも切替。
 const ParkingPdf = (() => {
-
-    // v1.2 - 画像を指定角度で回転するヘルパー（0/90/180/270度対応）
-    // Canvasに描画して回転した画像のdataURLを返す
-    // deg=0はそのまま返す（処理スキップ）
-    async function _rotateImageByDeg(dataUrl, deg) {
-        // 0度の場合は回転不要
-        if (!deg || deg === 0) return dataUrl;
-        // 正規化（0-359に収める）
-        var d = ((deg % 360) + 360) % 360;
-        if (d === 0) return dataUrl;
-
-        return new Promise(function(resolve, reject) {
-            var img = new Image();
-            img.onload = function() {
-                var canvas = document.createElement('canvas');
-                // 90度/270度は幅と高さが入れ替わる
-                if (d === 90 || d === 270) {
-                    canvas.width = img.height;
-                    canvas.height = img.width;
-                } else {
-                    canvas.width = img.width;
-                    canvas.height = img.height;
-                }
-                var ctx = canvas.getContext('2d');
-                // Canvas中心に移動→回転→描画位置補正
-                ctx.translate(canvas.width / 2, canvas.height / 2);
-                ctx.rotate(d * Math.PI / 180);
-                ctx.drawImage(img, -img.width / 2, -img.height / 2);
-                resolve(canvas.toDataURL('image/jpeg', 0.92));
-            };
-            img.onerror = function() { resolve(dataUrl); }; // 失敗時は元画像
-            img.src = dataUrl;
-        });
-    }
-
-    // v1.1 - テキストをCanvas画像として描画するヘルパー
-    // jsPDFのデフォルトフォントは日本語非対応なのでCanvasで描画して画像化
-    function _textToImage(lines, cellW_px) {
-        var lineH = 18; // 1行の高さ(px)
-        var padX = 6;
-        var height = lines.length * lineH + 8;
-        var canvas = document.createElement('canvas');
-        canvas.width = cellW_px;
-        canvas.height = height;
-        var ctx = canvas.getContext('2d');
-        // 背景は白
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        // テキスト描画
-        ctx.fillStyle = '#333333';
-        ctx.font = '13px "Hiragino Kaku Gothic ProN", "MS Gothic", sans-serif';
-        ctx.textBaseline = 'top';
-        for (var i = 0; i < lines.length; i++) {
-            ctx.fillText(lines[i], padX, 4 + i * lineH);
+    let dialog, pdfUrl='', pdfBlob=null, fileName='';
+    function image(url) {return new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(new Error('読み込めない写真があります。該当の写真を確認してください。'));img.src=url;});}
+    function wrap(ctx,text,width) {
+        const lines=[];let line='';
+        for(const char of String(text).replace(/\r/g,'')) {
+            if(char==='\n'){lines.push(line);line='';continue;}
+            if(line && ctx.measureText(line+char).width>width){lines.push(line);line=char;} else line+=char;
         }
-        return canvas.toDataURL('image/png');
+        lines.push(line);return lines;
     }
-
-    // v1.1 - タイトルをCanvas画像として描画
-    function _titleToImage(text, width_px) {
-        var canvas = document.createElement('canvas');
-        canvas.width = width_px;
-        canvas.height = 36;
-        var ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = '#000000';
-        ctx.font = 'bold 22px "Hiragino Kaku Gothic ProN", "MS Gothic", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(text, canvas.width / 2, canvas.height / 2);
-        return canvas.toDataURL('image/png');
+    async function drawPhoto(ctx,item,x,y,w,h) {
+        let img=await image(item.imageDataUrl);
+        if(item.rotation) {
+            const rad=item.rotation*Math.PI/180,c=Math.abs(Math.cos(rad)),s=Math.abs(Math.sin(rad));
+            const rotated=document.createElement('canvas');rotated.width=Math.ceil(img.width*c+img.height*s);rotated.height=Math.ceil(img.width*s+img.height*c);
+            const rc=rotated.getContext('2d');rc.fillStyle='white';rc.fillRect(0,0,rotated.width,rotated.height);rc.translate(rotated.width/2,rotated.height/2);rc.rotate(rad);rc.drawImage(img,-img.width/2,-img.height/2);img=rotated;
+        }
+        const scale=Math.min(w/img.width,h/img.height)*Math.max(.5,Math.min(1,(Number(item.pdfScale)||100)/100));
+        const width=img.width*scale,height=img.height*scale;
+        ctx.drawImage(img,x+(w-width)/2,y+(h-height)/2,width,height);
     }
-
-    // v1.1 - PDF生成メイン（日本語対応＋回転対応版）
+    async function pageCanvas(items,count,pageNumber,totalPages) {
+        const canvas=document.createElement('canvas');canvas.width=2970;canvas.height=2100;
+        const ctx=canvas.getContext('2d');ctx.fillStyle='white';ctx.fillRect(0,0,canvas.width,canvas.height);
+        ctx.fillStyle='#111';ctx.textAlign='center';ctx.textBaseline='top';ctx.font='600 44px "Noto Sans JP", sans-serif';
+        ctx.fillText('駐車場利用明細',1485,30);
+        const cols=count===4?2:3,margin=65,top=115,gap=22,cw=(canvas.width-margin*2-gap*(cols-1))/cols,ch=(canvas.height-top-70-gap)/2;
+        for(let i=0;i<items.length;i++) {
+            const item=items[i],x=margin+(i%cols)*(cw+gap),y=top+Math.floor(i/cols)*(ch+gap),pad=22;
+            ctx.strokeStyle='#c4c9cf';ctx.lineWidth=2;ctx.strokeRect(x,y,cw,ch);
+            const paragraphs=['日付：'+item.date.replace(/-/g,'/'),'訪問先：'+item.visitCompany,'目的：'+item.machineName+'・'+item.purpose];
+            let size=34,lines;
+            do {ctx.font=size+'px "Noto Sans JP", sans-serif';lines=paragraphs.flatMap(text=>wrap(ctx,text,cw-pad*2));if(lines.length*size*1.4<ch*.42)break;size-=2;} while(size>=26);
+            if(size<26) throw new Error('訪問先または目的が長すぎます。略称にするか、4枚配置で確認してください。');
+            const lineH=size*1.4,textH=lines.length*lineH+20,textY=y+ch-textH;
+            await drawPhoto(ctx,item,x+pad,y+pad,cw-pad*2,ch-textH-pad*2);
+            ctx.strokeStyle='#d8dce0';ctx.beginPath();ctx.moveTo(x+pad,textY-9);ctx.lineTo(x+cw-pad,textY-9);ctx.stroke();
+            ctx.fillStyle='#111';ctx.textAlign='left';ctx.textBaseline='top';ctx.font=size+'px "Noto Sans JP", sans-serif';
+            lines.forEach((line,j)=>ctx.fillText(line,x+pad,textY+j*lineH));
+        }
+        ctx.textAlign='right';ctx.font='25px "Noto Sans JP", sans-serif';ctx.fillText(pageNumber+' / '+totalPages,canvas.width-margin,canvas.height-40);
+        return canvas;
+    }
+    function ensureDialog() {
+        if(dialog)return;
+        dialog=document.createElement('dialog');dialog.id='parkingPdfDialog';dialog.className='parking-dialog pdf-preview-dialog';
+        dialog.innerHTML='<h2>提出用PDFを確認</h2><p id="parkingPdfSummary"></p><p>領収書の文字・日付・訪問先・目的を確認し、PDFを保存してメールに添付できます。</p><div class="parking-dialog-footer"><a id="parkingPdfDownload" class="btn btn-primary">PDFを保存</a><button id="parkingPdfShare" class="btn btn-secondary" hidden>PDFを共有</button><button id="parkingPdfClose" class="btn btn-secondary">閉じて修正</button></div><div id="parkingPdfPages"></div>';
+        document.body.appendChild(dialog);document.getElementById('parkingPdfClose').onclick=()=>dialog.close();
+        document.getElementById('parkingPdfShare').onclick=async()=>{try {await navigator.share({files:[new File([pdfBlob],fileName,{type:'application/pdf'})],title:'駐車場利用明細'});}catch(error){if(error.name!=='AbortError')alert('共有できませんでした。「PDFを保存」から添付できます。');}};
+        dialog.addEventListener('close',()=>{if(pdfUrl)URL.revokeObjectURL(pdfUrl);pdfUrl='';pdfBlob=null;document.getElementById('parkingPdfPages').replaceChildren();});
+    }
     async function generate() {
-        var items = ParkingManager.getItems();
-        if (!items || items.length === 0) {
-            alert('駐車場利用データがありません');
-            return;
-        }
-
-        // 画像があるアイテムだけ対象
-        var withImage = items.filter(function(item) { return item.imageDataUrl; });
-        if (withImage.length === 0) {
-            alert('レシート画像があるデータがありません');
-            return;
-        }
-
-        AppCore.showLoading('駐車場利用明細PDF生成中...');
-
+        await ParkingManager.settled();
+        const items=ParkingManager.getSelectedItems(),problem=ParkingDocument.validate(items);
+        if(problem){alert(problem);return;}
+        const count=Number(document.getElementById('parkingPageSize')?.value)===4?4:6,pages=ParkingDocument.pages(items,count);
+        AppCore.showLoading('提出用PDFを準備中…');
         try {
-            var jsPDF = window.jspdf.jsPDF;
-            // A4横向き
-            var pdf = new jsPDF('landscape', 'mm', 'a4');
-            var pageW = pdf.internal.pageSize.getWidth();  // 297mm
-            var pageH = pdf.internal.pageSize.getHeight(); // 210mm
-
-            // レイアウト定数
-            var marginX = 8;
-            var marginTop = 18; // タイトル分の余白
-            var cols = 4;
-            var rowsPerPage = 2;
-            var maxPerPage = cols * rowsPerPage; // 8枚/ページ
-
-            var cellW = (pageW - marginX * 2) / cols;
-            var availH = pageH - marginTop - 5;
-            var cellH = availH / rowsPerPage;
-            var textAreaH = 22; // テキスト情報エリア(mm)
-            var imgMaxH = cellH - textAreaH - 4;
-            var imgMaxW = cellW - 6;
-            var pad = 3;
-
-            // Canvas用のpx変換（300dpi想定、1mm≒3.78px → 簡易で×3）
-            var cellW_px = Math.floor(cellW * 3);
-
-            // ページ数計算
-            var totalPages = Math.ceil(withImage.length / maxPerPage);
-
-            for (var page = 0; page < totalPages; page++) {
-                if (page > 0) pdf.addPage();
-
-                // v1.1 - タイトルをCanvas画像で描画（日本語対応）
-                var titleImg = _titleToImage('駐車場利用明細', Math.floor(pageW * 3));
-                pdf.addImage(titleImg, 'PNG', 0, 2, pageW, 12);
-
-                var startIdx = page * maxPerPage;
-                var endIdx = Math.min(startIdx + maxPerPage, withImage.length);
-
-                for (var i = startIdx; i < endIdx; i++) {
-                    var item = withImage[i];
-                    var pi = i - startIdx;
-                    var col = pi % cols;
-                    var row = Math.floor(pi / cols);
-
-                    var cellX = marginX + col * cellW;
-                    var cellY = marginTop + row * cellH;
-
-                    // セル枠線
-                    pdf.setDrawColor(200, 200, 200);
-                    pdf.setLineWidth(0.3);
-                    pdf.rect(cellX, cellY, cellW, cellH);
-
-                    // v1.2 - レシート画像をitem.rotationの角度で回転して配置
-                    if (item.imageDataUrl) {
-                        try {
-                            AppCore.showLoading('画像処理中... (' + (i + 1) + '/' + withImage.length + ')');
-                            var rotDeg = item.rotation || 0;
-                            var rotatedDataUrl = await _rotateImageByDeg(item.imageDataUrl, rotDeg);
-                            var img = await ImageUtils.loadImage(rotatedDataUrl);
-                            var ratio = Math.min(imgMaxW / img.width, imgMaxH / img.height);
-                            var dw = img.width * ratio;
-                            var dh = img.height * ratio;
-                            var imgX = cellX + pad + (imgMaxW - dw) / 2;
-                            var imgY = cellY + pad;
-                            pdf.addImage(rotatedDataUrl, 'JPEG', imgX, imgY, dw, dh);
-                        } catch (imgErr) {
-                            console.warn('[ParkingPdf] 画像処理エラー:', imgErr.message);
-                        }
-                    }
-
-                    // v1.1 - テキスト情報をCanvas画像で描画（日本語対応）
-                    var textLines = [
-                        _formatDate(item.date),
-                        item.visitCompany || '-',
-                        item.machineName || '-',
-                        (item.purpose || '') + '  ¥' + (item.amount || 0).toLocaleString()
-                    ];
-                    var textImg = _textToImage(textLines, cellW_px);
-                    var textY = cellY + cellH - textAreaH;
-                    // 区切り線
-                    pdf.setDrawColor(220, 220, 220);
-                    pdf.setLineWidth(0.2);
-                    pdf.line(cellX + pad, textY, cellX + cellW - pad, textY);
-                    // テキスト画像を配置
-                    pdf.addImage(textImg, 'PNG', cellX + 1, textY + 0.5, cellW - 2, textAreaH - 1);
-                }
-
-                // ページ番号
-                if (totalPages > 1) {
-                    pdf.setFontSize(8);
-                    pdf.setTextColor(150, 150, 150);
-                    pdf.text((page + 1) + '/' + totalPages, pageW - 15, pageH - 5);
-                }
+            if(document.fonts){await document.fonts.load('34px "Noto Sans JP"',items.map(i=>i.visitCompany+i.machineName+i.purpose).join('')+'日付訪問先目的');await document.fonts.load('600 44px "Noto Sans JP"','駐車場利用明細');await document.fonts.ready;}
+            const pdf=new window.jspdf.jsPDF({orientation:'landscape',unit:'mm',format:'a4',compress:true});
+            ensureDialog();const previews=document.getElementById('parkingPdfPages');previews.replaceChildren();
+            for(let i=0;i<pages.length;i++) {
+                AppCore.showLoading('PDF '+(i+1)+' / '+pages.length+'ページを作成中…');
+                const canvas=await pageCanvas(pages[i],count,i+1,pages.length),url=canvas.toDataURL('image/jpeg',.95);
+                if(i)pdf.addPage('a4','landscape');pdf.addImage(url,'JPEG',0,0,297,210);
+                const img=document.createElement('img');img.src=url;img.alt='駐車場明細 '+(i+1)+'ページ（'+pages[i].length+'枚）';previews.appendChild(img);
+                canvas.width=canvas.height=1;
             }
-
-            // ファイル名
-            var today = new Date().toISOString().split('T')[0].replace(/-/g, '');
-            pdf.save('駐車場利用明細_' + today + '.pdf');
-
-            AppCore.hideLoading();
-            alert('✅ 駐車場利用明細PDF出力完了！（' + withImage.length + '枚）');
-        } catch (err) {
-            AppCore.hideLoading();
-            console.error('[ParkingPdf] PDF生成エラー:', err);
-            alert('PDF生成に失敗しました:\n' + err.message);
-        }
+            if(pdfUrl)URL.revokeObjectURL(pdfUrl);
+            pdfBlob=pdf.output('blob');pdfUrl=URL.createObjectURL(pdfBlob);
+            const first=items[0].date,last=items[items.length-1].date;fileName='駐車場利用明細_'+first+(first!==last?'_'+last:'')+'.pdf';
+            const link=document.getElementById('parkingPdfDownload');link.href=pdfUrl;link.download=fileName;
+            document.getElementById('parkingPdfSummary').textContent='A4横向き・1ページ'+count+'枚配置 ／ 領収書'+items.length+'枚・全'+pages.length+'ページ';
+            document.getElementById('parkingPdfShare').hidden=!(navigator.canShare && navigator.canShare({files:[new File([pdfBlob],fileName,{type:'application/pdf'})]}));
+            dialog.showModal();
+        }catch(error){alert('PDFを作成できませんでした。\n'+error.message);}
+        finally{AppCore.hideLoading();}
     }
-
-    // v1.0 - 日付フォーマット
-    function _formatDate(dateStr) {
-        if (!dateStr || dateStr === 'unknown') return '日付不明';
-        try {
-            var parts = dateStr.split('-');
-            if (parts.length === 3) return parts[1] + '/' + parts[2];
-            return dateStr;
-        } catch (e) { return dateStr; }
-    }
-
-    return { generate: generate };
+    return {generate};
 })();

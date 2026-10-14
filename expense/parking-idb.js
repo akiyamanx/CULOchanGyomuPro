@@ -86,7 +86,7 @@ const ParkingIDB = (() => {
             });
         } catch (e) {
             console.error('[ParkingIDB] getAll失敗:', e);
-            return [];
+            throw e;
         }
     }
 
