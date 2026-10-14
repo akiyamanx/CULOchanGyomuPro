@@ -13,6 +13,8 @@
     <link rel="stylesheet" href="styles/expense.css">
     <!-- v2.0追加 - 駐車場利用明細スタイル -->
     <link rel="stylesheet" href="styles/parking.css">
+    <link rel="stylesheet" href="styles/parking-workflow.css?v=20261014-3">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600&display=swap">
     <link rel="stylesheet" href="styles/map/map-styles.css">
     <link rel="stylesheet" href="styles/map/map-expense-styles.css">
     <link rel="stylesheet" href="styles/map/route-order-styles.css">
@@ -105,23 +107,30 @@
                 <div class="panel-card import-etc"><div><h4>高速道路の料金</h4><p class="section-desc">ETCのCSVから利用日ごとに取り込みます。</p></div><label class="btn btn-secondary file-control">ETC CSVを選択<input type="file" accept=".csv" onchange="ExpenseEtc.handleFile(event)" class="file-input"></label><a href="https://www.etc-meisai.jp/" target="_blank" rel="noopener" class="text-link">ETC利用照会を開く ↗</a></div>
             <details class="panel-card parking-section fold-card" id="parkingSection">
                 <summary><span>駐車場代を取り込む・記録する</span><span class="summary-note">レシート・手入力</span></summary><div class="fold-body">
-                <p class="card-desc">日付・金額を確認して、精算書の駐車場代欄へ反映できます。</p>
-                <div class="parking-btn-row">
-                    <button class="btn btn-secondary" onclick="ParkingManager.importFromScanner()">📸 レシートから取り込み</button>
-                    <button class="btn btn-secondary" onclick="ParkingManager.addItem()">➕ 手動追加</button>
+                <p class="card-desc">写真を追加 → 写真を整える → 訪問先を確認 → 提出用PDF。追加した写真は端末に保存されます。</p>
+                <div class="parking-actions">
+                    <label class="btn btn-primary file-control">領収書を撮影<input type="file" accept="image/*" capture="environment" data-parking-upload onchange="ReceiptPhoto.addFiles(event)" class="file-input"></label>
+                    <label class="btn btn-secondary file-control">写真をまとめて追加<input type="file" accept="image/*" multiple data-parking-upload onchange="ReceiptPhoto.addFiles(event)" class="file-input"></label>
+                    <button class="btn btn-secondary" onclick="ParkingManager.importFromScanner()">読取済みレシートを取り込む</button>
+                    <button class="btn btn-secondary" onclick="ParkingManager.addItem()">写真なしで金額を記録</button>
                 </div>
-                <div id="parkingItemList" style="margin-top:10px;">
-                    <p class="empty-msg">駐車場利用データはありません</p>
+                <p id="parkingPhotoStatus" class="parking-caption" role="status" aria-live="polite">1枚ずつでも、まとめてでも追加できます。AI読取は設定済みの場合に利用します。</p>
+                <div class="parking-filter-grid">
+                    <label>表示・出力する月<input type="month" id="parkingFilterMonth" onchange="document.getElementById('parkingFilterDay').value='';ParkingManager.renderParkingList()"></label>
+                    <label>利用日で絞る（任意）<input type="date" id="parkingFilterDay" onchange="document.getElementById('parkingFilterMonth').value=this.value.slice(0,7);ParkingManager.renderParkingList()"></label>
                 </div>
-                <div class="parking-total-bar">
-                    <span class="parking-total-label">駐車場合計</span>
-                    <span class="parking-total-amount" id="parkingTotal">¥0</span>
-                </div>
-                <div class="parking-btn-row"><label for="expParkingMonth">反映する月</label><input class="exp-input" type="month" id="expParkingMonth"><button class="btn btn-save" onclick="ExpenseManager.reflectParkingMonth()">駐車場代を精算書に反映</button></div>
-                <div class="parking-btn-row">
-                    <button class="btn btn-secondary" onclick="ParkingPdf.generate()">🖨️ 駐車場明細PDF出力</button>
-                    <button class="btn btn-danger-quiet" onclick="ParkingManager.clearAll()">駐車場記録をクリア</button>
-                </div>
+                <p class="parking-caption">月・日付が空欄なら全期間。日付不明の写真は、確認できるよう常に表示します。</p>
+                <div class="parking-actions"><button class="btn btn-secondary" onclick="ParkingManager.selectVisible(true)">表示中を全選択</button><button class="btn btn-secondary" onclick="ParkingManager.selectVisible(false)">表示中の選択を解除</button></div>
+                <datalist id="parkingPurposes"><option value="メンテナンス"><option value="修理"><option value="本体設置"><option value="営業"><option value="その他"></datalist>
+                <div id="parkingItemList"></div>
+                <div class="parking-total-bar"><span class="parking-total-label">表示中の駐車場合計</span><span class="parking-total-amount" id="parkingTotal">¥0</span></div>
+                <div class="parking-submit-card"><h4>領収書を本部へ提出する</h4><div class="parking-actions">
+                    <label>1ページの枚数<select id="parkingPageSize"><option value="6">6枚（横3枚×2段）</option><option value="4">4枚（横2枚×2段）</option></select></label>
+                    <span id="parkingPdfCount" role="status"></span><button class="btn btn-primary" onclick="ParkingPdf.generate()">提出用PDFを確認</button>
+                </div><p class="parking-caption">各写真の下に、日付・訪問先の会社名・機種名と作業内容を横書きで記載します。</p></div>
+                <div class="parking-btn-row"><label for="expParkingMonth">精算書に反映する月</label><input class="exp-input" type="month" id="expParkingMonth"><button class="btn btn-save" onclick="ExpenseManager.reflectParkingMonth()">駐車場代を精算書に反映</button></div>
+                <p class="parking-caption">精算書には対象月の全明細の金額を反映します。写真のPDF選択とは別です。</p>
+                <details><summary>駐車場記録の管理</summary><button class="btn btn-danger-quiet" onclick="ParkingManager.clearAll()">すべての駐車場記録を削除</button></details>
             </div></details>
             </section>
             <h3 class="section-title"><span>2</span> 内容を確認・入力</h3>
@@ -264,16 +273,19 @@
     <div class="loading-overlay" id="loading" style="display:none;"><div class="loading-spinner"></div><div class="loading-text" id="loadingText">処理中...</div></div>
     <script src="shared/app-core.js"></script>
     <script src="receipt/receipt-image-utils.js"></script>
-    <script src="receipt/receipt-scanner.js"></script>
+    <script src="receipt/receipt-scanner.js?v=20261014-3"></script>
+    <script src="receipt/receipt-photo-geometry.js?v=20261014-3"></script>
+    <script src="receipt/receipt-photo.js?v=20261014-3"></script>
     <script src="expense/expense-import.js"></script>
     <script src="shared/pdf-renderer.js"></script>
     <script src="expense/expense-manager.js"></script>
     <script src="expense/expense-pdf.js"></script>
     <script src="expense/expense-etc.js"></script>
     <!-- v1.3追加 - Phase I: 駐車場明細IndexedDB管理 -->
-    <script src="expense/parking-idb.js"></script>
-    <script src="expense/parking-manager.js"></script>
-    <script src="expense/parking-pdf.js"></script>
+    <script src="expense/parking-idb.js?v=20261014-3"></script>
+    <script src="expense/parking-document.js?v=20261014-3"></script>
+    <script src="expense/parking-manager.js?v=20261014-3"></script>
+    <script src="expense/parking-pdf.js?v=20261014-3"></script>
     <script src="map/map-data-storage.js"></script>
     <script src="map/v1-converter.js"></script>
     <script src="map/request-parser.js?v=20261014-2"></script>
@@ -294,6 +306,7 @@
         document.addEventListener('DOMContentLoaded', async function() {
             ExpenseManager.init();
             document.getElementById('expParkingMonth').value = new Date().toLocaleDateString('sv-SE').slice(0, 7);
+            document.getElementById('parkingFilterMonth').value = new Date().toLocaleDateString('sv-SE').slice(0,7);
             await ParkingManager.init();
             DataStorage.migrateIfNeeded();
             updateWsButton();
