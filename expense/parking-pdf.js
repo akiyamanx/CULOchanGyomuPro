@@ -46,8 +46,9 @@ const ParkingPdf = (() => {
     function ensureDialog() {
         if(dialog)return;
         dialog=document.createElement('dialog');dialog.id='parkingPdfDialog';dialog.className='parking-dialog pdf-preview-dialog';
-        dialog.innerHTML='<h2>提出用PDFを確認</h2><p id="parkingPdfSummary"></p><p>領収書の文字・日付・訪問先・目的を確認し、PDFを保存してメールに添付できます。</p><div class="parking-dialog-footer"><a id="parkingPdfDownload" class="btn btn-primary">PDFを保存</a><button id="parkingPdfShare" class="btn btn-secondary" hidden>PDFを共有</button><button id="parkingPdfClose" class="btn btn-secondary">閉じて修正</button></div><div id="parkingPdfPages"></div>';
+        dialog.innerHTML='<h2>提出用PDFを確認</h2><p id="parkingPdfSummary"></p><p>領収書の文字・日付・訪問先・目的を確認し、PDFを保存してメールに添付できます。</p><div class="parking-dialog-footer"><a id="parkingPdfDownload" class="btn btn-primary">PDFを保存</a><button id="parkingPdfShare" class="btn btn-secondary" hidden>PDFを共有</button><button id="parkingPdfZoom" class="btn btn-secondary" aria-pressed="false">拡大して読む</button><button id="parkingPdfClose" class="btn btn-secondary">閉じて修正</button></div><div id="parkingPdfPages"></div>';
         document.body.appendChild(dialog);document.getElementById('parkingPdfClose').onclick=()=>dialog.close();
+        document.getElementById('parkingPdfZoom').onclick=()=>{const large=dialog.classList.toggle('pdf-large');const button=document.getElementById('parkingPdfZoom');button.textContent=large?'全体を表示':'拡大して読む';button.setAttribute('aria-pressed',String(large));};
         document.getElementById('parkingPdfShare').onclick=async()=>{try {await navigator.share({files:[new File([pdfBlob],fileName,{type:'application/pdf'})],title:'駐車場利用明細'});}catch(error){if(error.name!=='AbortError')alert('共有できませんでした。「PDFを保存」から添付できます。');}};
         dialog.addEventListener('close',()=>{if(pdfUrl)URL.revokeObjectURL(pdfUrl);pdfUrl='';pdfBlob=null;document.getElementById('parkingPdfPages').replaceChildren();});
     }
@@ -60,7 +61,7 @@ const ParkingPdf = (() => {
         try {
             if(document.fonts){await document.fonts.load('34px "Noto Sans JP"',items.map(i=>i.visitCompany+i.machineName+i.purpose).join('')+'日付訪問先目的');await document.fonts.load('600 44px "Noto Sans JP"','駐車場利用明細');await document.fonts.ready;}
             const pdf=new window.jspdf.jsPDF({orientation:'landscape',unit:'mm',format:'a4',compress:true});
-            ensureDialog();const previews=document.getElementById('parkingPdfPages');previews.replaceChildren();
+            ensureDialog();dialog.classList.remove('pdf-large');document.getElementById('parkingPdfZoom').textContent='拡大して読む';document.getElementById('parkingPdfZoom').setAttribute('aria-pressed','false');const previews=document.getElementById('parkingPdfPages');previews.replaceChildren();
             for(let i=0;i<pages.length;i++) {
                 AppCore.showLoading('PDF '+(i+1)+' / '+pages.length+'ページを作成中…');
                 const canvas=await pageCanvas(pages[i],count,i+1,pages.length),url=canvas.toDataURL('image/jpeg',.95);

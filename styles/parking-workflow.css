@@ -36,3 +36,6 @@
 
 .parking-dialog{margin:auto}
 .parking-dialog-footer .btn{width:auto;flex:1 1 150px}
+
+#parkingPdfPages img{width:auto;max-width:100%;max-height:60dvh;object-fit:contain;margin:auto}
+.pdf-large #parkingPdfPages img{width:100%;max-height:none}
