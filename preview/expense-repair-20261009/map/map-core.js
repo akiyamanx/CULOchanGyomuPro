@@ -16,9 +16,9 @@ const MapCore = (() => {
     let currentEditId = null;
 
     const PIN_COLORS = {
-        pending: '#ea4335',
-        appointed: '#34a853',
-        completed: '#9e9e9e'
+        pending: '#b57b17',
+        appointed: '#1765aa',
+        completed: '#177050'
     };
 
     function initMap() {

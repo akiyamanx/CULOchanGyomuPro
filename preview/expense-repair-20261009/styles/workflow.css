@@ -167,6 +167,15 @@ button:focus-visible, a:focus-visible, summary:focus-visible, input:focus-visibl
 .parking-btn-row { flex-wrap: wrap; }
 .parking-btn-row > * { min-width: 0; }
 .parking-btn-row input { max-width: 200px; }
+.parking-input { min-height: 44px; background: #fff; border-color: #8b9faf; font-size: 16px; }
+.parking-fg label { font-size: 13px; color: var(--text-primary); }
+.parking-input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.parking-pick-btn, .parking-match-btn, .parking-rotate-btn, .exp-draft-del { min-width: 44px; min-height: 44px; }
+.parking-item { padding-top: 56px; }
+.parking-del-btn { width: 44px; height: 44px; color: var(--danger); background: #fff3f4; top: 8px; right: 8px; }
+.parking-match-btn { background: #eaf3fb; color: var(--accent-dark); border: 1px solid #8ca9c0; }
+.route-header { flex-wrap: wrap; }
+.route-dist-btn { width: auto; padding: 8px; }
 .map-exp-bridge { background: none; padding: 0; border: 0; color: var(--text-primary); }
 .map-exp-bridge h3 { font-size: 15px; }
 .map-exp-bridge p { color: var(--text-secondary); font-size: 13px; }
@@ -226,6 +235,9 @@ button:focus-visible, a:focus-visible, summary:focus-visible, input:focus-visibl
     .exp-basic-row > .exp-fg { flex: 1 1 120px; }
     .parking-btn-row { flex-direction: column; align-items: stretch; }
     .parking-btn-row input { max-width: none; }
+    .parking-row { flex-direction: column; }
+    .parking-visit-wrap { flex-wrap: wrap; }
+    .parking-visit-input { flex-basis: 100%; }
     .mini-steps { gap: 12px; font-size: 12px; }
     .mini-steps b { width: 24px; height: 24px; }
     .next-action { gap: 12px; }

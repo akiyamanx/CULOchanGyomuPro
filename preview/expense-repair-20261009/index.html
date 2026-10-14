@@ -105,7 +105,6 @@
             <details class="panel-card parking-section fold-card" id="parkingSection">
                 <summary><span>駐車場代を取り込む・記録する</span><span class="summary-note">レシート・手入力</span></summary><div class="fold-body">
                 <p class="card-desc">日付・金額を確認して、精算書の駐車場代欄へ反映できます。</p>
-                <div class="parking-btn-row"><label for="expParkingMonth">反映する月</label><input class="exp-input" type="month" id="expParkingMonth"><button class="btn btn-save" onclick="ExpenseManager.reflectParkingMonth()">駐車場代を精算書に反映</button></div>
                 <div class="parking-btn-row">
                     <button class="btn btn-secondary" onclick="ParkingManager.importFromScanner()">📸 レシートから取り込み</button>
                     <button class="btn btn-secondary" onclick="ParkingManager.addItem()">➕ 手動追加</button>
@@ -117,6 +116,7 @@
                     <span class="parking-total-label">駐車場合計</span>
                     <span class="parking-total-amount" id="parkingTotal">¥0</span>
                 </div>
+                <div class="parking-btn-row"><label for="expParkingMonth">反映する月</label><input class="exp-input" type="month" id="expParkingMonth"><button class="btn btn-save" onclick="ExpenseManager.reflectParkingMonth()">駐車場代を精算書に反映</button></div>
                 <div class="parking-btn-row">
                     <button class="btn btn-secondary" onclick="ParkingPdf.generate()">🖨️ 駐車場明細PDF出力</button>
                     <button class="btn btn-danger-quiet" onclick="ParkingManager.clearAll()">駐車場記録をクリア</button>

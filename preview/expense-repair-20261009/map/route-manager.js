@@ -33,7 +33,7 @@ const RouteManager = (() => {
             html += `<span>${route.name}</span>`;
             html += `<span class="route-count">${members.length}件</span>`;
             if (members.length >= 1) {
-                html += `<button class="route-dist-btn" onclick="event.stopPropagation();RouteManager.calcDistance('${route.id}')">📏</button>`;
+                html += `<button class="route-dist-btn" onclick="event.stopPropagation();RouteManager.calcDistance('${route.id}')">距離計算</button>`;
             }
             html += `</div>`;
             if (members.length > 0) {
@@ -92,9 +92,9 @@ const RouteManager = (() => {
             html += `</div>`;
         });
         html += `<div style="border-top:1px solid #e2e8f0;margin:6px 0;"></div>`;
-        html += `<div class="legend-item"><span class="legend-color" style="background:#ea4335"></span><span>未アポ</span></div>`;
-        html += `<div class="legend-item"><span class="legend-color" style="background:#34a853"></span><span>アポ済み</span></div>`;
-        html += `<div class="legend-item"><span class="legend-color" style="background:#9e9e9e"></span><span>完了</span></div>`;
+        html += `<div class="legend-item"><span class="legend-color" style="background:#b57b17"></span><span>未アポ</span></div>`;
+        html += `<div class="legend-item"><span class="legend-color" style="background:#1765aa"></span><span>アポ済み</span></div>`;
+        html += `<div class="legend-item"><span class="legend-color" style="background:#177050"></span><span>訪問完了</span></div>`;
         itemsEl.innerHTML = html;
     }
 
