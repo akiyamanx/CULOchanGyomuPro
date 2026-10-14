@@ -210,21 +210,33 @@ const DataStorage = (() => {
 
     const DEFAULT_ROUTES = [
         { id: 'route_1', name: 'ルート1', color: '#4285f4', order: [] },
-        { id: 'route_2', name: 'ルート2', color: '#ea4335', order: [] },
+        { id: 'route_2', name: 'ルート2', color: '#283593', order: [] },
         { id: 'route_3', name: 'ルート3', color: '#34a853', order: [] },
         { id: 'route_4', name: 'ルート4', color: '#ff9800', order: [] },
         { id: 'route_5', name: 'ルート5', color: '#9c27b0', order: [] },
         { id: 'route_6', name: 'ルート6', color: '#00bcd4', order: [] },
-        { id: 'route_7', name: 'ルート7', color: '#e91e63', order: [] },
+        { id: 'route_7', name: 'ルート7', color: '#00796b', order: [] },
         { id: 'route_8', name: 'ルート8', color: '#795548', order: [] },
         { id: 'route_9', name: 'ルート9', color: '#607d8b', order: [] },
-        { id: 'route_10', name: 'ルート10', color: '#ff5722', order: [] }
+        { id: 'route_10', name: 'ルート10', color: '#8a9400', order: [] }
     ];
+
+    // 赤系の旧初期色だけ置換する。月別データやバックアップにも読込時に適用し、
+    // 訪問順・距離などの保存内容と、利用者が個別に変更した色は保持する。
+    const LEGACY_ROUTE_COLORS = {
+        route_2: '#ea4335', route_7: '#e91e63', route_10: '#ff5722'
+    };
 
     function getRoutes() {
         try {
             const data = PreviewStorage.getItem(getKeys().routes);
-            return data ? JSON.parse(data) : [...DEFAULT_ROUTES];
+            const routes = data ? JSON.parse(data) : DEFAULT_ROUTES;
+            return routes.map(route => {
+                const oldColor = LEGACY_ROUTE_COLORS[route.id];
+                return oldColor && String(route.color).toLowerCase() === oldColor
+                    ? { ...route, color: DEFAULT_ROUTES.find(item => item.id === route.id).color }
+                    : route;
+            });
         } catch (e) {
             return [...DEFAULT_ROUTES];
         }
