@@ -174,6 +174,19 @@ const DataStorage = (() => {
         }
     }
 
+    // Import review can inspect a destination month without switching the open workspace.
+    // Invalid stored data must not be treated as an empty list and overwritten.
+    function getCustomersForWorkspace(wsId) {
+        const raw = localStorage.getItem('mm_customers_' + wsId);
+        const customers = raw ? JSON.parse(raw) : [];
+        if (!Array.isArray(customers)) throw new Error('保存済みの訪問先データを読み込めません。');
+        return customers;
+    }
+
+    function saveCustomersForWorkspace(wsId, customers) {
+        localStorage.setItem('mm_customers_' + wsId, JSON.stringify(customers));
+    }
+
     function addCustomer(customer) {
         const customers = getCustomers();
         customer.id = customer.id || 'c_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
@@ -459,7 +472,8 @@ const DataStorage = (() => {
     return {
         getWorkspaces, createWorkspace, switchWorkspace, deleteWorkspace,
         renameWorkspace, getCurrentWorkspaceId, migrateIfNeeded,
-        getCustomers, saveCustomers, addCustomer, updateCustomer, deleteCustomer,
+        getCustomers, saveCustomers, getCustomersForWorkspace, saveCustomersForWorkspace,
+        addCustomer, updateCustomer, deleteCustomer,
         getRoutes, saveRoutes, DEFAULT_ROUTES, updateRouteOrder,
         getSegments, saveSegments,
         getGeoCache, setGeoCache,

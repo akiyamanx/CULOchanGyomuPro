@@ -13,12 +13,13 @@
 // v5.2 2026-04-04 - Phase H不要コード整理 + Phase I: IndexedDB移行（parking-idb.js追加）
 // ==========================================
 
-const CACHE_NAME = 'gyomupro-workflow-v47';
+const CACHE_NAME = 'gyomupro-workflow-v48';
 const ASSETS = [
     './',
     './index.html',
     './styles/common.css',
     './styles/workflow.css',
+    './styles/request-import.css',
     './shared/workflow-ui.js',
     './styles/receipt.css',
     './styles/expense.css',
@@ -42,6 +43,9 @@ const ASSETS = [
     './map/map-data-storage.js',
     './map/v1-converter.js',
     './map/csv-handler.js',
+    './map/request-parser.js',
+    './map/request-reader.js',
+    './map/request-import.js',
     './map/map-core.js',
     './map/route-list-pdf.js',
     './map/route-manager.js',
