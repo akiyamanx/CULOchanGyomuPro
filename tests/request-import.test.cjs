@@ -50,6 +50,17 @@ test('日付だけ・不正日付に推測時刻を補わず、指定時刻を�
     assert.equal(Parser.appointment('2026/02/30 15:00'),'');
     assert.equal(Parser.appointment('2026-10-15 00:00:00','15:00'),'2026-10-15T15:00');
 });
+test('日本時間のExcel日付はUTC変換で前日へずらさない', () => {
+    const {spawnSync} = require('node:child_process');
+    const code = `const assert=require('node:assert/strict'); const R=require(${JSON.stringify(require.resolve('../map/request-reader'))}); assert.equal(R.excelDate(new Date(2026,9,15)),'2026-10-15'); assert.equal(R.excelDate(new Date(2026,9,15,15,0)),'2026-10-15 15:00');`;
+    const result = spawnSync(process.execPath,['-e',code],{env:{...process.env,TZ:'Asia/Tokyo'},encoding:'utf8'});
+    assert.equal(result.status,0,result.stderr);
+});
+test('PDFのカナ間の空白を整え、文字化けした管理番号を確認待ちにする', () => {
+    const [item] = Parser.parsePdfText('HW 設置 業務 依頼 書 管理 No. | sw\n設置 先 名 テス トカ ロー ラ 株 式 会 社 設置 先 担 当 者 試験 様\n設置 先 住 所 東 京 都 架 空 区 1 TEL 000-0000-0000\n【 物 置 設置 】 10 月 8 日\n【 本 体 設置 】 10 月 22 日、23 日');
+    assert.equal(item.company,'テストカローラ株式会社'); assert.equal(item.managementNo,'');
+    assert.ok(item.warnings.some(value=>value.includes('管理番号'))); assert.match(item.note,/物置設置/);
+});
 test('重複判定は別会社・別作業・別日時・別シリアルを同一扱いしない', () => {
     const item = {company:'架空会社',address:'東京都架空区１',purpose:'修理',managementNo:'A'};
     assert.equal(Parser.duplicate(item,{...item,address:'東京都 架空区1'}),true);
