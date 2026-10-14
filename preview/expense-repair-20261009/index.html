@@ -22,6 +22,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
     <link rel="stylesheet" href="styles/workflow.css">
+    <link rel="stylesheet" href="styles/request-import.css">
 </head>
 <body><aside style="padding:12px;background:#fff3cd;color:#442f00;text-align:center;font-size:14px">修正確認用・保存データは普段の画面と別です。<br><a href="tests/expense-tests.html">架空データで動作を検証</a></aside>
     <a class="skip-link" href="#mainContent">作業画面へ移動</a>
@@ -156,9 +157,20 @@
             <div class="map-compact-bar">
                 <span class="workspace-label">対象月</span><button class="compact-ws-btn" id="compactWsBtn" onclick="showWorkspaceMenu()" aria-label="対象月を切り替える">--</button>
                 <div class="compact-count" id="compactCount" role="status">0件</div>
-                <label class="btn btn-secondary file-control compact-action">訪問先をファイルから取込<input type="file" id="fileInput" accept=".csv,.xlsx,.xls" class="file-input"></label>
+                <label class="btn btn-secondary file-control compact-action">依頼書・一覧を取り込む<input type="file" id="fileInput" accept=".csv,.xlsx,.xls,.pdf" multiple class="file-input"></label>
                 <button class="compact-toggle-btn" id="compactToggleBtn" onclick="toggleMapToolbar()" aria-expanded="false" aria-controls="mapToolbarDropdown">その他 ⋯</button>
             </div>
+            <section class="request-import" id="requestImportPanel" hidden aria-labelledby="requestImportTitle">
+                <div class="section-heading"><h3 id="requestImportTitle" tabindex="-1">読み取った訪問先を確認</h3><button type="button" class="btn btn-secondary" id="requestImportCancel">取込を閉じる・中止</button></div>
+                <p class="section-desc">Excel・CSVの一覧と業務依頼書、PDFに対応。内容を直してから追加できます。既存の訪問先は残ります。</p>
+                <p class="section-desc">PDFは端末内で文字を読み取ります。初回は読取ツールのダウンロードに通信が必要です。</p>
+                <label class="request-field request-month">登録先の月<input type="month" id="requestImportMonth" required></label>
+                <p class="section-desc">新しい月を選ぶと、その月の一覧を作成します。希望日時の取込だけでは「アポ済み」に変更しません。</p>
+                <p id="requestImportStatus" role="status" aria-live="polite"></p>
+                <p id="requestImportErrors" role="alert" class="request-warning"></p>
+                <div id="requestImportResults"></div>
+                <button type="button" class="btn btn-primary" id="requestImportSave">選択した0件を追加登録</button>
+            </section>
             <div class="map-toolbar-dropdown" id="mapToolbarDropdown" hidden>
                 <button class="toolbar-item" onclick="exportPDF(); toggleMapToolbar();">訪問先一覧をPDFにする</button>
                 <button class="toolbar-item" onclick="openGoogleCalendar(); toggleMapToolbar();">Googleカレンダーを開く ↗</button>
@@ -264,7 +276,9 @@
     <script src="expense/parking-pdf.js"></script>
     <script src="map/map-data-storage.js"></script>
     <script src="map/v1-converter.js"></script>
-    <script src="map/csv-handler.js"></script>
+    <script src="map/request-parser.js"></script>
+    <script src="map/request-reader.js"></script>
+    <script src="map/request-import.js"></script>
     <script src="map/map-core.js"></script>
     <script src="map/route-list-pdf.js"></script>
     <script src="map/route-manager.js"></script>
@@ -285,7 +299,8 @@
             updateWsButton();
             WorkflowUI.init();
             var fi = document.getElementById('fileInput');
-            if (fi) fi.addEventListener('change', function(e) { CsvHandler.handleFile(e); });
+            RequestImport.init();
+            if (fi) fi.addEventListener('change', RequestImport.handleFile);
             var bi = document.getElementById('backupInput');
             if (bi) bi.addEventListener('change', function(e) { DataStorage.importBackup(e); });
             var mapSettings = DataStorage.getSettings();
