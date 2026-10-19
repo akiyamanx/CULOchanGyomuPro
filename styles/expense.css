@@ -376,9 +376,9 @@
 #loadedDraftReceipts[hidden] { display: none; }
 .draft-choice { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; font-size: 14px; font-weight: 600; }
 .draft-choice select { width: 100%; min-width: 0; min-height: 44px; padding: 8px; color: #16324a; background: #fff; border: 1px solid var(--border); border-radius: 6px; font-size: 16px; }
-.exp-draft-item { display: block; }
+#expDraftList .exp-draft-item { display: block; }
 .exp-draft-copy { min-width: 0; overflow-wrap: anywhere; }
-.exp-draft-title { white-space: normal; }
+#expDraftList .exp-draft-title { display: block; white-space: normal; }
 .draft-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .draft-actions .btn { flex: 1 1 130px; width: auto; }
 .draft-receipt-note { font-size: 13px; margin: 6px 0; color: #455e72; }
