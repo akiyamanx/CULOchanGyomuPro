@@ -90,14 +90,16 @@ const RequestReader = (() => {
             result = RequestParser.parseRows(ExpenseImport.parseCsv(csv),file.name);
         } else if (['xls','xlsx'].includes(ext)) {
             if (typeof XLSX === 'undefined') throw new Error('Excel読取ツールを読み込めません。通信状態を確認して再読込してください。');
-            const book = XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:true});
+            const book = XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:true,cellNF:true});
             for (const name of book.SheetNames) {
                 if (book.Workbook?.Sheets?.find(sheet=>sheet.name===name)?.Hidden) continue;
                 const sheet = book.Sheets[name];
                 // Date cells keep their year, rather than a display format that hides it.
                 for (const [ref,cell] of Object.entries(sheet)) {
                     if (!ref.startsWith('!') && cell.t === 'd' && cell.v instanceof Date) {
-                        cell.w = excelDate(cell.v);
+                        // A time-only cell has no calendar date. Keep its displayed time.
+                        const format = String(cell.z || '').replace(/"[^"]*"|\\./g,'');
+                        if (!(/[hs]/i.test(format) && !/[dy]/i.test(format))) cell.w = excelDate(cell.v);
                     }
                 }
                 const rows = XLSX.utils.sheet_to_json(sheet,{header:1,raw:false,defval:''});

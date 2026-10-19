@@ -5,6 +5,40 @@ const vm = require('node:vm');
 const Parser = require('../map/request-parser');
 
 // Synthetic documents: real customer documents/contacts must not enter this repository.
+test('従来のDP-400月次一覧の設置先会社名を読み、県と住所・元の予定を保持する', () => {
+    const items = Parser.parseRows([['10月','DP-400定期メンテナンスリスト'],[],['試験SS'],
+        ['営業所','型式','U管理NO','交換フィルター','設置先会社名','都道府県','住所','設置先TEL','受付担当者','設置先情報','工事予定日','時間指定'],
+        ['試験営業所','タ','TEST001','試験フィルター','架空会社A','千葉県','架空市1','000-0000-0000','試験担当','受付へ','14日','15:00'],
+        ['試験営業所','直','TEST002','試験フィルター','架空会社B','東京都','架空区2','','','','','']]);
+    assert.equal(items.length,2);
+    assert.equal(items[0].company,'架空会社A');
+    assert.equal(items[0].address,'千葉県架空市1');
+    assert.equal(items[0].purpose,'メンテナンス');
+    assert.equal(items[0].managementNo,'TEST001');
+    assert.equal(items[0].phone,'000-0000-0000');
+    assert.equal(items[0].contact,'試験担当');
+    assert.match(items[0].note,/工事予定日: 14日/);
+    assert.match(items[0].note,/時間指定: 15:00/);
+    assert.equal(items[0].appoDate,'');
+});
+test('同梱された部品注文書の会社名・住所を訪問先として取り込まない', () => {
+    assert.deepEqual(Parser.parseRows([['受注センター行'],['注文日','2026-10-01'],
+        ['会社名','架空仕入先'],['住所','神奈川県架空市1'],['商品コード','商品名','数量'],
+        ['P001','交換部品','12']],'月次.xlsx · 注文書'),[]);
+});
+test('Excelの時間指定を1899年の日付に変換せず、日付セルの年は保持する', async () => {
+    const sheet = {A1:{t:'d',v:new Date(1899,11,30,15),w:'15:00',z:'h:mm'},
+        B1:{t:'d',v:new Date(2026,9,14),w:'10/14',z:'m/d'}};
+    const context = vm.createContext({Date,RequestParser:Parser,XLSX:{
+        read:()=>({SheetNames:['一覧'],Sheets:{'一覧':sheet}}),
+        utils:{sheet_to_json:s=>[['会社名','住所','時間指定','工事予定日'],['架空会社','東京都架空区1',s.A1.w,s.B1.w]]}
+    },module:{exports:{}}});
+    vm.runInContext(fs.readFileSync(require.resolve('../map/request-reader.js'),'utf8'),context);
+    const [item] = await context.module.exports.read({name:'一覧.xlsx',size:100,arrayBuffer:async()=>new ArrayBuffer(0)});
+    assert.match(item.note,/時間指定: 15:00/);
+    assert.match(item.note,/工事予定日: 2026-10-14/);
+    assert.doesNotMatch(item.note,/1899/);
+});
 test('ACWITH一覧の顧客名・県＋住所・電話を読み、末尾の案内文を取り込まない', () => {
     const rows = [['2026年9月 ACWITH フィルター交換リスト'],[],['顧客名','郵便番号','都道府県','住所','携帯電話','シリアル№'],
         ['架空保育園','0000000','千葉県','架空市例町1','0000000000','CR123'],[],['いつもお世話になっております。'],['交換リストとなります。']];
