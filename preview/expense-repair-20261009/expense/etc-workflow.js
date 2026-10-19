@@ -1,5 +1,5 @@
 const EtcWorkflow = (() => {
-    let state={records:[],days:{},selectedDate:''},draftMode=false,ready=false,busy=false,queue=Promise.resolve(),saveError=null;
+    let state={records:[],days:{},selectedDate:''},draftMode=false,ready=false,busy=false,queue=Promise.resolve(),saveError=null,saveTimer;
     const el=id=>document.getElementById(id),day=()=>state.days[state.selectedDate];
     const message=text=>{el('etcSaveStatus').textContent=text;};
     function plans(date=state.selectedDate) {
@@ -30,6 +30,7 @@ const EtcWorkflow = (() => {
         return queue;
     }
     function lock(value) {busy=value;el('etcControls').disabled=value;}
+    function scheduleSave() {clearTimeout(saveTimer);saveTimer=setTimeout(()=>{saveTimer=null;persist();},250);}
     function render() {
         if(changedPlans())persist();
         const dates=[...new Set(state.records.map(r=>r.date))].sort();
@@ -50,6 +51,7 @@ const EtcWorkflow = (() => {
         el('etcPdfInput').onchange=importPdf;
         for(const id of ['etcDate','etcDateList'])el(id).onchange=()=>{const value=ExpenseImport.normalizeDate(el(id).value);if(value){state.selectedDate=value;render();persist();}};
         el('etcWorkflow').addEventListener('change',edit);
+        el('etcWorkflow').addEventListener('input',edit);
         el('etcWorkflow').addEventListener('click',event=>{const button=event.target.closest('[data-etc-action]');if(button)act(button.dataset.etcAction,Number(button.dataset.index)).catch(e=>alert(e.message));});
         el('etcReflect').onclick=()=>reflect().catch(e=>alert(e.message));
         el('etcPreview').onclick=()=>preview().catch(e=>alert(e.message));
@@ -88,17 +90,18 @@ const EtcWorkflow = (() => {
     }
     function edit(event) {
         const input=event.target,scope=input.dataset.scope;if(!scope||busy)return;
+        if(event.type==='change'&&input.tagName==='INPUT')return;
         const index=Number(input.dataset.index),key=input.dataset.key,d=day();
         if(scope==='record') {
             const r=state.records[index];if(key==='legId')chooseLeg(r,input.value);
             else {r[key]=key==='claimAmount'?(input.value===''?null:Number(input.value)):input.value;r.confirmed=false;}
-            if(key==='legId')EtcView.records(state,d);
+            if(key==='legId'||key==='owner')EtcView.records(state,d);
         }else if(d) {
             if(scope==='stop'){d.stops[index][key]=input.value;updateRoute();EtcView.legs(d);}
             if(scope==='leg'){d.legs[index][key]=input.value;if(key==='road'){d.legs[index].km='';d.legs[index].roadText='';}EtcJourney.invalidate(state.records,d.date);}
             EtcView.records(state,d);
         }
-        EtcView.totals(state,d);persist();
+        EtcView.totals(state,d);scheduleSave();
     }
     async function act(action,index) {
         if(busy)return;const d=day();
@@ -135,9 +138,14 @@ const EtcWorkflow = (() => {
     }
     async function capture() {
         if(!ready||busy)throw new Error('ETCの読み込み・処理が終わってから保存してください。');
-        document.activeElement?.blur();if(changedPlans())await persist();await queue;
+        document.activeElement?.blur();clearTimeout(saveTimer);saveTimer=null;changedPlans();await persist();await queue;
         // 下書きは独立した保存先なので通常の保存失敗時にも退避できる。
         return EtcJourney.clone(state);
+    }
+    async function beforeLoad() {
+        if(!ready||busy)throw new Error('ETCの読み込み・処理が終わってから下書きを開いてください。');
+        clearTimeout(saveTimer);saveTimer=null;await persist();await queue;
+        if(saveError&&!draftMode)throw new Error('現在のETC編集を保存できません。先に下書きとして保存してください。');
     }
     function load(value) {if(value){state=EtcJourney.clone(value);draftMode=true;render();}else if(draftMode){state={records:[],days:{},selectedDate:new Date().toLocaleDateString('sv-SE')};render();} }
     function isManaged(date) {return Boolean(ready&&state.days[date]);}
@@ -166,5 +174,5 @@ const EtcWorkflow = (() => {
         const items=total.accepted.map(r=>({...r,captionLines:['日付：'+r.date+' '+r.time,'区間：'+(r.legId==='shared'?'共通区間':d.legs.find(l=>l.id===r.legId).label),'訪問先：'+r.visitCompany,'目的：'+r.machineName+'・'+r.purpose,...(r.claimAmount!==r.amount?['本部提出額：'+r.claimAmount+'円（証明書 '+r.amount+'円）']:[]),...(r.note?['メモ：'+r.note]:[])]}));
         await ParkingPdf.generate({items,pageSize:Number(el('etcPageSize').value),title:'高速道路利用明細',sourceLabel:'ETC・本部提出分'});
     }
-    return {init,capture,load,isManaged,assertSynced,preview};
+    return {init,capture,beforeLoad,load,isManaged,assertSynced,preview};
 })();
