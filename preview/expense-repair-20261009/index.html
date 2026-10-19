@@ -9,7 +9,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <link rel="stylesheet" href="styles/common.css">
     <link rel="stylesheet" href="styles/receipt.css?v=20261019-2">
-    <link rel="stylesheet" href="styles/expense.css?v=20261019-2">
+    <link rel="stylesheet" href="styles/expense.css?v=20261019-3">
     <!-- v2.0追加 - 駐車場利用明細スタイル -->
     <link rel="stylesheet" href="styles/parking.css">
     <link rel="stylesheet" href="styles/parking-workflow.css?v=20261014-6">
@@ -163,7 +163,7 @@
                 <section class="panel-card finish-card"><h3 class="section-title"><span>3</span> 保存・PDF出力</h3>
                     <div class="exp-total-display"><div class="exp-total-label">精算する合計</div><div class="exp-total-amount" id="expGrandTotal">¥0</div><p class="section-desc">入力中のすべての明細の合計</p></div>
                     <button class="btn btn-primary" onclick="ExpensePdf.generate()">精算書をPDFにする</button>
-                    <label class="draft-choice">下書きに付ける領収書<select id="draftReceiptSource" onchange="ExpenseDraftReceipts.updateHint()"><option value="current">駐車場欄で選択中の写真</option><option value="loaded" id="draftReceiptLoadedOption" disabled>読み込んだ下書きの写真・説明</option><option value="none">領収書を付けない</option></select></label>
+                    <label class="draft-choice">下書きに付ける領収書<select id="draftReceiptSource" onchange="ExpenseDraftReceipts.updateHint()"><option value="current">駐車場欄で選んだ分</option><option value="loaded" id="draftReceiptLoadedOption" disabled>読み込んだ下書きの分</option><option value="none">領収書を付けない</option></select></label>
                     <p id="draftReceiptHint" class="save-hint" role="status"></p>
                     <button class="btn btn-secondary" onclick="ExpenseManager.saveDraft()">下書きを保存</button>
                     <p class="save-hint">写真と説明も下書きに残ります。修正後に保存すると新しい下書きが追加されます。</p>
