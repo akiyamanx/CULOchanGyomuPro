@@ -45,5 +45,9 @@ const EtcView = (() => {
         document.getElementById('etcTotals').textContent='本部：'+total.accepted.length+'件 ¥'+total.amount.toLocaleString()+' ／ 別の仕事：'+total.other+'件 ／ 要確認：'+(day?total.pending:state.records.filter(r=>r.date===state.selectedDate).length)+'件';
         document.querySelectorAll('[data-record-index]').forEach(card=>{const r=state.records[Number(card.dataset.recordIndex)],valid=EtcJourney.validDecision(r,day),badge=card.querySelector('.etc-badge');badge.className='etc-badge '+(valid?r.owner:'pending');badge.textContent=valid?(r.owner==='hq'?'本部・確定':'別の仕事・確定'):'要確認';});
     }
-    return {mount,trip,legs,records,totals,options};
+    function routeLine(day) {
+        const line=document.querySelector('#etcTrip .etc-route-line');
+        if(line)line.textContent=day.stops.map(s=>s.name+(s.job==='other'?'〈別の仕事〉':'')).join(' → ');
+    }
+    return {mount,trip,legs,records,totals,options,routeLine};
 })();

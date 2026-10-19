@@ -12,12 +12,12 @@ const EtcWorkflow = (() => {
             return {...route,members};
         }).filter(r=>r.members.length);
     }
-    function planSignature(plan) {return JSON.stringify([DataStorage.getSettings().homeAddress,plan?.members?.map(c=>[c.id,c.company,c.address,c.appoDate,c.equipType,c.purpose])]);}
+    function planSignature(plan,date=state.selectedDate) {return JSON.stringify([DataStorage.getSettings().homeAddress,plan?.members?.map(c=>[c.id,c.company,c.address,c.appoDate,c.equipType,c.purpose]),plan?DataStorage.getSegments(date.slice(0,7))[plan.id]:null,plan?.distanceResults?.[date]]);}
     function changedPlans() {
         if(draftMode)return false;
         let changed=false;
         for(const d of Object.values(state.days)) {
-            if(d.routeId && d.sourceSignature!==planSignature(plans(d.date).find(p=>p.id===d.routeId))) {
+            if(d.routeId && d.sourceSignature!==planSignature(plans(d.date).find(p=>p.id===d.routeId),d.date)) {
                 if(!d.planChanged){d.planChanged=true;EtcJourney.invalidate(state.records,d.date);changed=true;}
             }
         }
@@ -99,7 +99,7 @@ const EtcWorkflow = (() => {
             else {r[key]=key==='claimAmount'?(input.value===''?null:Number(input.value)):input.value;r.confirmed=false;}
             if(key==='legId'||key==='owner')EtcView.records(state,d);
         }else if(d) {
-            if(scope==='stop'){d.stops[index][key]=input.value;updateRoute();EtcView.legs(d);}
+            if(scope==='stop'){d.stops[index][key]=input.value;updateRoute();EtcView.legs(d);EtcView.routeLine?.(d);}
             if(scope==='leg'){d.legs[index][key]=input.value;if(key==='road'){d.legs[index].km='';d.legs[index].roadText='';}EtcJourney.invalidate(state.records,d.date);}
             EtcView.records(state,d);
         }
