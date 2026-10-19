@@ -24,7 +24,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
     <link rel="stylesheet" href="styles/workflow.css">
-    <link rel="stylesheet" href="styles/map-workspace.css?v=20261019-11">
+    <link rel="stylesheet" href="styles/map-workspace.css?v=20261019-12">
     <link rel="stylesheet" href="styles/request-import.css">
     <link rel="stylesheet" href="styles/etc-workflow.css?v=20261019-8">
 </head>
@@ -254,11 +254,20 @@
                     <div class="modal-row"><label for="editNote">備考・電話で確認したこと</label><textarea id="editNote" rows="4"></textarea></div>
                     <div class="modal-row"><label for="editPurpose">作業内容</label><select id="editPurpose"><option value="">未設定</option><option value="メンテナンス">メンテナンス</option><option value="修理">修理</option><option value="本体設置">本体設置</option><option value="その他">その他</option></select></div>
                     <details class="visit-contact-details"><summary>会社名・住所・連絡先を編集</summary><div class="modal-row"><label for="editCompany">会社名</label><input type="text" id="editCompany"></div><div class="modal-row"><label for="editAddress">住所</label><input type="text" id="editAddress"></div><div class="modal-row"><label for="editPhone">電話番号</label><input type="tel" id="editPhone"></div><div class="modal-row"><label for="editContact">担当者</label><input type="text" id="editContact"></div></details>
-                </section><section class="visit-calendar" aria-label="このアプリの訪問予定">
-                    <h3>このアプリの訪問予定</h3><p class="visit-help">日付を押すと訪問日に入ります。Googleカレンダーの予定は上のボタンから別画面で確認できます。</p>
+                </section><section class="visit-calendar" aria-label="Googleカレンダーと訪問予定">
+                    <h3>予定を見ながら日時を決める</h3>
+                    <div class="google-calendar-actions"><button type="button" class="btn btn-primary" id="googleCalendarConnect">Googleカレンダーに接続</button><button type="button" class="btn btn-secondary" id="googleCalendarRefresh" hidden>更新</button><button type="button" class="text-link" id="googleCalendarDisconnect" hidden>接続解除</button></div>
+                    <p id="googleCalendarStatus" class="visit-help" role="status">Googleカレンダーは未接続です。</p>
+                    <details id="googleCalendarSelection" class="google-calendar-details" hidden><summary id="googleCalendarSelectionCount">表示するカレンダー</summary><div id="googleCalendarChoices"></div><p class="visit-help">確認したいカレンダーを選んでください。閲覧権限のない予定は表示できません。</p></details>
+                    <details id="googleCalendarSetup" class="google-calendar-details"><summary>初回の連携設定</summary><p class="visit-help">初回だけ、Google側でこのアプリの連携用IDを作ります。地図のAPIキーとは別です。</p><a href="docs/google-calendar-setup.html" target="_blank" rel="noopener">設定手順を開く ↗</a><div class="modal-row"><label for="googleCalendarClientId">OAuthクライアントID</label><input type="text" id="googleCalendarClientId" autocomplete="off" spellcheck="false" placeholder="…apps.googleusercontent.com"></div><button type="button" class="btn btn-secondary" id="googleCalendarSaveClient">連携用IDを保存</button><p class="visit-help">IDだけをこのブラウザに保存します。パスワードやシークレットは入力しません。</p><a href="https://myaccount.google.com/connections" target="_blank" rel="noopener">Googleアカウントの接続管理 ↗</a></details>
+                    <div class="visit-calendar-nav visit-day-nav"><button type="button" data-visit-shift="-1" aria-label="前日の予定">‹</button><strong id="visitSelectedDay"></strong><button type="button" data-visit-shift="1" aria-label="翌日の予定">›</button></div>
+                    <details class="visit-month-picker"><summary>月カレンダーから日を選ぶ</summary>
                     <div class="visit-calendar-nav"><button type="button" data-visit-month="-1" aria-label="前の月の予定">‹</button><strong id="visitCalendarMonth" aria-live="polite"></strong><button type="button" data-visit-month="1" aria-label="次の月の予定">›</button></div>
                     <div class="visit-weekdays" aria-hidden="true"><span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span></div><div id="visitCalendarDays" class="visit-calendar-days"></div>
-                    <h4 id="visitAgendaTitle"></h4><div id="visitAgenda" aria-live="polite"></div>
+                    <p class="visit-help">G：Googleの予定 ／ 訪：アプリの訪問予定。日付を押すと訪問日に入ります。</p></details>
+                    <h4>Googleカレンダーの予定</h4><div id="googleVisitAgenda" aria-live="polite"></div>
+                    <details class="visit-local-agenda" open><summary id="visitAgendaTitle">このアプリに保存した訪問予定</summary><div id="visitAgenda" aria-live="polite"></div></details>
+                    <p class="visit-help">表示は日本時間。Googleの予定は閲覧のみです。変更後は「更新」。訪問予定の保存とGoogleへの追加は別々に行います。</p>
                 </section></div>
                 <p id="visitEditError" role="alert" tabindex="-1"></p><div class="modal-buttons"><button class="modal-cancel" onclick="hideEditModal()">キャンセル</button><button class="modal-delete" onclick="deleteLocation()">削除</button><button class="modal-submit" onclick="saveEdit()">予定・備考を保存</button></div>
             </div></div>
@@ -328,7 +337,9 @@
     <script src="map/request-reader.js?v=20261019-9"></script>
     <script src="map/request-import.js"></script>
     <script src="map/map-core.js?v=20261019-10"></script>
-    <script src="map/visit-planner.js?v=20261019-11"></script>
+    <script src="map/google-calendar-data.js?v=20261019-12"></script>
+    <script src="map/google-visit-calendar.js?v=20261019-12"></script>
+    <script src="map/visit-planner.js?v=20261019-12"></script>
     <script src="map/map-workspace.js?v=20261019-11"></script>
     <script src="map/route-list-pdf.js"></script>
     <script src="map/route-manager.js"></script>
@@ -337,7 +348,7 @@
     <script src="map/segment-dialog.js"></script>
     <script src="map/distance-calc.js?v=20261019-7"></script>
     <script src="map/ui-actions.js?v=20261019-10"></script>
-    <script src="map/gcal-panel.js"></script>
+    <script src="map/gcal-panel.js?v=20261019-12"></script>
     <script src="expense/parking-matcher.js?v=20261014-4"></script>
     <script src="expense/etc-document.js?v=20261019-7"></script>
     <script src="expense/etc-journey.js?v=20261019-7"></script>

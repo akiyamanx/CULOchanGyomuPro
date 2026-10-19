@@ -13,7 +13,7 @@
 // v5.2 2026-04-04 - Phase H不要コード整理 + Phase I: IndexedDB移行（parking-idb.js追加）
 // ==========================================
 
-const CACHE_NAME = 'gyomupro-workflow-v61';
+const CACHE_NAME = 'gyomupro-workflow-v62';
 const ASSETS = [
     './',
     './index.html',
@@ -22,6 +22,9 @@ const ASSETS = [
     './styles/map-workspace.css',
     './map/map-workspace.js',
     './map/visit-planner.js',
+    './map/google-calendar-data.js',
+    './map/google-visit-calendar.js',
+    './docs/google-calendar-setup.html',
     './styles/request-import.css',
     './shared/workflow-ui.js',
     './styles/receipt.css',
@@ -95,6 +98,10 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
+    // Calendar responses and authorization must never enter the offline cache.
+    if (event.request.headers.has('Authorization')) return;
+    const url = new URL(event.request.url);
+    if (url.hostname === 'accounts.google.com' || (url.hostname === 'www.googleapis.com' && url.pathname.startsWith('/calendar/'))) return;
     if (event.request.url.includes('generativelanguage.googleapis.com')) return;
     if (event.request.url.includes('maps.googleapis.com')) return;
     

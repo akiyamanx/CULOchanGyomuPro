@@ -38,6 +38,23 @@ body.map-focus .workflow-toast { z-index:14000; }
 .visit-calendar { padding:16px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px; }
 .visit-calendar h3 { font-size:15px;margin:0 0 8px; }
 .visit-calendar h4 { font-size:13px;margin:16px 0 8px; }
+.google-calendar-actions { display:flex;flex-wrap:wrap;gap:8px;align-items:center; }
+.google-calendar-actions .btn { width:auto;flex:1;min-height:44px; }
+.google-calendar-actions .text-link { min-height:44px; }
+.google-calendar-details,.visit-month-picker,.visit-local-agenda { font-size:13px;border-bottom:1px solid var(--border);padding:4px 0; }
+.google-calendar-details summary,.visit-month-picker summary,.visit-local-agenda summary { cursor:pointer;padding:10px 0;min-height:44px;box-sizing:border-box; }
+.google-calendar-details .modal-row { margin-top:12px; }
+#googleCalendarChoices label { display:flex;gap:10px;align-items:center;min-height:44px;overflow-wrap:anywhere; }
+#googleCalendarChoices input { flex:none;width:20px;height:20px; }
+#googleCalendarChoices span { min-width:0; }
+#googleCalendarStatus[data-state="error"],#googleCalendarStatus[data-state="expired"],.visit-unconfirmed { color:#855100;background:#fff4d7;padding:8px;border-radius:6px; }
+#googleCalendarStatus[data-state="ready"] { color:#156748; }
+#googleVisitAgenda { font-size:13px; }
+#googleVisitAgenda ul { list-style:none;padding:0;margin:0; }
+#googleVisitAgenda li { display:flex;flex-direction:column;gap:4px;padding:12px;background:#fff;border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:6px;margin:8px 0;overflow-wrap:anywhere; }
+#googleVisitAgenda small,.visit-event-source { font-size:11px;color:var(--text-secondary); }
+.visit-event-time { font-size:16px; }
+.visit-calendar button:focus-visible,.visit-calendar summary:focus-visible { outline:3px solid var(--accent);outline-offset:2px; }
 .visit-calendar-nav { display:flex;justify-content:space-between;align-items:center;margin:12px 0 4px; }
 .visit-calendar-nav button { min-width:44px;min-height:44px;border:1px solid var(--border);background:#fff;color:var(--accent);border-radius:6px;font-size:20px;cursor:pointer; }
 .visit-weekdays,.visit-calendar-days { display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;text-align:center; }
@@ -66,6 +83,12 @@ body.map-focus .workflow-toast { z-index:14000; }
     .visit-editor-grid { grid-template-columns:minmax(0,1fr) 330px; }
 }
 @media(max-width:799px) {
+    /* Keep the selected day's appointments next to the date fields in reading flow. */
+    .visit-editor-grid>section:first-child { display:contents; }
+    .visit-editor-grid>section:first-child>* { order:4; }
+    .visit-editor-grid>section:first-child>.visit-date-fields:first-child { order:1; }
+    .visit-editor-grid #visitScheduleHint { order:2;margin-bottom:0; }
+    .visit-editor-grid>.visit-calendar { order:3; }
     body.map-focus .map-region-header .visit-help { display:none; }
     body.map-focus #visitLayout.map-list-open { grid-template-rows:minmax(0,1fr) minmax(180px,40%); }
     body.map-focus #visitLayout #bottomPanel { grid-row:2;grid-column:1; }
