@@ -36,3 +36,7 @@ function openReviewVisit(){
     for(const [id,value] of Object.entries(fields))document.getElementById(id).value=value;
     document.getElementById('editRoute').innerHTML='<option>ルート1</option>';VisitPlanner.begin(reviewVisit);
 }
+
+// Production settings controller; the fixture skips AppCore initialization / service workers.
+const AppCore={openSettings:category=>SettingsPanel.open(category),closeSettings:event=>SettingsPanel.close(event),saveSettings:category=>SettingsPanel.save(category)};
+function exportBackup(){alert('確認用ページのためダウンロードはしません。');}

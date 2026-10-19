@@ -30,6 +30,7 @@ const GoogleVisitCalendar = (() => {
             .catch(error=>{if(!connected()){status='error';message=error.message;publish();}});
     }
     function connect() {
+        if(connected()&&!confirm('Googleカレンダーのアカウントを変更しますか？現在の予定表示をいったん消し、Googleの画面で接続し直します。'))return;
         if(!clientId){$('googleCalendarSetup').open=true;$('googleCalendarClientId').focus();message='初回設定を開きました。連携用IDを設定してください。';publish();return;}
         // Popup authorization must run directly from a user gesture, not after an async load.
         if(!window.google?.accounts?.oauth2){message='Google接続を準備しています。準備できたらもう一度接続を押してください。';status='disconnected';publish();prepareSDK();return;}
@@ -66,7 +67,7 @@ const GoogleVisitCalendar = (() => {
             }
             if(!range.length){status='idle';message='確認する月を選んでください。';publish();return;}
             const chosen=calendars.filter(c=>selected.has(c.id)&&c.readable);
-            if(!chosen.length){status='unselected';message='「表示するカレンダー」で確認するものを選んでください。';publish();return;}
+            if(!chosen.length){status='unselected';message='連携設定の「表示するカレンダー」で確認するものを選んでください。';publish();return;}
             const result=await reader.events(chosen,range[0],range[1],access,signal);
             if(request!==sequence)return;
             if(!connected()){clearSession('expired','接続期限が切れました。接続し直してください。');return;}
@@ -87,6 +88,10 @@ const GoogleVisitCalendar = (() => {
         if(!$('googleCalendarStatus'))return;
         $('googleCalendarStatus').textContent=message||'Googleカレンダーは未接続です。';
         $('googleCalendarStatus').dataset.state=status;
+        const settingsStatus=$('googleCalendarSettingsStatus');
+        if(settingsStatus){settingsStatus.textContent=$('googleCalendarStatus').textContent;settingsStatus.dataset.state=status;}
+        const settingsLink=$('googleCalendarSettings');
+        if(settingsLink)settingsLink.textContent=connected()?'連携設定':'接続設定を開く';
         $('googleCalendarConnect').textContent=connected()?'アカウント変更':'Googleカレンダーに接続';
         $('googleCalendarConnect').disabled=selectingAccount||status==='authorizing';
         $('googleCalendarRefresh').hidden=!connected();$('googleCalendarRefresh').disabled=status==='loading';
@@ -104,13 +109,17 @@ const GoogleVisitCalendar = (() => {
     function saveClient() {
         const value=$('googleCalendarClientId').value.trim();
         if(!validClient(value)){message='「数字-文字列.apps.googleusercontent.com」のOAuthクライアントIDを入力してください。APIキーやシークレットではありません。';status=connected()?status:'error';publish();$('googleCalendarClientId').focus();return;}
+        if(value===clientId){message='この連携用IDは保存済みです。';publish();return;}
+        if((connected()||selectingAccount)&&!confirm('連携用IDを変更すると、現在のGoogle接続が終了します。変更して保存しますか？'))return;
         try {localStorage.setItem(clientKey,value);} catch(error){message='設定を保存できませんでした。ブラウザの保存容量・設定を確認してください。';publish();return;}
         clientId=value;clearSession('disconnected','連携用IDを保存しました。Googleとの接続を準備しています。');$('googleCalendarSetup').open=false;prepareSDK();
     }
     function disconnect() {
+        if(!confirm('Googleカレンダーの接続を解除しますか？予定を再表示するには接続し直す必要があります。Googleの予定自体は削除されません。'))return;
         const access=token;clearSession('disconnected','この画面のGoogle接続を解除しました。');
+        const attempt=authSequence;
         if(access)try {window.google.accounts.oauth2.revoke(access,response=>{
-            if(!response?.successful && !connected()){message='この画面の接続は解除しました。Google側の許可は「Googleアカウントの接続管理」で確認してください。';publish();}
+            if(attempt===authSequence&&!response?.successful && !connected()){message='この画面の接続は解除しました。Google側の許可は「Googleアカウントの接続管理」で確認してください。';publish();}
         });}catch(error){message='この画面の接続は解除しました。Google側の許可は接続管理で確認してください。';publish();}
     }
     function init(onChange) {

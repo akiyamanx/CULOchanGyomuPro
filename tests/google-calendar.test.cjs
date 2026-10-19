@@ -55,7 +55,7 @@ function harness(fetcher) {
     const nodes=new Map(),writes=[],timers=[];let auth,callbacks=[];
     const node=id=>{if(!nodes.has(id))nodes.set(id,{value:'',textContent:'',innerHTML:'',hidden:false,dataset:{},addEventListener(type,fn){this[type]=fn;},focus(){this.focused=true;}});return nodes.get(id);};
     const context=vm.createContext({GoogleCalendarData:Data,ExpenseImport:require('../expense/expense-import'),Date,Intl,URLSearchParams,AbortController,
-        setTimeout(fn,ms){timers.push({fn,ms});return timers.length;},clearTimeout(){},fetch:fetcher,
+        setTimeout(fn,ms){timers.push({fn,ms});return timers.length;},clearTimeout(){},fetch:fetcher,confirm:()=>true,
         localStorage:{getItem:()=> '123-fake.apps.googleusercontent.com',setItem:(key,value)=>writes.push({key,value})},
         document:{getElementById:node},window:{addEventListener(){},google:{accounts:{oauth2:{hasGrantedAllScopes:()=>true,
             initTokenClient(options){auth=options;return{requestAccessToken(){callbacks.push(options.callback);}};},revoke(token,done){done({successful:true});}}}}}});
@@ -115,4 +115,23 @@ test('Service WorkerはGoogle予定の認証付き通信をキャッシュしな
         handlers.fetch({request:{url,headers:{has:()=>false}},respondWith(){assert.fail('private request intercepted');}});
     }
     handlers.fetch({request:{url:'https://example.invalid',headers:{has:()=>true}},respondWith(){assert.fail('authorization intercepted');}});
+});
+
+test('アカウント変更・接続解除の確認を取り消すと予定と接続を保つ',async()=>{
+    const h=harness(async url=>url.includes('calendarList')?listResponse():response({items:[event('2026-10-19T09:00:00Z','2026-10-19T10:00:00Z')]}));
+    h.connect().callback({access_token:'fake',expires_in:3600});await tick();
+    const before=JSON.stringify(h.state());h.context.confirm=()=>false;
+    h.node('googleCalendarConnect').click();h.node('googleCalendarDisconnect').click();
+    assert.equal(JSON.stringify(h.state()),before);assert.equal(h.callbacks.length,1);assert.equal(h.writes.length,0);
+});
+test('同じ連携用IDの保存やID変更の取消では接続を切らない',async()=>{
+    const h=harness(async url=>url.includes('calendarList')?listResponse():response({items:[]}));
+    h.connect().callback({access_token:'fake',expires_in:3600});await tick();
+    h.node('googleCalendarSaveClient').click();
+    assert.equal(h.state().connected,true);assert.equal(h.writes.length,0);
+    h.node('googleCalendarClientId').value='456-other.apps.googleusercontent.com';h.context.confirm=()=>false;
+    h.node('googleCalendarSaveClient').click();
+    assert.equal(h.state().connected,true);assert.equal(h.writes.length,0);
+    h.context.confirm=()=>true;h.context.localStorage.setItem=()=>{throw Error('quota');};
+    h.node('googleCalendarSaveClient').click();assert.equal(h.state().connected,true);assert.match(h.state().message,/保存できません/);
 });
