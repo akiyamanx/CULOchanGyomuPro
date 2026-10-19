@@ -39,7 +39,7 @@ body.map-focus .workflow-toast { z-index:14000; }
 .visit-calendar h3 { font-size:15px;margin:0 0 8px; }
 .visit-calendar h4 { font-size:13px;margin:16px 0 8px; }
 .google-calendar-actions { display:flex;flex-wrap:wrap;gap:8px;align-items:center; }
-.google-calendar-actions .btn { width:auto;flex:1;min-height:44px; }
+.google-calendar-actions .btn { width:auto;flex:0 1 auto;min-height:44px;white-space:nowrap;max-width:100%; }
 .google-calendar-actions .text-link { min-height:44px; }
 .google-calendar-details,.visit-month-picker,.visit-local-agenda { font-size:13px;border-bottom:1px solid var(--border);padding:4px 0; }
 .google-calendar-details summary,.visit-month-picker summary,.visit-local-agenda summary { cursor:pointer;padding:10px 0;min-height:44px;box-sizing:border-box; }
