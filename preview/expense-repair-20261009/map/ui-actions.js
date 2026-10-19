@@ -352,11 +352,11 @@ function resetAllData() {
 
 function exportBackup() {
     DataStorage.exportBackup();
-    toggleMenu();
+    if (document.getElementById('menuPanel').style.display === 'block') toggleMenu();
 }
 function importBackup() {
     document.getElementById('backupInput').click();
-    toggleMenu();
+    if (document.getElementById('menuPanel').style.display === 'block') toggleMenu();
 }
 
 function exportPDF() {

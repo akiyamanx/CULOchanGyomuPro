@@ -64,7 +64,7 @@ const WorkflowUI = (() => {
 
     function onKeydown(event) {
         if (activeDialog && event.key === 'Tab') {
-            const items = Array.from(activeDialog.querySelectorAll('button, input, select, textarea, a[href], [tabindex="0"]'))
+            const items = Array.from(activeDialog.querySelectorAll('button, input, select, textarea, summary, a[href], [tabindex="0"]'))
                 .filter(el => !el.disabled && el.getClientRects().length);
             const first = items[0], last = items[items.length - 1];
             if (first && event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
