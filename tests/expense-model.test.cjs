@@ -12,6 +12,7 @@ class Element {
     appendChild(child) { child.parent = this; this.children.push(child); return child; }
     remove() { this.parent.children = this.parent.children.filter(child => child !== this); }
     addEventListener() {}
+    scrollIntoView() {}
     closest(selector) { return matches(this, selector) ? this : this.parent && this.parent.closest(selector); }
     querySelectorAll(selector) { return descendants(this).filter(child => matches(child, selector)); }
     querySelector(selector) { return this.querySelectorAll(selector)[0] || null; }
@@ -62,14 +63,14 @@ test('日別反映・再取込・駐車場更新・下書き復元・マップ�
     };
     const context = vm.createContext({console, document, localStorage, fixture,
         DataStorage:{getCustomers:()=>fixture.customers,getRoutes:()=>fixture.routes,getSettings:()=>({homeAddress:'検証出発点'}),getCurrentWorkspaceId:()=> '2026-10'},
-        ParkingManager:{getItems:()=>fixture.parking},
+        ParkingManager:{getItems:()=>fixture.parking,getSelectedItems:()=>[],snapshotSelected:async()=>[]},
         AppCore:{switchTab:name=>document.getElementById('testResults').dataset.tab=name},
         alert:()=>{},confirm:()=>true});
     context.window = context;
-    for (const file of ['expense/expense-import.js','expense/expense-manager.js','map/route-manager.js','map/map-expense-form.js','tests/expense-browser-tests.js']) {
+    for (const file of ['expense/expense-import.js','tests/expense-draft-memory.js','expense/expense-draft-receipts.js','expense/expense-manager.js','map/route-manager.js','map/map-expense-form.js','tests/expense-browser-tests.js']) {
         vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'), context, {filename:file});
     }
-    vm.runInContext('runExpenseTests()', context);
+    await vm.runInContext('runExpenseTests()', context);
     const output = document.getElementById('testResults');
     assert.equal(output.dataset.result, 'pass', output.textContent);
     assert.equal((output.textContent.match(/^PASS /gm) || []).length, 18, output.textContent);
@@ -115,4 +116,41 @@ test('日別距離はその日の訪問先だけを計算し、区間失敗で�
     assert.deepEqual(visited,['当日の訪問先','自宅']);
     fail = true;
     await assert.rejects(vm.runInContext("DistanceCalc.calcRouteDistance('r',{},'2026-10-08')",context),/計算できない区間/);
+});
+
+function draftFixture() {
+    const body=new Element('body');
+    const add=(id,tag='div')=>{const el=new Element(tag);el.id=id;body.appendChild(el);return el};
+    for(const id of ['expSubmitDate','expSSName','expEmployeeName','expDestCompany','expDestAddress','draftReceiptSource','parkingPageSize','draftReceiptPageSize'])add(id,'input');
+    for(const id of ['expenseRows','expGrandTotal','expDraftList','draftReceiptCards','draftReceiptHint','loadedDraftReceipts','loadedDraftReceiptCount','draftReceiptEditStatus','draftReceiptLoadedOption'])add(id);
+    const document={createElement:tag=>new Element(tag),getElementById:id=>descendants(body).find(el=>el.id===id)||null,querySelectorAll:s=>body.querySelectorAll(s),querySelector:s=>body.querySelector(s)};
+    let receipts=[{id:'p',date:'2026-10-19',imageDataUrl:'saved-photo',visitCompany:'保存時の会社',machineName:'DP400',purpose:'修理',pdfScale:80}],pdf;
+    const alerts=[];
+    const context=vm.createContext({console,document,alert:m=>alerts.push(m),confirm:()=>true,
+        ParkingManager:{getSelectedItems:()=>receipts,snapshotSelected:async()=>JSON.parse(JSON.stringify(receipts))},ParkingPdf:{generate:async snapshot=>{pdf=snapshot}}});
+    for(const file of ['expense/expense-import.js','tests/expense-draft-memory.js','expense/expense-draft-receipts.js','expense/expense-manager.js'])vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),context);
+    document.getElementById('draftReceiptSource').value='current';document.getElementById('parkingPageSize').value='4';
+    vm.runInContext('ExpenseManager.init()',context);
+    document.getElementById('expDestCompany').value='保存時の行先';
+    return {context,document,alerts,replace:()=>{receipts=[]},pdf:()=>pdf,run:code=>vm.runInContext(code,context)};
+}
+test('下書きから写真・説明・配置を復元し、通常明細を変更後もPDFに保存時の内容を渡す',async()=>{
+    const f=draftFixture();const id=await f.run('ExpenseManager.saveDraft()');assert.ok(id);
+    f.replace();f.document.getElementById('expDestCompany').value='変更後';
+    await f.run('ExpenseManager.loadDraft('+JSON.stringify(id)+')');
+    assert.equal(f.document.getElementById('expDestCompany').value,'保存時の行先');assert.equal(f.document.getElementById('draftReceiptSource').value,'loaded');
+    await f.run('ExpenseDraftReceipts.preview()');assert.equal(f.pdf().items[0].imageDataUrl,'saved-photo');assert.equal(f.pdf().items[0].visitCompany,'保存時の会社');assert.equal(f.pdf().pageSize,4);
+    f.document.getElementById('draftReceiptCards').oninput({target:{dataset:{draftField:'purpose'},value:'メンテナンス',closest:()=>({dataset:{index:'0'}})}});
+    const revised=await f.run('ExpenseManager.saveDraft()');assert.notEqual(revised,id);
+    assert.equal((await f.run('ExpenseDraftStore.get('+JSON.stringify(revised)+')')).parkingReceipts.items[0].purpose,'メンテナンス');
+    assert.equal((await f.run('ExpenseDraftStore.get('+JSON.stringify(id)+')')).parkingReceipts.items[0].purpose,'修理');
+});
+test('下書きの保存失敗は成功表示にせず、画面の内容を保持する',async()=>{
+    const f=draftFixture();f.run("ExpenseDraftStore.save=async()=>{throw Error('quota')}");
+    assert.equal(await f.run('ExpenseManager.saveDraft()'),undefined);assert.match(f.alerts.at(-1),/保存できません/);assert.equal(f.document.getElementById('expDestCompany').value,'保存時の行先');
+});
+test('旧下書きの読込は写真なしと表示し、現在の別の写真を自動的に付けない',async()=>{
+    const f=draftFixture();await f.run("ExpenseDraftStore.save({id:123,destCompany:'旧行先',rows:[]})");await f.run('ExpenseManager.loadDraft(123)');
+    assert.equal(f.document.getElementById('draftReceiptSource').value,'none');assert.match(f.alerts.at(-1),/旧下書きには領収書が保存されていません/);
+    const id=await f.run('ExpenseManager.saveDraft()');assert.equal((await f.run('ExpenseDraftStore.get('+JSON.stringify(id)+')')).parkingReceipts.items.length,0);
 });

@@ -169,6 +169,7 @@ const ParkingManager = (() => {
     function updateSummary() {
         const total = document.getElementById('parkingTotal');
         if (total) total.textContent = '¥' + visibleItems().reduce((s,i)=>s+(Number(i.amount)||0),0).toLocaleString();
+        if (typeof ExpenseDraftReceipts !== 'undefined') ExpenseDraftReceipts.updateHint();
         const counter = document.getElementById('parkingPdfCount');
         if (counter) counter.textContent = getSelectedItems().length + '枚をPDFに出力';
     }
@@ -230,8 +231,13 @@ const ParkingManager = (() => {
             document.getElementById('parkingVisitHint').textContent='住所・入庫時刻から近い候補を上に並べました。確定ではありません。会社名と作業内容を確認して選んでください。';
         } catch(error) { /* 候補検索が使えなくても同日の訪問先を選べる。 */ }
     }
+    async function snapshotSelected() {
+        const saved = await flushEdits();
+        if (!ready || saved === false) throw new Error('駐車場明細の保存を確認できません。入力内容を確認してから下書きを保存してください。');
+        return JSON.parse(JSON.stringify(getSelectedItems()));
+    }
     function getItemById(id) { const item=items.find(i=>i.id===id); return item ? {...item} : null; }
     function getItems() { return items.map(i=>({...i})); }
     return {init,importFromScanner,addItem,append,patchItem,readReceipt,removeItem,clearAll,renderParkingList,updateField,
-        showCustomerPicker,getItemById,getItems,getSelectedItems,selectVisible,settled:()=>flushEdits()};
+        showCustomerPicker,getItemById,getItems,getSelectedItems,selectVisible,snapshotSelected,settled:()=>flushEdits()};
 })();

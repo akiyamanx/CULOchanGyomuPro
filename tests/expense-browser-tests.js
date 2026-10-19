@@ -1,8 +1,8 @@
 // 本体と同じスクリプトを実際のDOMで検証する。テスト専用ページからのみ使用。
-function runExpenseTests() {
+async function runExpenseTests() {
     const output = document.getElementById('testResults');
     const originalAlert = window.alert, originalConfirm = window.confirm;
-    const originalDrafts = localStorage.getItem('travelExpenseDrafts');
+    let testDraftId;
     window.alert = () => {}; window.confirm = () => true;
     const checks = [];
     function assert(condition, message) { if (!condition) throw new Error(message); checks.push('PASS ' + message); }
@@ -37,9 +37,8 @@ function runExpenseTests() {
         assert(ExpenseManager.getRowsData()[0].gasCost === '2400', '既存のガソリン代ルールを維持');
         assert(ExpenseManager.getRowsData()[0].destCompany === '検証株式会社', '行先・住所を日別明細へ反映');
         assert(document.getElementById('expGrandTotal').textContent === '¥5,800', 'ETC・ガソリン・駐車場を総合計');
-        ExpenseManager.saveDraft();
-        const draft = JSON.parse(localStorage.getItem('travelExpenseDrafts'))[0];
-        ExpenseManager.loadDraft(draft.id);
+        testDraftId = await ExpenseManager.saveDraft();
+        await ExpenseManager.loadDraft(testDraftId);
         assert(ExpenseManager.getRowsData()[0].parking === '100', '下書きの駐車場代を復元');
         assert(ExpenseManager.applyEtcRecords(records).count === 0, '下書き復元後のCSV再取込でも重複なし');
         fixture.routes[0].distanceResults = {'2026-10-08': {totalKm:180,signature:RouteManager.distanceSignature('route_1','2026-10-08')}};
@@ -60,7 +59,7 @@ function runExpenseTests() {
     } catch (error) { output.textContent = checks.join('\n') + '\nFAIL ' + error.stack; output.dataset.result = 'fail'; }
     finally {
         window.alert = originalAlert; window.confirm = originalConfirm;
-        if (originalDrafts === null) localStorage.removeItem('travelExpenseDrafts'); else localStorage.setItem('travelExpenseDrafts', originalDrafts);
+        if (testDraftId) await ExpenseDraftStore.remove(testDraftId);
     }
 }
 ExpenseManager.init();

@@ -53,3 +53,13 @@ test('保存容量不足でも入力と写真を保持し、成功扱いしな�
     const f=fixture();f.photo();f.fill();f.ctx.localStorage.setItem=()=>{throw Error('quota')};await f.scanner.saveAll();
     assert.match(f.alerts.at(-1),/保存できません/);assert.equal(f.scanner.getRecognizedReceipts()[0].data.total,1500);assert.ok(f.scanner.getRecognizedReceipts()[0].imageDataUrl);
 });
+
+test('保存済みの写真を再起動後に開き直し、修正保存しても重複しない',async()=>{
+    const f=fixture();f.photo();f.fill();await f.scanner.saveAll();
+    const record=JSON.parse(f.storage.get('gyomupro_receipts'))[0];
+    const next=fixture();next.storage.set('gyomupro_receipts',JSON.stringify([record]));next.scanner.openSaved(record.id);
+    assert.equal(next.scanner.getRecognizedReceipts()[0].imageDataUrl,record.imageDataUrl);
+    assert.equal(next.scanner.getRecognizedReceipts()[0].data.store,record.store);
+    next.scanner.updateField(0,'total','1800');await next.scanner.saveAll();
+    const updated=JSON.parse(next.storage.get('gyomupro_receipts'));assert.equal(updated.length,1);assert.equal(updated[0].id,record.id);assert.equal(updated[0].total,1800);
+});
