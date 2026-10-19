@@ -1,5 +1,6 @@
 <!doctype html>
-<html lang="ja"><meta charset="utf-8"><script src="../preview-storage.js"></script><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="ja"><meta charset="utf-8">
+<script src="../preview-storage.js"></script><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>交通費精算 修正の検証（架空データ）</title>
 <link rel="stylesheet" href="../styles/common.css"><link rel="stylesheet" href="../styles/expense.css"><link rel="stylesheet" href="../styles/map/map-expense-styles.css">
 <style>body{padding:20px;max-width:1100px;margin:auto}.tab-panel{display:block!important}.controls{display:flex;gap:8px;flex-wrap:wrap}input,select{color:inherit}pre{white-space:pre-wrap}.exp-row{margin-top:12px}</style>
@@ -17,8 +18,8 @@ const fixture = {
     parking:[{id:'park_a',date:'2026-10-08',amount:600},{id:'park_b',date:'2026-10-09',amount:800}]
 };
 const DataStorage = {getCustomers:()=>fixture.customers,getRoutes:()=>fixture.routes,getSettings:()=>({homeAddress:'検証出発点'}),getCurrentWorkspaceId:()=> '2026-10'};
-const ParkingManager = {getItems:()=>fixture.parking};
+const ParkingManager = {getItems:()=>fixture.parking,getSelectedItems:()=>[],snapshotSelected:async()=>[]};
 const AppCore = {switchTab:name=>document.getElementById('testResults').dataset.tab=name,showLoading:message=>{document.getElementById('loading').style.display='block';document.getElementById('loadingText').textContent=message;},hideLoading:()=>document.getElementById('loading').style.display='none'};
 </script>
-<script src="../expense/expense-import.js"></script><script src="../shared/pdf-renderer.js"></script><script src="../expense/expense-manager.js"></script><script src="../expense/expense-etc.js"></script><script src="../expense/expense-pdf.js"></script><script src="../map/route-list-pdf.js"></script><script src="../map/route-manager.js"></script><script src="../map/map-expense-form.js"></script><script src="expense-browser-tests.js"></script>
+<script src="../expense/expense-import.js"></script><script src="../shared/pdf-renderer.js"></script><script src="expense-draft-memory.js"></script><script src="../expense/expense-draft-receipts.js?v=20261019-2"></script><script src="../expense/expense-manager.js?v=20261019-2"></script><script src="../expense/expense-etc.js"></script><script src="../expense/expense-pdf.js"></script><script src="../map/route-list-pdf.js"></script><script src="../map/route-manager.js"></script><script src="../map/map-expense-form.js"></script><script src="expense-browser-tests.js?v=20261019-2"></script>
 

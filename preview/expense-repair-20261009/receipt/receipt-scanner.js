@@ -451,6 +451,7 @@ const ReceiptScanner = (() => {
                 }
                 html += '<span class="saved-item-store">' + _escHtml(r.store || '不明') + '</span>'
                     + '<span class="saved-item-amount">¥' + (r.total || 0).toLocaleString() + '</span>'
+                    + (!_deleteMode ? '<button class="btn-small saved-open" data-open-receipt="' + _escHtml(r.id) + '">開く・修正</button>' : '')
                     + '</div>';
             });
             html += '</div>';
@@ -468,6 +469,25 @@ const ReceiptScanner = (() => {
         }
         html += '</div>';
         container.innerHTML = html;
+        container.onclick = event => { const button = event.target.closest('[data-open-receipt]'); if (button) openSaved(button.dataset.openReceipt); };
+    }
+
+    function openSaved(id) {
+        if (_reading || !mayReplace()) return;
+        try {
+            const saved = JSON.parse(PreviewStorage.getItem('gyomupro_receipts') || '[]');
+            const receipt = saved.find(r => r.id === id);
+            if (!receipt) throw new Error('保存済みレシートが見つかりません。');
+            if (!receipt.imageDataUrl) throw new Error('このレシートには写真が保存されていません。');
+            _scanImageDataUrl = receipt.imageDataUrl;
+            _detectedImages = [{dataUrl:receipt.imageDataUrl,index:0}];
+            _recognizedReceipts = [{imageDataUrl:receipt.imageDataUrl,data:normalizeData(receipt),savedId:receipt.id,
+                checked:true,index:0,status:'saved',edited:true}];
+            showScanPreview(receipt.imageDataUrl);
+            renderDetectedReceipts(_detectedImages);
+            renderRecognizedReceipts(_recognizedReceipts);
+            document.getElementById('recognizedList')?.scrollIntoView({block:'start'});
+        } catch (error) { alert('レシートを開けませんでした。' + error.message); }
     }
 
     // v1.4追加 - 削除モード開始
@@ -533,6 +553,7 @@ const ReceiptScanner = (() => {
         toggleSelectAll: toggleSelectAll,
         generateA4Pdf: generateA4Pdf,
         saveAll: saveAll,
+        openSaved,
         getRecognizedReceipts: getRecognizedReceipts,
         enterDeleteMode: enterDeleteMode,     // v1.4追加
         cancelDeleteMode: cancelDeleteMode,   // v1.4追加

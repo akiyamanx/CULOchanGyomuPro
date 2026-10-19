@@ -52,11 +52,11 @@ const ParkingPdf = (() => {
         document.getElementById('parkingPdfShare').onclick=async()=>{try {await navigator.share({files:[new File([pdfBlob],fileName,{type:'application/pdf'})],title:'駐車場利用明細'});}catch(error){if(error.name!=='AbortError')alert('共有できませんでした。「PDFを保存」から添付できます。');}};
         dialog.addEventListener('close',()=>{if(pdfUrl)URL.revokeObjectURL(pdfUrl);pdfUrl='';pdfBlob=null;document.getElementById('parkingPdfPages').replaceChildren();});
     }
-    async function generate() {
-        await ParkingManager.settled();
-        const items=ParkingManager.getSelectedItems(),problem=ParkingDocument.validate(items);
+    async function generate(snapshot) {
+        if (!snapshot) await ParkingManager.settled();
+        const items=snapshot ? snapshot.items : ParkingManager.getSelectedItems(),problem=ParkingDocument.validate(items);
         if(problem){alert(problem);return;}
-        const count=Number(document.getElementById('parkingPageSize')?.value)===4?4:6,pages=ParkingDocument.pages(items,count);
+        const count=Number(snapshot ? snapshot.pageSize : document.getElementById('parkingPageSize')?.value)===4?4:6,pages=ParkingDocument.pages(items,count);
         AppCore.showLoading('提出用PDFを準備中…');
         try {
             if(document.fonts){await document.fonts.load('34px "Noto Sans JP"',items.map(i=>i.visitCompany+i.machineName+i.purpose).join('')+'日付訪問先目的');await document.fonts.load('600 44px "Noto Sans JP"','駐車場利用明細');await document.fonts.ready;}
@@ -73,7 +73,7 @@ const ParkingPdf = (() => {
             pdfBlob=pdf.output('blob');pdfUrl=URL.createObjectURL(pdfBlob);
             const first=items[0].date,last=items[items.length-1].date;fileName='駐車場利用明細_'+first+(first!==last?'_'+last:'')+'.pdf';
             const link=document.getElementById('parkingPdfDownload');link.href=pdfUrl;link.download=fileName;
-            document.getElementById('parkingPdfSummary').textContent='A4横向き・1ページ'+count+'枚配置 ／ 領収書'+items.length+'枚・全'+pages.length+'ページ';
+            document.getElementById('parkingPdfSummary').textContent=(snapshot ? '下書きの領収書 ／ ' : '')+'A4横向き・1ページ'+count+'枚配置 ／ 領収書'+items.length+'枚・全'+pages.length+'ページ';
             document.getElementById('parkingPdfShare').hidden=!(navigator.canShare && navigator.canShare({files:[new File([pdfBlob],fileName,{type:'application/pdf'})]}));
             dialog.showModal();
         }catch(error){alert('PDFを作成できませんでした。\n'+error.message);}

@@ -10,6 +10,7 @@
 
 const ExpenseManager = (() => {
     let _rowCount = 0;
+    let _draftBusy = false, _draftRenderVersion = 0;
 
     // ==========================================
     // 初期化
@@ -332,56 +333,64 @@ const ExpenseManager = (() => {
     // ==========================================
     // 下書き保存・読込・削除
     // ==========================================
-    const DRAFT_KEY = 'travelExpenseDrafts';
-
-    // v1.2改修 - destCompany/destAddressで保存
-    function saveDraft() {
-        const header = getHeaderData();
-        const draft = {
-            id: Date.now(),
-            date: new Date().toLocaleString('ja-JP'),
-            submitDate: header.submitDate,
-            ssName: header.ssName,
-            destCompany: header.destCompany,
-            destAddress: header.destAddress,
-            destination: header.destCompany || header.destAddress, // 旧互換
-            employeeName: header.employeeName,
-            rows: getRowsData()
-        };
-        let drafts = JSON.parse(PreviewStorage.getItem(DRAFT_KEY) || '[]');
-        drafts.unshift(draft);
-        if (drafts.length > 20) drafts = drafts.slice(0, 20);
-        PreviewStorage.setItem(DRAFT_KEY, JSON.stringify(drafts));
-        alert('✅ 下書きを保存しました！');
-        renderDraftList();
+    async function saveDraft() {
+        if (_draftBusy) return;
+        _draftBusy = true;
+        try {
+            const parkingReceipts = await ExpenseDraftReceipts.capture();
+            const header = getHeaderData();
+            const draft = {
+                id: 'draft_' + Date.now() + '_' + Math.random().toString(36).slice(2,9),
+                createdAt: Date.now(), version: 2, date: new Date().toLocaleString('ja-JP'),
+                ...header, destination: header.destCompany || header.destAddress,
+                rows: getRowsData(), parkingReceipts
+            };
+            await ExpenseDraftStore.save(draft);
+            ExpenseDraftReceipts.load(parkingReceipts);
+            await renderDraftList();
+            alert('✅ 精算書と領収書 ' + parkingReceipts.items.length + '枚を下書きに保存しました。');
+            return draft.id;
+        } catch(error) { alert('下書きを保存できませんでした。入力内容は画面に残っています。\n' + error.message); }
+        finally { _draftBusy = false; }
     }
 
-    function renderDraftList() {
+    async function renderDraftList() {
         const container = document.getElementById('expDraftList');
         if (!container) return;
-        const drafts = JSON.parse(PreviewStorage.getItem(DRAFT_KEY) || '[]');
-        if (drafts.length === 0) {
-            container.innerHTML = '<p class="empty-msg">下書きはありません</p>';
-            return;
-        }
-        let html = '';
-        drafts.forEach(d => {
-            const title = d.destCompany || d.destination || '（行先未入力）';
-            html += '<div class="exp-draft-item">'
-                + '<div class="exp-draft-info" onclick="ExpenseManager.loadDraft(' + d.id + ')">'
-                + '<div class="exp-draft-title">' + _escHtml(title) + '</div>'
-                + '<div class="exp-draft-date">' + d.date + '</div>'
-                + '</div>'
-                + '<button class="exp-draft-del" onclick="ExpenseManager.deleteDraft(' + d.id + ')">🗑️</button>'
-                + '</div>';
-        });
-        container.innerHTML = html;
+        const version = ++_draftRenderVersion;
+        try {
+            const drafts = await ExpenseDraftStore.list();
+            if (version !== _draftRenderVersion) return;
+            if (!drafts.length) { container.innerHTML = '<p class="empty-msg">下書きはありません</p>'; return; }
+            container.innerHTML = drafts.map((d,i) => '<div class="exp-draft-item"><div class="exp-draft-copy">'
+                + '<strong class="exp-draft-title">' + _escHtml(d.destCompany || '（行先未入力）') + '</strong>'
+                + '<div class="exp-draft-date">' + _escHtml(d.date || '') + '</div><p class="draft-receipt-note">'
+                + (d.hasReceiptSnapshot ? '領収書 ' + d.receiptCount + '枚付き' : '旧下書き・領収書の保存なし') + '</p></div>'
+                + '<div class="draft-actions"><button class="btn btn-secondary" data-draft-action="open" data-index="' + i + '">開く・修正</button>'
+                + (d.receiptCount ? '<button class="btn btn-secondary" data-draft-action="pdf" data-index="' + i + '">領収書PDFを見る</button>' : '')
+                + '<button class="exp-draft-del" aria-label="この下書きを削除" data-draft-action="delete" data-index="' + i + '">削除</button></div></div>').join('');
+            container.onclick = event => {
+                const button = event.target.closest('[data-draft-action]');
+                if (!button) return;
+                const id = drafts[Number(button.dataset.index)]?.id;
+                if (id !== undefined) ({open:loadDraft,pdf:previewDraftReceipts,delete:deleteDraft})[button.dataset.draftAction]?.(id);
+            };
+        } catch(error) { if (version === _draftRenderVersion) container.textContent = '下書きを読み込めませんでした。ブラウザの保存設定を確認してください。'; }
+    }
+    async function previewDraftReceipts(id) {
+        try {
+            const draft = await ExpenseDraftStore.get(id);
+            if (!draft?.parkingReceipts?.items.length) { alert('この下書きには領収書が保存されていません。'); return; }
+            await ParkingPdf.generate(draft.parkingReceipts);
+        } catch(error) { alert('下書きの領収書を開けませんでした。' + error.message); }
     }
 
     // v1.2改修 - destCompany/destAddress + 旧destination後方互換
-    function loadDraft(id) {
-        const drafts = JSON.parse(PreviewStorage.getItem(DRAFT_KEY) || '[]');
-        const draft = drafts.find(d => d.id === id);
+    async function loadDraft(id) {
+        if (_draftBusy) return;
+        _draftBusy = true;
+        try {
+        const draft = await ExpenseDraftStore.get(id);
         if (!draft) { alert('下書きが見つかりません'); return; }
         if (!confirm('現在の入力を破棄して下書きを読み込みますか？')) return;
         _setVal('expSubmitDate', draft.submitDate || new Date().toLocaleDateString('sv-SE'));
@@ -423,15 +432,17 @@ const ExpenseManager = (() => {
             });
         } else { addRow(); }
         recalculate();
-        alert('✅ 下書きを読み込みました！');
+        ExpenseDraftReceipts.load(draft.parkingReceipts || null);
+        alert(draft.parkingReceipts ? '✅ 精算書と領収書 ' + draft.parkingReceipts.items.length + '枚を読み込みました。下の「この下書きの領収書」で確認・修正できます。' : '✅ 精算書を読み込みました。この旧下書きには領収書が保存されていません。必要な写真は駐車場欄で選び直してから保存してください。');
+        document.getElementById('loadedDraftReceipts')?.scrollIntoView({block:'start'});
+        } catch(error) { alert('下書きを読み込めませんでした。' + error.message); }
+        finally { _draftBusy = false; }
     }
 
-    function deleteDraft(id) {
-        if (!confirm('この下書きを削除しますか？')) return;
-        let drafts = JSON.parse(PreviewStorage.getItem(DRAFT_KEY) || '[]');
-        drafts = drafts.filter(d => d.id !== id);
-        PreviewStorage.setItem(DRAFT_KEY, JSON.stringify(drafts));
-        renderDraftList();
+    async function deleteDraft(id) {
+        if (_draftBusy || !confirm('この下書きと、下書きに保存した領収書を削除しますか？通常の駐車場明細は残ります。')) return;
+        try { await ExpenseDraftStore.remove(id); await renderDraftList(); }
+        catch(error) { alert('下書きを削除できませんでした。' + error.message); }
     }
 
     // ==========================================
@@ -439,6 +450,7 @@ const ExpenseManager = (() => {
     // ==========================================
     function clearAll() {
         if (!confirm('すべての入力をクリアしますか？')) return;
+        ExpenseDraftReceipts.reset();
         _setVal('expDestCompany', '');
         _setVal('expDestAddress', '');
         const container = document.getElementById('expenseRows');
@@ -577,7 +589,7 @@ const ExpenseManager = (() => {
         init, addRow, deleteRow, onDistanceChange, recalculate,
         onRowDateChange, getOrCreateDateRow, applyEtcRecords, syncParking, reflectParkingMonth, applyRoute,
         getHeaderData, getRowsData, parseHighway, calcGasCost,
-        saveDraft, loadDraft, deleteDraft, renderDraftList, clearAll,
+        saveDraft, loadDraft, deleteDraft, renderDraftList, previewDraftReceipts, clearAll,
         trimToCity: _trimToCity,
         togglePickerAll, applyPicker, closePicker
     };

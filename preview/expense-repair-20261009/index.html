@@ -2,14 +2,14 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <script src="preview-storage.js"></script>
+<script src="preview-storage.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CULOchan業務Pro — 修正確認用</title>
     <meta name="theme-color" content="#16324a">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <link rel="stylesheet" href="styles/common.css">
-    <link rel="stylesheet" href="styles/receipt.css?v=20261019-1">
-    <link rel="stylesheet" href="styles/expense.css">
+    <link rel="stylesheet" href="styles/receipt.css?v=20261019-2">
+    <link rel="stylesheet" href="styles/expense.css?v=20261019-2">
     <!-- v2.0追加 - 駐車場利用明細スタイル -->
     <link rel="stylesheet" href="styles/parking.css">
     <link rel="stylesheet" href="styles/parking-workflow.css?v=20261014-6">
@@ -152,12 +152,21 @@
             <section class="panel-card"><div class="section-heading"><h4 class="card-title">日別の交通費</h4><span class="summary-note">利用日ごとに1件</span></div>
                 <div id="expenseRows"></div><button class="btn btn-secondary" onclick="ExpenseManager.addRow()">＋ 別の日の明細を追加</button>
             </section>
+            <section class="panel-card" id="loadedDraftReceipts" hidden>
+                <h4 class="card-title">この下書きの領収書</h4><p id="loadedDraftReceiptCount"></p>
+                <p id="draftReceiptEditStatus" class="section-desc" role="status"></p>
+                <div id="draftReceiptCards"></div>
+                <label class="draft-choice">1ページの枚数<select id="draftReceiptPageSize" onchange="ExpenseDraftReceipts.setPageSize(this.value)"><option value="6">6枚（横3枚×2段）</option><option value="4">4枚（横2枚×2段）</option></select></label>
+                <button class="btn btn-primary" onclick="ExpenseDraftReceipts.preview()">この下書きの領収書PDFを見る</button>
+            </section>
             </div><aside class="expense-finish" aria-label="精算の仕上げ">
                 <section class="panel-card finish-card"><h3 class="section-title"><span>3</span> 保存・PDF出力</h3>
                     <div class="exp-total-display"><div class="exp-total-label">精算する合計</div><div class="exp-total-amount" id="expGrandTotal">¥0</div><p class="section-desc">入力中のすべての明細の合計</p></div>
                     <button class="btn btn-primary" onclick="ExpensePdf.generate()">精算書をPDFにする</button>
+                    <label class="draft-choice">下書きに付ける領収書<select id="draftReceiptSource" onchange="ExpenseDraftReceipts.updateHint()"><option value="current">駐車場欄で選択中の写真</option><option value="loaded" id="draftReceiptLoadedOption" disabled>読み込んだ下書きの写真・説明</option><option value="none">領収書を付けない</option></select></label>
+                    <p id="draftReceiptHint" class="save-hint" role="status"></p>
                     <button class="btn btn-secondary" onclick="ExpenseManager.saveDraft()">下書きを保存</button>
-                    <p class="save-hint">途中でやめるときは、下書きを保存してください。</p>
+                    <p class="save-hint">写真と説明も下書きに残ります。修正後に保存すると新しい下書きが追加されます。</p>
                     <details class="reset-details"><summary>入力をやり直す</summary><button class="btn btn-danger-quiet" onclick="ExpenseManager.clearAll()">精算書の入力をクリア</button></details>
                 </section>
                 <section class="panel-card"><h3 class="card-title">保存した下書き</h3><div id="expDraftList"><p class="empty-msg">下書きはありません</p></div></section>
@@ -278,19 +287,21 @@
     <div class="loading-overlay" id="loading" style="display:none;"><div class="loading-spinner"></div><div class="loading-text" id="loadingText">処理中...</div></div>
     <script src="shared/app-core.js"></script>
     <script src="receipt/receipt-image-utils.js"></script>
-    <script src="receipt/receipt-scanner.js?v=20261019-1"></script>
+    <script src="receipt/receipt-scanner.js?v=20261019-2"></script>
     <script src="receipt/receipt-photo-geometry.js?v=20261014-3"></script>
     <script src="receipt/receipt-photo.js?v=20261014-3"></script>
     <script src="expense/expense-import.js"></script>
     <script src="shared/pdf-renderer.js"></script>
-    <script src="expense/expense-manager.js"></script>
+    <script src="expense/expense-draft-store.js?v=20261019-2"></script>
+    <script src="expense/expense-draft-receipts.js?v=20261019-2"></script>
+    <script src="expense/expense-manager.js?v=20261019-2"></script>
     <script src="expense/expense-pdf.js"></script>
     <script src="expense/expense-etc.js"></script>
     <!-- v1.3追加 - Phase I: 駐車場明細IndexedDB管理 -->
     <script src="expense/parking-idb.js?v=20261014-3"></script>
     <script src="expense/parking-document.js?v=20261014-3"></script>
-    <script src="expense/parking-manager.js?v=20261019-1"></script>
-    <script src="expense/parking-pdf.js?v=20261014-6"></script>
+    <script src="expense/parking-manager.js?v=20261019-2"></script>
+    <script src="expense/parking-pdf.js?v=20261019-2"></script>
     <script src="map/map-data-storage.js"></script>
     <script src="map/v1-converter.js"></script>
     <script src="map/request-parser.js?v=20261014-2"></script>
