@@ -82,7 +82,9 @@ const VisitPlanner = (() => {
         });
         byId('visitCalendarDays').addEventListener('click',event=>{
             const button=event.target.closest('[data-visit-day]');if(!button)return;
-            byId('visitScheduleDay').value=button.dataset.visitDay;restoreEditButtons();sync();
+            const day=button.dataset.visitDay;
+            byId('visitScheduleDay').value=day;restoreEditButtons();sync();
+            byId('visitCalendarDays').querySelector(`[data-visit-day="${day}"]`)?.focus({preventScroll:true});
         });
         document.querySelectorAll('[data-visit-month]').forEach(button=>button.addEventListener('click',()=>{
             const date=new Date(month+'-01T12:00:00');date.setMonth(date.getMonth()+Number(button.dataset.visitMonth));

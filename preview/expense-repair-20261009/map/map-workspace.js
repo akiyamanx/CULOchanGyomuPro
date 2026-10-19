@@ -39,7 +39,7 @@ const MapWorkspace = (() => {
         byId('mapListButton').addEventListener('click',toggleList);
         document.addEventListener('app:tabchange',event=> { if (event.detail !== 'map' && expanded) toggle(false); });
         document.addEventListener('keydown',event=> {
-            if (!expanded || document.querySelector('.modal-overlay[style*="flex"], .ro-modal-overlay, .seg-modal-overlay')) return;
+            if (!expanded || document.querySelector('.modal-overlay[style*="flex"], .ro-modal-overlay, #segmentDialog')) return;
             if (event.key === 'Escape') { event.preventDefault(); toggle(false); }
             if (event.key === 'Tab') {
                 const items = [...byId('visitLayout').querySelectorAll('button,a[href],input,select,textarea,[tabindex="0"]')]
