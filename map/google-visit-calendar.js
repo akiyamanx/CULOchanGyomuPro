@@ -87,7 +87,7 @@ const GoogleVisitCalendar = (() => {
         if(!$('googleCalendarStatus'))return;
         $('googleCalendarStatus').textContent=message||'Googleカレンダーは未接続です。';
         $('googleCalendarStatus').dataset.state=status;
-        $('googleCalendarConnect').textContent=connected()?'アカウントを切り替える':'Googleカレンダーに接続';
+        $('googleCalendarConnect').textContent=connected()?'アカウント変更':'Googleカレンダーに接続';
         $('googleCalendarConnect').disabled=selectingAccount||status==='authorizing';
         $('googleCalendarRefresh').hidden=!connected();$('googleCalendarRefresh').disabled=status==='loading';
         $('googleCalendarDisconnect').hidden=!connected()&&!selectingAccount;
