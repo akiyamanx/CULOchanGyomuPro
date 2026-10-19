@@ -154,3 +154,16 @@ test('旧下書きの読込は写真なしと表示し、現在の別の写真�
     assert.equal(f.document.getElementById('draftReceiptSource').value,'none');assert.match(f.alerts.at(-1),/旧下書きには領収書が保存されていません/);
     const id=await f.run('ExpenseManager.saveDraft()');assert.equal((await f.run('ExpenseDraftStore.get('+JSON.stringify(id)+')')).parkingReceipts.items.length,0);
 });
+
+test('ETC確認分はCSV金額に加算せず置換し、再反映・下書き後も二重取込を防ぐ',async()=>{
+    const f=draftFixture();
+    f.run("ExpenseManager.applyEtcRecords([{date:'2026-09-03',amount:2460,key:'csv-old'}])");
+    f.run("ExpenseManager.applyEtcDay({date:'2026-09-03',stops:[{id:'a',name:'A社',address:'東京都',job:'hq'},{id:'x',name:'別仕事',job:'other'}]}, {amount:800,accepted:[{}]}, 50, 'approved')");
+    let row=f.run('ExpenseManager.getRowsData()').find(r=>r.date==='2026-09-03');
+    assert.equal(row.highway,'800');assert.equal(row.distance,'50');assert.equal(row.destCompany,'A社');assert.equal(row.etcPdfFingerprint,'approved');
+    assert.throws(()=>f.run("ExpenseManager.applyEtcRecords([{date:'2026-09-03',amount:800,key:'again'}])"),/二重計上/);
+    const id=await f.run('ExpenseManager.saveDraft()');await f.run('ExpenseManager.loadDraft('+JSON.stringify(id)+')');
+    row=f.run('ExpenseManager.getRowsData()').find(r=>r.date==='2026-09-03');assert.equal(row.etcPdfFingerprint,'approved');assert.equal(row.highway,'800');
+    f.run("ExpenseManager.applyEtcDay({date:'2026-09-03',stops:[]},{amount:0,accepted:[]},0,'revised')");
+    row=f.run('ExpenseManager.getRowsData()').find(r=>r.date==='2026-09-03');assert.equal(Number(row.highway),0);assert.equal(Number(row.highwayCount),0);
+});

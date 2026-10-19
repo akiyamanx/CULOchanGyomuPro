@@ -181,6 +181,8 @@ const ExpensePdf = (() => {
 
     async function generate() {
         if (busy) return;
+        try { if (typeof EtcWorkflow !== 'undefined') EtcWorkflow.assertSynced(); }
+        catch(error) { alert(error.message); return; }
         const header = ExpenseManager.getHeaderData();
         const rows = ExpenseManager.getRowsData();
         if (!header.submitDate) { alert('提出日を入力してください'); return; }

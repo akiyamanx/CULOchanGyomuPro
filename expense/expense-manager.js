@@ -185,6 +185,7 @@ const ExpenseManager = (() => {
                 destCompany: row.querySelector('.exp-dest-company').value,
                 destAddress: row.querySelector('.exp-dest-address').value,
                 etcKeys: _metadata(row, 'etcKeys', []),
+                etcPdfFingerprint: row.dataset.etcPdfFingerprint || '',
                 parkingImports: _metadata(row, 'parkingImports', {}),
                 month: row.querySelector('.exp-month').value,
                 day: row.querySelector('.exp-day').value,
@@ -250,6 +251,8 @@ const ExpenseManager = (() => {
     function applyEtcRecords(records) {
         _assertUniqueDates(records.map(record => record.date));
         const rows = Array.from(document.querySelectorAll('#expenseRows .exp-row'));
+        if (rows.some(row => row.dataset.etcPdfFingerprint && records.some(r => r.date === _rowDate(row))))
+            throw new Error('同じ日のETC PDFが反映済みです。二重計上を防ぐため、その日は「ETC PDF・寄り道」で確認してください。');
         const imported = new Set(rows.flatMap(row => _metadata(row, 'etcKeys', [])));
         let count = 0, amount = 0;
         for (const record of records) {
@@ -314,7 +317,9 @@ const ExpenseManager = (() => {
         } catch (error) { alert(error.message); }
     }
 
-    function applyRoute(date, totalKm, destination) {
+    function applyRoute(date, totalKm, destination, options = {}) {
+        if (!options.fromEtc && typeof EtcWorkflow !== 'undefined' && EtcWorkflow.isManaged(date))
+            throw new Error('この日はETC・寄り道の訪問順を確認中です。「ETC PDF・寄り道」の区間距離を確認して、そこから精算書へ反映してください。');
         const row = getOrCreateDateRow(date);
         row.querySelector('.exp-dest-company').value = destination.company || '';
         row.querySelector('.exp-dest-address').value = destination.address || '';
@@ -330,6 +335,22 @@ const ExpenseManager = (() => {
         recalculate();
     }
 
+    function applyEtcDay(day, totals, km, fingerprint) {
+        const existing = Array.from(document.querySelectorAll('#expenseRows .exp-row')).find(row => _rowDate(row) === day.date);
+        if (existing && (_parseHighway(existing.querySelector('.exp-highway').value) || Number(existing.querySelector('.exp-distance').value)) &&
+            !confirm(day.date + ' の高速代と距離を、今回確認した高速代 ' + totals.amount.toLocaleString() + '円・' + km + 'kmへ置き換えます。CSVや手入力の同日分も含めて置き換えます。よろしいですか？')) return false;
+        const members = day.stops.filter(s => s.job === 'hq' && !['home_start','home_end'].includes(s.id));
+        applyRoute(day.date, km, {company:members.map(s=>s.name).join(' → '),address:members.map(s=>s.address).join(' → ')}, {fromEtc:true});
+        const row = getOrCreateDateRow(day.date);
+        row.querySelector('.exp-highway').value = totals.amount || '';
+        row.querySelector('.exp-highway-count').value = totals.accepted.length || '';
+        row.dataset.etcKeys = '[]';
+        row.dataset.etcPdfFingerprint = fingerprint;
+        recalculate();
+        alert(day.date + ' の本部提出分 ' + totals.accepted.length + '件・' + totals.amount.toLocaleString() + '円、距離 ' + km + 'kmを反映しました。下書きを保存してください。');
+        return true;
+    }
+
     // ==========================================
     // 下書き保存・読込・削除
     // ==========================================
@@ -338,17 +359,18 @@ const ExpenseManager = (() => {
         _draftBusy = true;
         try {
             const parkingReceipts = await ExpenseDraftReceipts.capture();
+            const etcEvidence = typeof EtcWorkflow !== 'undefined' ? await EtcWorkflow.capture() : null;
             const header = getHeaderData();
             const draft = {
                 id: 'draft_' + Date.now() + '_' + Math.random().toString(36).slice(2,9),
                 createdAt: Date.now(), version: 2, date: new Date().toLocaleString('ja-JP'),
                 ...header, destination: header.destCompany || header.destAddress,
-                rows: getRowsData(), parkingReceipts
+                rows: getRowsData(), parkingReceipts, etcEvidence
             };
             await ExpenseDraftStore.save(draft);
             ExpenseDraftReceipts.load(parkingReceipts);
             await renderDraftList();
-            alert('✅ 精算書と領収書 ' + parkingReceipts.items.length + '枚を下書きに保存しました。');
+            alert('✅ 精算書と領収書 ' + parkingReceipts.items.length + '枚' + (etcEvidence?.records?.length ? '・ETC ' + etcEvidence.records.length + '件' : '') + 'を下書きに保存しました。');
             return draft.id;
         } catch(error) { alert('下書きを保存できませんでした。入力内容は画面に残っています。\n' + error.message); }
         finally { _draftBusy = false; }
@@ -365,7 +387,7 @@ const ExpenseManager = (() => {
             container.innerHTML = drafts.map((d,i) => '<div class="exp-draft-item"><div class="exp-draft-copy">'
                 + '<strong class="exp-draft-title">' + _escHtml(d.destCompany || '（行先未入力）') + '</strong>'
                 + '<div class="exp-draft-date">' + _escHtml(d.date || '') + '</div><p class="draft-receipt-note">'
-                + (d.hasReceiptSnapshot ? '領収書 ' + d.receiptCount + '枚付き' : '旧下書き・領収書の保存なし') + '</p></div>'
+                + (d.hasReceiptSnapshot ? '領収書 ' + d.receiptCount + '枚付き' : '旧下書き・領収書の保存なし') + (d.etcCount ? ' ／ ETC ' + d.etcCount + '件付き' : '') + '</p></div>'
                 + '<div class="draft-actions"><button class="btn btn-secondary" data-draft-action="open" data-index="' + i + '">開く・修正</button>'
                 + (d.receiptCount ? '<button class="btn btn-secondary" data-draft-action="pdf" data-index="' + i + '">領収書PDFを見る</button>' : '')
                 + '<button class="exp-draft-del" aria-label="この下書きを削除" data-draft-action="delete" data-index="' + i + '">削除</button></div></div>').join('');
@@ -411,6 +433,7 @@ const ExpenseManager = (() => {
                 row.querySelector('.exp-dest-company').value = rd.destCompany || '';
                 row.querySelector('.exp-dest-address').value = rd.destAddress || '';
                 row.dataset.etcKeys = JSON.stringify(rd.etcKeys || []);
+                row.dataset.etcPdfFingerprint = rd.etcPdfFingerprint || '';
                 row.dataset.parkingImports = JSON.stringify(rd.parkingImports || {});
                 row.querySelector('.exp-month').value = rd.month || '';
                 row.querySelector('.exp-day').value = rd.day || '';
@@ -433,8 +456,10 @@ const ExpenseManager = (() => {
         } else { addRow(); }
         recalculate();
         ExpenseDraftReceipts.load(draft.parkingReceipts || null);
+        if (typeof EtcWorkflow !== 'undefined') EtcWorkflow.load(draft.etcEvidence || null);
         alert(draft.parkingReceipts ? '✅ 精算書と領収書 ' + draft.parkingReceipts.items.length + '枚を読み込みました。下の「この下書きの領収書」で確認・修正できます。' : '✅ 精算書を読み込みました。この旧下書きには領収書が保存されていません。必要な写真は駐車場欄で選び直してから保存してください。');
-        document.getElementById('loadedDraftReceipts')?.scrollIntoView({block:'start'});
+        if (draft.etcEvidence?.records?.length) { document.getElementById('etcSection').open = true; document.getElementById('etcSection').scrollIntoView({block:'start'}); }
+        else document.getElementById('loadedDraftReceipts')?.scrollIntoView({block:'start'});
         } catch(error) { alert('下書きを読み込めませんでした。' + error.message); }
         finally { _draftBusy = false; }
     }
@@ -587,7 +612,7 @@ const ExpenseManager = (() => {
 
     return {
         init, addRow, deleteRow, onDistanceChange, recalculate,
-        onRowDateChange, getOrCreateDateRow, applyEtcRecords, syncParking, reflectParkingMonth, applyRoute,
+        onRowDateChange, getOrCreateDateRow, applyEtcRecords, syncParking, reflectParkingMonth, applyRoute, applyEtcDay,
         getHeaderData, getRowsData, parseHighway, calcGasCost,
         saveDraft, loadDraft, deleteDraft, renderDraftList, previewDraftReceipts, clearAll,
         trimToCity: _trimToCity,
