@@ -280,7 +280,7 @@ const MapCore = (() => {
         const routes = DataStorage.getRoutes();
         const listEl = document.getElementById('customerList');
         if (customers.length === 0) {
-            listEl.innerHTML = '<div class="empty-msg"><strong>この月の訪問先はまだありません</strong><br>「訪問先を追加」か「ファイルから取込」で<br>準備を始めましょう。</div>';
+            listEl.innerHTML = '<div class="empty-msg"><strong>この月の訪問先はまだありません</strong><br>「訪問先を追加」か「Excel・依頼書を取り込む」で<br>準備を始めましょう。</div>';
             return;
         }
         const esc = ExpenseImport.escapeHtml;

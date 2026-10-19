@@ -5,7 +5,7 @@ const RequestParser = (() => {
     const clean = value => text(value).replace(/[ \u3000]+/g, ' ');
     const unique = values => [...new Set(values.filter(Boolean))];
     const fieldNames = {
-        company: ['会社名','顧客名','設置先名','客先名(工事先)','客先名','設置先','company','名称'],
+        company: ['会社名','顧客名','設置先会社名','設置先名','客先名(工事先)','客先名','設置先','company','名称'],
         address: ['住所','設置先住所','所在地','address'],
         prefecture: ['都道府県','prefecture'],
         phone: ['固定電話','携帯電話','設置先tel','電話番号','電話','tel','phone'],
@@ -87,6 +87,8 @@ const RequestParser = (() => {
             return {row:[],col:-1,value:''};
         };
         const company = get(fieldNames.company), addr = get(fieldNames.address);
+        // Monthly visit books may also contain a parts order. Its supplier is not a visit.
+        if (get(['注文日','発注日']).col >= 0 && get(['商品コード','品番','品名']).col >= 0) return [];
         if (!company.value || field(company.value) || addr.col < 0 || company.row === addr.row) return [];
         const item = base(source, '業務依頼書');
         item.company = company.value;
