@@ -458,7 +458,7 @@ const ExpenseManager = (() => {
         recalculate();
         ExpenseDraftReceipts.load(draft.parkingReceipts || null);
         if (typeof EtcWorkflow !== 'undefined') EtcWorkflow.load(draft.etcEvidence || null);
-        alert(draft.parkingReceipts ? '✅ 精算書と領収書 ' + draft.parkingReceipts.items.length + '枚を読み込みました。下の「この下書きの領収書」で確認・修正できます。' : '✅ 精算書を読み込みました。この旧下書きには領収書が保存されていません。必要な写真は駐車場欄で選び直してから保存してください。');
+        alert(draft.etcEvidence?.records?.length ? '✅ 精算書とETC ' + draft.etcEvidence.records.length + '件を読み込みました。「ETC PDF・寄り道」で日付を選び、確認・修正・PDF出力ができます。' : (draft.parkingReceipts ? '✅ 精算書と領収書 ' + draft.parkingReceipts.items.length + '枚を読み込みました。下の「この下書きの領収書」で確認・修正できます。' : '✅ 精算書を読み込みました。この旧下書きには領収書が保存されていません。必要な写真は駐車場欄で選び直してから保存してください。'));
         if (draft.etcEvidence?.records?.length) { document.getElementById('etcSection').open = true; document.getElementById('etcSection').scrollIntoView({block:'start'}); }
         else document.getElementById('loadedDraftReceipts')?.scrollIntoView({block:'start'});
         } catch(error) { alert('下書きを読み込めませんでした。' + error.message); }

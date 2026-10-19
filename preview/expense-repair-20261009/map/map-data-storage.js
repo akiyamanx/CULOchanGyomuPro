@@ -240,9 +240,9 @@ const DataStorage = (() => {
         route_2: '#ea4335', route_7: '#e91e63', route_10: '#ff5722'
     };
 
-    function getRoutes() {
+    function getRoutes(workspaceId) {
         try {
-            const data = PreviewStorage.getItem(getKeys().routes);
+            const data = PreviewStorage.getItem(workspaceId ? 'mm_routes_' + workspaceId : getKeys().routes);
             const routes = data ? JSON.parse(data) : DEFAULT_ROUTES;
             return routes.map(route => {
                 const oldColor = LEGACY_ROUTE_COLORS[route.id];
@@ -261,9 +261,9 @@ const DataStorage = (() => {
 
     // --- 区間データ（高速/下道） ---
 
-    function getSegments() {
+    function getSegments(workspaceId) {
         try {
-            const data = PreviewStorage.getItem(getKeys().segments);
+            const data = PreviewStorage.getItem(workspaceId ? 'mm_segments_' + workspaceId : getKeys().segments);
             return data ? JSON.parse(data) : {};
         } catch (e) {
             return {};

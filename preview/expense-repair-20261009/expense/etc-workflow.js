@@ -5,7 +5,7 @@ const EtcWorkflow = (() => {
     function plans(date=state.selectedDate) {
         if(!date)return [];
         const month=date.slice(0,7),customers=DataStorage.getCustomersForWorkspace(month);
-        const routes=month===DataStorage.getCurrentWorkspaceId()?DataStorage.getRoutes():JSON.parse(PreviewStorage.getItem('mm_routes_'+month)||'[]');
+        const routes=DataStorage.getRoutes(month);
         return routes.map(route=>{
             const order=route.order||[],members=customers.filter(c=>c.routeId===route.id&&(c.appoDate||'').slice(0,10)===date);
             members.sort((a,b)=>(order.includes(a.id)?order.indexOf(a.id):999)-(order.includes(b.id)?order.indexOf(b.id):999));
@@ -72,6 +72,8 @@ const EtcWorkflow = (() => {
         const address=DataStorage.getSettings().homeAddress||'',d={date:state.selectedDate,routeId:plan?.id||'',sourceSignature:plan?planSignature(plan):'',stops:[{id:'home_start',name:'会社',address,job:'hq',departure:''}],legs:[]};
         for(const c of plan?.members||[])d.stops.push({id:String(c.id),name:c.company||'訪問先',address:c.address||'',job:'hq',arrival:(c.appoDate||'').match(/[ T](\d{2}:\d{2})/)?.[1]||'',departure:'',machineName:c.equipType||'',purpose:c.purpose||''});
         d.stops.push({id:'home_end',name:'会社',address,job:'hq',arrival:''});EtcJourney.rebuild(d);
+        const choices=plan ? DataStorage.getSegments(d.date.slice(0,7))[plan.id] || {} : {};
+        d.legs.forEach(leg=>{leg.road=choices[leg.fromId+'_'+leg.toId] || 'unknown';});
         const saved=plan?.distanceResults?.[d.date],signature=JSON.stringify([address,(plan?.members||[]).map(c=>[c.id,c.address])]);
         if(saved?.signature===signature && saved.segments?.length===d.legs.length)d.legs.forEach((l,i)=>{l.km=saved.segments[i].km;l.road=saved.segments[i].type;l.roadText=saved.segments[i].roadText||'';});
         return d;
@@ -126,6 +128,7 @@ const EtcWorkflow = (() => {
     }
     async function calculate() {
         const d=day();if(!d||d.stops.some(s=>!s.address?.trim()))throw new Error('会社とすべての訪問先の住所を入力してください。');
+        if(d.legs.some(l=>l.road==='unknown'))throw new Error('各区間で「高速を利用」または「一般道」を選んでください。');
         if(typeof google==='undefined'||!google.maps?.DirectionsService)throw new Error('地図の設定と接続を確認してください。距離は区間ごとに手入力もできます。');
         lock(true);
         try {
