@@ -27,6 +27,11 @@ const GcalPanel = (() => {
 
     // v1.0 タッチ開始
     function _onTouchStart(e) {
+        // Map panning and appointment editing must not unexpectedly open another app.
+        if (e.target.closest('#map, .modal-overlay, .visit-calendar, input, textarea, select, button, a') || e.touches.length !== 1) {
+            _tracking = false;
+            return;
+        }
         var touch = e.touches[0];
         _startX = touch.clientX;
         _startY = touch.clientY;
@@ -72,4 +77,3 @@ const GcalPanel = (() => {
         isOpen: isOpen
     };
 })();
-
