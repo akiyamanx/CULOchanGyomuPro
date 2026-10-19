@@ -1,7 +1,7 @@
 // 駐車場明細。保存完了後に画面へ反映し、写真・編集元・訪問情報を一緒に保持する。
 const ParkingManager = (() => {
     let items = [], queue = Promise.resolve(), ready = false, pickerId = '', pickerChoices = [], pickerVersion = 0;
-    let editTimer;
+    let editTimer, saveError = false;
     const pendingEdits=new Map();
     const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const uid = () => 'park_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
@@ -14,8 +14,10 @@ const ParkingManager = (() => {
         try {
             if (!ready || !await ParkingIDB.putAll(next)) throw new Error('保存未完了');
             items = next;
+            saveError = false;
             return true;
         } catch (error) {
+            saveError = true;
             alert('駐車場明細を保存できませんでした。空き容量やブラウザの保存設定を確認してください。');
             return false;
         }
@@ -239,5 +241,5 @@ const ParkingManager = (() => {
     function getItemById(id) { const item=items.find(i=>i.id===id); return item ? {...item} : null; }
     function getItems() { return items.map(i=>({...i})); }
     return {init,importFromScanner,addItem,append,patchItem,readReceipt,removeItem,clearAll,renderParkingList,updateField,
-        showCustomerPicker,getItemById,getItems,getSelectedItems,selectVisible,snapshotSelected,settled:()=>flushEdits()};
+        showCustomerPicker,getItemById,getItems,getSelectedItems,selectVisible,snapshotSelected,settled:async()=>{await flushEdits();if(saveError || !ready)throw new Error('駐車場明細を保存できていません。保存状態を確認してください。');}};
 })();

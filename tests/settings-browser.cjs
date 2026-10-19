@@ -111,6 +111,8 @@ const prefix = process.env.SETTINGS_STORAGE_PREFIX || '';
             assert.match(await page.locator('#settingsMapsStatus').textContent(), /再読み込み後/);
             assert.equal(await page.evaluate(() => GoogleVisitCalendar.snapshot().connected), true);
             await page.locator('[data-settings-category="data"] > summary').click();
+            await page.getByText('以前の訪問先バックアップ', { exact: true }).click();
+            await page.getByText('対象月のデータを削除', { exact: true }).click();
             assert.equal(await page.getByRole('button', { name: 'バックアップから復元', exact: true }).isDisabled(), true);
             assert.equal(await page.getByRole('button', { name: '現在の対象月のデータを削除', exact: true }).isDisabled(), true);
             // Unsaved setting edits require a deliberate discard; Escape still returns to the draft.

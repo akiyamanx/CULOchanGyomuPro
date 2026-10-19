@@ -40,6 +40,7 @@ const SettingsPanel = (() => {
             : '訪問先・ルートなど、対象月ごとのデータを管理します。';
         $('settingsReturn').textContent = suspended.length ? '入力中の画面に戻る' : '設定を閉じる';
         modal.style.display = 'flex';
+        if (typeof TransferUI !== 'undefined') TransferUI.opened();
         modal.querySelector('.modal-content').scrollTop = 0;
         requestAnimationFrame(() => {
             const summary = modal.querySelector('details[open] > summary');
@@ -47,6 +48,7 @@ const SettingsPanel = (() => {
         });
     }
     function close(event, restoreFocus = true) {
+        if (typeof TransferUI !== 'undefined' && TransferUI.isBusy()) return false;
         if (event && event.target !== event.currentTarget) return false;
         try {
             const values = savedValues();
@@ -96,5 +98,5 @@ const SettingsPanel = (() => {
             if (confirm('アプリを再読み込みします。未保存の入力は失われます。続けますか？') && close(null, false)) location.reload();
         }
     }
-    return { open, close, save, dataAction };
+    return { open, close, save, dataAction, canTransfer:()=>suspended.length===0 };
 })();

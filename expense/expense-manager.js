@@ -612,7 +612,7 @@ const ExpenseManager = (() => {
     }
 
     return {
-        init, addRow, deleteRow, onDistanceChange, recalculate,
+        init, addRow, deleteRow, onDistanceChange, recalculate, isBusy:()=>_draftBusy,
         onRowDateChange, getOrCreateDateRow, applyEtcRecords, syncParking, reflectParkingMonth, applyRoute, applyEtcDay,
         getHeaderData, getRowsData, parseHighway, calcGasCost,
         saveDraft, loadDraft, deleteDraft, renderDraftList, previewDraftReceipts, clearAll,

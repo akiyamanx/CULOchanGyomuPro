@@ -56,5 +56,11 @@ const ExpenseDraftStore = (() => {
         if (typeof id === 'number') { localStorage.setItem(LEGACY_KEY,JSON.stringify(legacy().filter(d=>d.id!==id))); return; }
         await write(tx=>{tx.objectStore('drafts').delete(id);tx.objectStore('summaries').delete(id);});
     }
-    return {list,get,save,remove};
+    async function replaceAll(drafts) {
+        await write(tx => {
+            tx.objectStore('drafts').clear(); tx.objectStore('summaries').clear();
+            drafts.forEach(draft => { tx.objectStore('drafts').put(draft); tx.objectStore('summaries').put(summary(draft)); });
+        });
+    }
+    return {list,get,save,remove,exportAll:()=>read('drafts'),replaceAll};
 })();

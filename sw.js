@@ -13,7 +13,7 @@
 // v5.2 2026-04-04 - Phase H不要コード整理 + Phase I: IndexedDB移行（parking-idb.js追加）
 // ==========================================
 
-const CACHE_NAME = 'gyomupro-workflow-v64';
+const CACHE_NAME = 'gyomupro-workflow-v65';
 const ASSETS = [
     './',
     './index.html',
@@ -21,6 +21,12 @@ const ASSETS = [
     './styles/workflow.css',
     './styles/settings.css',
     './shared/settings-panel.js',
+    './shared/backup-format.js',
+    './shared/backup-store.js',
+    './shared/drive-graph.js',
+    './shared/drive-transfer.js',
+    './shared/transfer-ui.js',
+    './docs/data-sharing-setup.html',
     './styles/map-workspace.css',
     './map/map-workspace.js',
     './map/visit-planner.js',
@@ -100,10 +106,11 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
+    if (event.request.method !== 'GET') return;
     // Calendar responses and authorization must never enter the offline cache.
     if (event.request.headers.has('Authorization')) return;
     const url = new URL(event.request.url);
-    if (url.hostname === 'accounts.google.com' || (url.hostname === 'www.googleapis.com' && url.pathname.startsWith('/calendar/'))) return;
+    if (url.hostname === 'accounts.google.com' || (url.hostname === 'www.googleapis.com' && (/^\/(calendar|drive|upload)\//.test(url.pathname)))) return;
     if (event.request.url.includes('generativelanguage.googleapis.com')) return;
     if (event.request.url.includes('maps.googleapis.com')) return;
     

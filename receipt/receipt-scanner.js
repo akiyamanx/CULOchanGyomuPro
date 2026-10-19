@@ -539,7 +539,7 @@ const ReceiptScanner = (() => {
 
     function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
 
-    document.addEventListener('DOMContentLoaded', renderSavedReceipts);
+    document.addEventListener('app:storage-ready', renderSavedReceipts);
 
     return {
         hasApiKey: () => Boolean(getGeminiApiKey()),
