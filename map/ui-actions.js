@@ -265,8 +265,9 @@ function addNewLocation() {
 function saveEdit() {
     var id = MapCore.getCurrentEditId();
     if (!id) return;
+    if (typeof VisitPlanner !== 'undefined' && !VisitPlanner.validate()) return;
     var appoDate = document.getElementById('editAppoDate').value || null;
-    DataStorage.updateCustomer(id, {
+    var updated = DataStorage.updateCustomer(id, {
         company: document.getElementById('editCompany').value.trim(),
         address: document.getElementById('editAddress').value.trim(),
         phone: document.getElementById('editPhone').value.trim(),
@@ -277,6 +278,11 @@ function saveEdit() {
         appoDate: appoDate,
         purpose: document.getElementById('editPurpose').value
     });
+    if (!updated) {
+        document.getElementById('visitEditError').textContent = '保存できませんでした。入力を残しています。保存容量と訪問先を確認してください。';
+        return;
+    }
+    if (typeof VisitPlanner !== 'undefined') VisitPlanner.saved();
     // v1.8追加: アポ日時があればGCalボタン表示
     if (appoDate) {
         var company = document.getElementById('editCompany').value.trim();
@@ -297,7 +303,7 @@ function deleteLocation() {
     if (!id) return;
     if (!confirm('この場所を削除しますか？')) return;
     DataStorage.deleteCustomer(id);
-    hideEditModal();
+    hideEditModal(true);
     MapCore.refreshAllMarkers();
     RouteManager.updateRoutePanel();
     updateCompactCount();
@@ -475,7 +481,7 @@ function showGcalConfirm(company, address, appoDate, contact, purpose, note) {
         '<div style="text-align:center;width:100%;">'
         + '<p style="margin:0 0 8px;font-size:14px;">✅ 保存しました</p>'
         + '<p style="margin:0 0 12px;font-size:13px;color:#888;">'
-        + company + ' ' + dateStr + '</p>'
+        + ExpenseImport.escapeHtml(company) + ' ' + dateStr + '</p>'
         + '<a href="' + url + '" target="_blank" rel="noopener" '
         + 'class="gcal-add-btn" '
         + 'onclick="setTimeout(function(){restoreEditButtons();hideEditModal();},300)">'
@@ -496,7 +502,8 @@ function restoreEditButtons() {
 }
 
 // v1.8 editModal閉じる時にボタンも復元
-function hideEditModal() {
+function hideEditModal(force) {
+    if (!force && typeof VisitPlanner !== 'undefined' && !VisitPlanner.allowClose()) return;
     restoreEditButtons();
     document.getElementById('editModal').style.display = 'none';
 }

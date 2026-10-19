@@ -24,6 +24,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
     <link rel="stylesheet" href="styles/workflow.css">
+    <link rel="stylesheet" href="styles/map-workspace.css?v=20261019-10">
     <link rel="stylesheet" href="styles/request-import.css">
     <link rel="stylesheet" href="styles/etc-workflow.css?v=20261019-8">
 </head>
@@ -176,7 +177,7 @@
         </div>
         <!-- マップタブ -->
         <div class="tab-panel active" id="tab-map" aria-labelledby="mapTitle">
-            <div class="screen-heading"><div><p class="eyebrow">STEP 01 · 訪問を準備</p><h2 id="mapTitle" tabindex="-1">訪問先とルート</h2><p>訪問先を登録して、会社から出発・帰着する順番を整えます。</p></div><button class="btn btn-primary compact-action" onclick="showAddModal()">＋ 訪問先を追加</button></div>
+            <div class="screen-heading"><div><p class="eyebrow">STEP 01 · 訪問を準備</p><h2 id="mapTitle" tabindex="-1">訪問先とルート</h2><p>地図のピンから電話・予定登録。会社から回る順番を整えます。</p></div><div class="visit-heading-actions"><button class="btn btn-primary compact-action" id="mapQuickExpand">地図を大きくして予定を組む</button><button class="btn btn-secondary compact-action" onclick="showAddModal()">＋ 訪問先を追加</button></div></div>
             <div id="countBadge" style="display:none;">0件</div>
             <div class="map-compact-bar">
                 <span class="workspace-label">対象月</span><button class="compact-ws-btn" id="compactWsBtn" onclick="showWorkspaceMenu()" aria-label="対象月を切り替える">--</button>
@@ -222,7 +223,7 @@
                 <button onclick="AppCore.openSettings()">⚙️ 設定</button>
                 <button onclick="showResetConfirm()">🗑️ 全データ削除</button>
             </div>
-            <div class="visit-layout">
+            <div class="visit-layout" id="visitLayout">
                 <section class="bottom-panel" id="bottomPanel" aria-label="訪問先とルートの一覧">
                     <div class="panel-tabs" aria-label="訪問情報の切り替え">
                         <button class="tab active" data-tab="list" aria-pressed="true" onclick="mapSwitchTab('list')">訪問先</button>
@@ -236,14 +237,31 @@
                     </div>
                 </section>
                 <section class="map-region" aria-label="訪問先の地図">
-                    <div class="map-region-header"><h3>地図</h3><button class="compact-legend-btn" onclick="toggleLegend()">色の説明</button></div>
+                    <div class="map-region-header"><div><h3>地図から訪問先を選ぶ</h3><p class="visit-help">ピン → 電話・日時・備考 → ルートへ</p></div><div class="map-view-actions"><button class="btn btn-secondary" id="mapListButton" aria-expanded="false" aria-controls="bottomPanel" hidden>訪問先・ルート</button><button class="compact-legend-btn" onclick="toggleLegend()">色の説明</button><button class="btn btn-primary" id="mapExpandButton" aria-expanded="false" aria-controls="visitLayout">地図を大きく</button></div></div>
                     <div class="map-canvas"><div id="map"></div><div class="map-setup" id="mapSetup"><span class="map-placeholder-icon" aria-hidden="true">⌖</span><h4>地図を使う準備</h4><p id="mapSetupMessage">設定でGoogle Maps APIキーと会社住所を登録すると、地図と距離計算が使えます。</p><button class="btn btn-secondary compact-action" onclick="AppCore.openSettings()">地図の設定を開く</button><p class="map-setup-hint">訪問先の登録・編集は、先に進められます。</p></div></div>
                     <div class="legend" id="legend" style="display:none;"><div class="legend-title">ルートと状態の色 <button class="legend-close" onclick="toggleLegend()" aria-label="色の説明を閉じる">✕</button></div><div id="legendItems"></div></div>
                 </section>
             </div>
             <div class="next-action"><div><strong>訪問が終わったら、経費を記録</strong><p>レシートを保存してから、精算書にまとめましょう。</p></div><button class="btn btn-secondary compact-action" onclick="AppCore.switchTab('receipt')">レシートへ →</button><button class="text-link" onclick="WorkflowUI.openRouteImport()">走行距離を精算する →</button></div>
             <div class="modal-overlay" id="addModal" style="display:none;"><div class="modal"><h2>訪問先を追加</h2><div class="modal-row"><label for="addCompany">会社名 *</label><input type="text" id="addCompany" placeholder="例：㈱サンプル会社"></div><div class="modal-row"><label for="addAddress">住所 *</label><input type="text" id="addAddress" placeholder="例：東京都港区虎ノ門1-1-1"></div><div class="modal-row"><label for="addPhone">電話番号</label><input type="tel" id="addPhone" placeholder="例：03-1234-5678"></div><div class="modal-row"><label for="addContact">担当者</label><input type="text" id="addContact" placeholder="例：山田様"></div><div class="modal-row"><label for="addPurpose">目的</label><select id="addPurpose"><option value="">未設定</option><option value="メンテナンス">メンテナンス</option><option value="修理">修理</option><option value="本体設置">本体設置</option><option value="その他">その他</option></select></div><div class="modal-row"><label for="addNote">備考</label><textarea id="addNote" placeholder="台数や機種、駐車場情報など..."></textarea></div><div class="modal-buttons"><button class="modal-cancel" onclick="hideAddModal()">キャンセル</button><button class="modal-submit" onclick="addNewLocation()">追加する</button></div></div></div>
-            <div class="modal-overlay" id="editModal" style="display:none;"><div class="modal"><h2>📝 詳細編集</h2><div class="modal-row"><label for="editCompany">会社名</label><input type="text" id="editCompany"></div><div class="modal-row"><label for="editAddress">住所</label><input type="text" id="editAddress"></div><div class="modal-row"><label for="editPhone">電話番号</label><input type="tel" id="editPhone"></div><div class="modal-row"><label for="editContact">担当者</label><input type="text" id="editContact"></div><div class="modal-row"><label for="editRoute">ルート</label><select id="editRoute"></select></div><div class="modal-row"><label for="editAppoDate">アポ日時</label><input type="datetime-local" id="editAppoDate"></div><div class="modal-row"><label for="editStatus">ステータス</label><select id="editStatus"><option value="pending">未アポ</option><option value="appointed">アポ済み</option><option value="completed">完了</option></select></div><div class="modal-row"><label for="editPurpose">目的</label><select id="editPurpose"><option value="">未設定</option><option value="メンテナンス">メンテナンス</option><option value="修理">修理</option><option value="本体設置">本体設置</option><option value="その他">その他</option></select></div><div class="modal-row"><label for="editNote">備考</label><textarea id="editNote"></textarea></div><div class="modal-buttons"><button class="modal-cancel" onclick="hideEditModal()">キャンセル</button><button class="modal-delete" onclick="deleteLocation()">🗑️ 削除</button><button class="modal-submit" onclick="saveEdit()">保存</button></div></div></div>
+            <div class="modal-overlay" id="editModal" style="display:none;"><div class="modal visit-editor">
+                <header class="visit-editor-header"><div><h2>電話・訪問予定を登録</h2><strong id="visitEditorName"></strong><p id="visitEditorAddress" class="visit-help"></p></div><button type="button" class="modal-cancel" onclick="hideEditModal()" aria-label="訪問先の編集を閉じる">閉じる</button></header>
+                <div class="visit-editor-actions"><div id="visitPhoneActions"></div><a class="btn btn-secondary" href="https://calendar.google.com" target="_blank" rel="noopener">Googleカレンダーを開く ↗</a></div>
+                <div class="visit-editor-grid"><section aria-label="訪問先の編集">
+                    <div class="visit-date-fields"><div class="modal-row"><label for="visitScheduleDay">訪問日</label><input type="date" id="visitScheduleDay"></div><div class="modal-row"><label for="visitScheduleTime">訪問時刻</label><input type="time" id="visitScheduleTime"></div></div><input type="hidden" id="editAppoDate">
+                    <p id="visitScheduleHint" class="visit-help" role="status"></p>
+                    <div class="visit-date-fields"><div class="modal-row"><label for="editStatus">アポの状態</label><select id="editStatus"><option value="pending">未アポ</option><option value="appointed">アポ済み</option><option value="completed">完了</option></select></div><div class="modal-row"><label for="editRoute">ルート</label><select id="editRoute"></select></div></div>
+                    <div class="modal-row"><label for="editNote">備考・電話で確認したこと</label><textarea id="editNote" rows="4"></textarea></div>
+                    <div class="modal-row"><label for="editPurpose">作業内容</label><select id="editPurpose"><option value="">未設定</option><option value="メンテナンス">メンテナンス</option><option value="修理">修理</option><option value="本体設置">本体設置</option><option value="その他">その他</option></select></div>
+                    <details class="visit-contact-details"><summary>会社名・住所・連絡先を編集</summary><div class="modal-row"><label for="editCompany">会社名</label><input type="text" id="editCompany"></div><div class="modal-row"><label for="editAddress">住所</label><input type="text" id="editAddress"></div><div class="modal-row"><label for="editPhone">電話番号</label><input type="tel" id="editPhone"></div><div class="modal-row"><label for="editContact">担当者</label><input type="text" id="editContact"></div></details>
+                </section><section class="visit-calendar" aria-label="このアプリの訪問予定">
+                    <h3>このアプリの訪問予定</h3><p class="visit-help">日付を押すと訪問日に入ります。Googleカレンダーの予定は上のボタンから別画面で確認できます。</p>
+                    <div class="visit-calendar-nav"><button type="button" data-visit-month="-1" aria-label="前の月の予定">‹</button><strong id="visitCalendarMonth" aria-live="polite"></strong><button type="button" data-visit-month="1" aria-label="次の月の予定">›</button></div>
+                    <div class="visit-weekdays" aria-hidden="true"><span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span></div><div id="visitCalendarDays" class="visit-calendar-days"></div>
+                    <h4 id="visitAgendaTitle"></h4><div id="visitAgenda" aria-live="polite"></div>
+                </section></div>
+                <p id="visitEditError" role="alert" tabindex="-1"></p><div class="modal-buttons"><button class="modal-cancel" onclick="hideEditModal()">キャンセル</button><button class="modal-delete" onclick="deleteLocation()">削除</button><button class="modal-submit" onclick="saveEdit()">予定・備考を保存</button></div>
+            </div></div>
             <div class="modal-overlay" id="resetModal" style="display:none;"><div class="modal"><h2>🗑️ データをリセット</h2><p class="confirm-text">現在のワークスペースのデータをすべて削除しますか？<br>この操作は取り消せません。<br><strong id="resetCount">0件</strong>のデータが削除されます</p><div class="modal-buttons"><button class="modal-cancel" onclick="hideResetConfirm()">キャンセル</button><button class="modal-delete" onclick="resetAllData()">削除する</button></div></div></div>
             <div class="loading-overlay" id="mapLoading" style="display:none;"><div class="loading-content"><div class="loading-spinner"></div><p>📍 処理中...</p><p id="mapLoadingProgress"></p></div></div>
 
@@ -304,19 +322,21 @@
     <script src="expense/parking-document.js?v=20261014-3"></script>
     <script src="expense/parking-manager.js?v=20261019-2"></script>
     <script src="expense/parking-pdf.js?v=20261019-7"></script>
-    <script src="map/map-data-storage.js?v=20261019-7"></script>
+    <script src="map/map-data-storage.js?v=20261019-10"></script>
     <script src="map/v1-converter.js"></script>
     <script src="map/request-parser.js?v=20261019-9"></script>
     <script src="map/request-reader.js?v=20261019-9"></script>
     <script src="map/request-import.js"></script>
-    <script src="map/map-core.js?v=20261019-9"></script>
+    <script src="map/map-core.js?v=20261019-10"></script>
+    <script src="map/visit-planner.js?v=20261019-10"></script>
+    <script src="map/map-workspace.js?v=20261019-10"></script>
     <script src="map/route-list-pdf.js"></script>
     <script src="map/route-manager.js"></script>
     <script src="map/map-expense-form.js"></script>
     <script src="map/route-order.js"></script>
     <script src="map/segment-dialog.js"></script>
     <script src="map/distance-calc.js?v=20261019-7"></script>
-    <script src="map/ui-actions.js"></script>
+    <script src="map/ui-actions.js?v=20261019-10"></script>
     <script src="map/gcal-panel.js"></script>
     <script src="expense/parking-matcher.js?v=20261014-4"></script>
     <script src="expense/etc-document.js?v=20261019-7"></script>
@@ -336,6 +356,8 @@
             await EtcWorkflow.init();
             updateWsButton();
             WorkflowUI.init();
+            MapWorkspace.init();
+            VisitPlanner.init();
             var fi = document.getElementById('fileInput');
             RequestImport.init();
             if (fi) fi.addEventListener('change', RequestImport.handleFile);
