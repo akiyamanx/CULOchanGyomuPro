@@ -24,7 +24,7 @@ const ExpenseDraftStore = (() => {
     function summary(draft) {
         return {id:draft.id,date:draft.date,createdAt:draft.createdAt || Number(draft.id) || 0,
             destCompany:draft.destCompany || draft.destination || '',
-            receiptCount:draft.parkingReceipts?.items?.length || 0,hasReceiptSnapshot:Boolean(draft.parkingReceipts)};
+            receiptCount:draft.parkingReceipts?.items?.length || 0,etcCount:draft.etcEvidence?.records?.length || 0,hasReceiptSnapshot:Boolean(draft.parkingReceipts)};
     }
     async function read(store,id) {
         const db=await open();

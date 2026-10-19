@@ -24,7 +24,8 @@ const DistanceCalc = (() => {
                         distanceKm: Math.round(leg.distance.value / 1000),
                         distanceText: leg.distance.text,
                         durationSec: leg.duration.value,
-                        durationText: leg.duration.text
+                        durationText: leg.duration.text,
+                        roadText: (leg.steps || []).map(step => step.instructions || '').join(' ')
                     });
                 } else {
                     reject(new Error('Directions API error: ' + status));
@@ -97,7 +98,8 @@ const DistanceCalc = (() => {
                     to: to.address.substring(0, 20),
                     type: segType,
                     km: result.distanceKm,
-                    duration: result.durationText
+                    duration: result.durationText,
+                    roadText: result.roadText
                 };
                 segments.push(seg);
                 totalKm += result.distanceKm;

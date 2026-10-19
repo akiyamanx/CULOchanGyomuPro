@@ -7,6 +7,7 @@
     <title>CULOchan業務Pro — 修正確認用</title>
     <meta name="theme-color" content="#16324a">
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
     <link rel="stylesheet" href="styles/common.css">
     <link rel="stylesheet" href="styles/receipt.css?v=20261019-2">
     <link rel="stylesheet" href="styles/expense.css?v=20261019-3">
@@ -24,6 +25,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
     <link rel="stylesheet" href="styles/workflow.css">
     <link rel="stylesheet" href="styles/request-import.css">
+    <link rel="stylesheet" href="styles/etc-workflow.css?v=20261019-4">
 </head>
 <body>
     <div style="background:#fff3cd;color:#5d4600;padding:10px 16px;font-size:14px;position:relative;z-index:10000">修正確認用・保存データは普段の画面と別です。 <a href="tests/expense-tests.html">架空データで動作を検証</a></div>
@@ -109,6 +111,7 @@
                 <p class="section-desc">必要なものだけ取り込めます。明細に直接入力しても大丈夫です。</p>
                 <details class="panel-card fold-card" id="routeImport"><summary><span>訪問ルート・走行距離</span><span class="summary-note">日付とルートを選択</span></summary><div class="fold-body" id="tabExpense"></div></details>
                 <div class="panel-card import-etc"><div><h4>高速道路の料金</h4><p class="section-desc">ETCのCSVから利用日ごとに取り込みます。</p></div><label class="btn btn-secondary file-control">ETC CSVを選択<input type="file" accept=".csv" onchange="ExpenseEtc.handleFile(event)" class="file-input"></label><a href="https://www.etc-meisai.jp/" target="_blank" rel="noopener" class="text-link">ETC利用照会を開く ↗</a></div>
+            <details class="panel-card fold-card" id="etcSection"><summary><span>ETC PDF・寄り道</span><span class="summary-note">月まとめ取込 → 日別に確認</span></summary><div class="fold-body" id="etcWorkflow"></div></details>
             <details class="panel-card parking-section fold-card" id="parkingSection">
                 <summary><span>駐車場代を取り込む・記録する</span><span class="summary-note">レシート・手入力</span></summary><div class="fold-body">
                 <p class="card-desc">写真を追加 → 写真を整える → 訪問先を確認 → 提出用PDF。追加した写真は端末に保存されます。</p>
@@ -292,16 +295,16 @@
     <script src="receipt/receipt-photo.js?v=20261014-3"></script>
     <script src="expense/expense-import.js"></script>
     <script src="shared/pdf-renderer.js"></script>
-    <script src="expense/expense-draft-store.js?v=20261019-2"></script>
+    <script src="expense/expense-draft-store.js?v=20261019-4"></script>
     <script src="expense/expense-draft-receipts.js?v=20261019-2"></script>
-    <script src="expense/expense-manager.js?v=20261019-2"></script>
-    <script src="expense/expense-pdf.js"></script>
+    <script src="expense/expense-manager.js?v=20261019-4"></script>
+    <script src="expense/expense-pdf.js?v=20261019-4"></script>
     <script src="expense/expense-etc.js"></script>
     <!-- v1.3追加 - Phase I: 駐車場明細IndexedDB管理 -->
     <script src="expense/parking-idb.js?v=20261014-3"></script>
     <script src="expense/parking-document.js?v=20261014-3"></script>
     <script src="expense/parking-manager.js?v=20261019-2"></script>
-    <script src="expense/parking-pdf.js?v=20261019-2"></script>
+    <script src="expense/parking-pdf.js?v=20261019-4"></script>
     <script src="map/map-data-storage.js"></script>
     <script src="map/v1-converter.js"></script>
     <script src="map/request-parser.js?v=20261014-2"></script>
@@ -313,10 +316,16 @@
     <script src="map/map-expense-form.js"></script>
     <script src="map/route-order.js"></script>
     <script src="map/segment-dialog.js"></script>
-    <script src="map/distance-calc.js"></script>
+    <script src="map/distance-calc.js?v=20261019-4"></script>
     <script src="map/ui-actions.js"></script>
     <script src="map/gcal-panel.js"></script>
     <script src="expense/parking-matcher.js?v=20261014-4"></script>
+    <script src="expense/etc-document.js?v=20261019-4"></script>
+    <script src="expense/etc-journey.js?v=20261019-4"></script>
+    <script src="expense/etc-store.js?v=20261019-4"></script>
+    <script src="expense/etc-reader.js?v=20261019-4"></script>
+    <script src="expense/etc-view.js?v=20261019-4"></script>
+    <script src="expense/etc-workflow.js?v=20261019-4"></script>
     <script src="shared/workflow-ui.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', async function() {
@@ -325,6 +334,7 @@
             document.getElementById('parkingFilterMonth').value = new Date().toLocaleDateString('sv-SE').slice(0,7);
             await ParkingManager.init();
             DataStorage.migrateIfNeeded();
+            await EtcWorkflow.init();
             updateWsButton();
             WorkflowUI.init();
             var fi = document.getElementById('fileInput');

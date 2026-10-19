@@ -21,16 +21,16 @@ const ParkingPdf = (() => {
         const width=img.width*scale,height=img.height*scale;
         ctx.drawImage(img,x+(w-width)/2,y+(h-height)/2,width,height);
     }
-    async function pageCanvas(items,count,pageNumber,totalPages) {
+    async function pageCanvas(items,count,pageNumber,totalPages,title) {
         const canvas=document.createElement('canvas');canvas.width=2970;canvas.height=2100;
         const ctx=canvas.getContext('2d');ctx.fillStyle='white';ctx.fillRect(0,0,canvas.width,canvas.height);
         ctx.fillStyle='#111';ctx.textAlign='center';ctx.textBaseline='top';ctx.font='600 44px "Noto Sans JP", sans-serif';
-        ctx.fillText('駐車場利用明細',1485,30);
+        ctx.fillText(title,1485,30);
         const cols=count===4?2:3,margin=65,top=115,gap=22,cw=(canvas.width-margin*2-gap*(cols-1))/cols,ch=(canvas.height-top-70-gap)/2;
         for(let i=0;i<items.length;i++) {
             const item=items[i],x=margin+(i%cols)*(cw+gap),y=top+Math.floor(i/cols)*(ch+gap),pad=22;
             ctx.strokeStyle='#c4c9cf';ctx.lineWidth=2;ctx.strokeRect(x,y,cw,ch);
-            const paragraphs=['日付：'+item.date.replace(/-/g,'/'),'訪問先：'+item.visitCompany,'目的：'+item.machineName+'・'+item.purpose];
+            const paragraphs=item.captionLines || ['日付：'+item.date.replace(/-/g,'/'),'訪問先：'+item.visitCompany,'目的：'+item.machineName+'・'+item.purpose];
             let size=34,lines;
             do {ctx.font=size+'px "Noto Sans JP", sans-serif';lines=paragraphs.flatMap(text=>wrap(ctx,text,cw-pad*2));if(lines.length*size*1.4<ch*.42)break;size-=2;} while(size>=26);
             if(size<26) throw new Error('訪問先または目的が長すぎます。略称にするか、4枚配置で確認してください。');
@@ -57,6 +57,7 @@ const ParkingPdf = (() => {
         const items=snapshot ? snapshot.items : ParkingManager.getSelectedItems(),problem=ParkingDocument.validate(items);
         if(problem){alert(problem);return;}
         const count=Number(snapshot ? snapshot.pageSize : document.getElementById('parkingPageSize')?.value)===4?4:6,pages=ParkingDocument.pages(items,count);
+        const title=snapshot?.title || '駐車場利用明細';
         AppCore.showLoading('提出用PDFを準備中…');
         try {
             if(document.fonts){await document.fonts.load('34px "Noto Sans JP"',items.map(i=>i.visitCompany+i.machineName+i.purpose).join('')+'日付訪問先目的');await document.fonts.load('600 44px "Noto Sans JP"','駐車場利用明細');await document.fonts.ready;}
@@ -64,16 +65,16 @@ const ParkingPdf = (() => {
             ensureDialog();dialog.classList.remove('pdf-large');document.getElementById('parkingPdfZoom').textContent='拡大して読む';document.getElementById('parkingPdfZoom').setAttribute('aria-pressed','false');const previews=document.getElementById('parkingPdfPages');previews.replaceChildren();
             for(let i=0;i<pages.length;i++) {
                 AppCore.showLoading('PDF '+(i+1)+' / '+pages.length+'ページを作成中…');
-                const canvas=await pageCanvas(pages[i],count,i+1,pages.length),url=canvas.toDataURL('image/jpeg',.95);
+                const canvas=await pageCanvas(pages[i],count,i+1,pages.length,title),url=canvas.toDataURL('image/jpeg',.95);
                 if(i)pdf.addPage('a4','landscape');pdf.addImage(url,'JPEG',0,0,297,210);
-                const img=document.createElement('img');img.src=url;img.alt='駐車場明細 '+(i+1)+'ページ（'+pages[i].length+'枚）';previews.appendChild(img);
+                const img=document.createElement('img');img.src=url;img.alt=title+' '+(i+1)+'ページ（'+pages[i].length+'枚）';previews.appendChild(img);
                 canvas.width=canvas.height=1;
             }
             if(pdfUrl)URL.revokeObjectURL(pdfUrl);
             pdfBlob=pdf.output('blob');pdfUrl=URL.createObjectURL(pdfBlob);
-            const first=items[0].date,last=items[items.length-1].date;fileName='駐車場利用明細_'+first+(first!==last?'_'+last:'')+'.pdf';
+            const first=items[0].date,last=items[items.length-1].date;fileName=title+'_'+first+(first!==last?'_'+last:'')+'.pdf';
             const link=document.getElementById('parkingPdfDownload');link.href=pdfUrl;link.download=fileName;
-            document.getElementById('parkingPdfSummary').textContent=(snapshot ? '下書きの領収書 ／ ' : '')+'A4横向き・1ページ'+count+'枚配置 ／ 領収書'+items.length+'枚・全'+pages.length+'ページ';
+            document.getElementById('parkingPdfSummary').textContent=(snapshot ? (snapshot.sourceLabel || '下書きの領収書')+' ／ ' : '')+'A4横向き・1ページ'+count+'枚配置 ／ 領収書'+items.length+'枚・全'+pages.length+'ページ';
             document.getElementById('parkingPdfShare').hidden=!(navigator.canShare && navigator.canShare({files:[new File([pdfBlob],fileName,{type:'application/pdf'})]}));
             dialog.showModal();
         }catch(error){alert('PDFを作成できませんでした。\n'+error.message);}
