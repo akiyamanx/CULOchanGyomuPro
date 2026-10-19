@@ -13,14 +13,35 @@
 // v5.2 2026-04-04 - Phase H不要コード整理 + Phase I: IndexedDB移行（parking-idb.js追加）
 // ==========================================
 
-const CACHE_NAME = 'gyomupro-v43';
+const CACHE_NAME = 'gyomupro-workflow-v65';
 const ASSETS = [
     './',
     './index.html',
     './styles/common.css',
+    './styles/workflow.css',
+    './styles/settings.css',
+    './shared/settings-panel.js',
+    './shared/backup-format.js',
+    './shared/backup-store.js',
+    './shared/drive-graph.js',
+    './shared/drive-transfer.js',
+    './shared/transfer-ui.js',
+    './docs/data-sharing-setup.html',
+    './styles/map-workspace.css',
+    './map/map-workspace.js',
+    './map/visit-planner.js',
+    './map/google-calendar-data.js',
+    './map/google-visit-calendar.js',
+    './docs/google-calendar-setup.html',
+    './styles/request-import.css',
+    './shared/workflow-ui.js',
     './styles/receipt.css',
     './styles/expense.css',
     './styles/parking.css',
+    './styles/parking-workflow.css',
+    './receipt/receipt-photo.js',
+    './receipt/receipt-photo-geometry.js',
+    './expense/parking-document.js',
     './styles/map/map-styles.css',
     './styles/map/map-expense-styles.css',
     './styles/map/route-order-styles.css',
@@ -28,9 +49,21 @@ const ASSETS = [
     './shared/app-core.js',
     './receipt/receipt-scanner.js',
     './receipt/receipt-image-utils.js',
+    './expense/expense-import.js',
+    './shared/pdf-renderer.js',
     './expense/expense-manager.js',
+    './expense/expense-draft-store.js',
+    './expense/expense-draft-receipts.js',
     './expense/expense-pdf.js',
     './expense/expense-etc.js',
+    './styles/etc-workflow.css',
+    './expense/etc-document.js',
+    './expense/etc-journey.js',
+    './expense/etc-store.js',
+    './expense/etc-reader.js',
+    './expense/etc-view.js',
+    './expense/etc-workflow.js',
+
     './expense/parking-idb.js',
     './expense/parking-manager.js',
     './expense/parking-matcher.js',
@@ -38,7 +71,11 @@ const ASSETS = [
     './map/map-data-storage.js',
     './map/v1-converter.js',
     './map/csv-handler.js',
+    './map/request-parser.js',
+    './map/request-reader.js',
+    './map/request-import.js',
     './map/map-core.js',
+    './map/route-list-pdf.js',
     './map/route-manager.js',
     './map/map-expense-form.js',
     './map/route-order.js',
@@ -61,7 +98,7 @@ self.addEventListener('activate', event => {
     event.waitUntil(
         caches.keys().then(keys => {
             return Promise.all(
-                keys.filter(k => k !== CACHE_NAME)
+                keys.filter(k => k.startsWith('gyomupro-') && k !== CACHE_NAME)
                     .map(k => caches.delete(k))
             );
         }).then(() => self.clients.claim())
@@ -69,6 +106,11 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
+    if (event.request.method !== 'GET') return;
+    // Calendar responses and authorization must never enter the offline cache.
+    if (event.request.headers.has('Authorization')) return;
+    const url = new URL(event.request.url);
+    if (url.hostname === 'accounts.google.com' || (url.hostname === 'www.googleapis.com' && (/^\/(calendar|drive|upload)\//.test(url.pathname)))) return;
     if (event.request.url.includes('generativelanguage.googleapis.com')) return;
     if (event.request.url.includes('maps.googleapis.com')) return;
     
@@ -86,3 +128,5 @@ self.addEventListener('fetch', event => {
             .catch(() => caches.match(event.request))
     );
 });
+
+

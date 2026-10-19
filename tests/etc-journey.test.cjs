@@ -1,0 +1,6 @@
+const {test}=require('node:test'),a=require('node:assert/strict'),J=require('../expense/etc-journey.js');
+const day=()=>J.rebuild({date:'2026-09-03',stops:[{id:'start',name:'会社',job:'hq',departure:'08:00'},{id:'a',name:'A社',job:'hq',arrival:'09:00',departure:'10:00'},{id:'end',name:'会社',job:'hq',arrival:'11:00'}]});
+const record=()=>({id:'one',date:'2026-09-03',time:'08:30',amount:800,owner:'hq',legId:'start>a',claimAmount:800,visitCompany:'A社',machineName:'DP400',purpose:'修理'});
+test('候補は時刻・料金所から順位を付けるが確定しない',()=>{const d=day(),r=record();d.legs[0].roadText='テスト入口からテスト出口';r.entry='テスト入口';const c=J.candidates(r,d);a.equal(c[0].id,'start>a');a.ok(c[0].reasons.includes('入口料金所が一致'));a.equal(J.totals([r],d).amount,0);J.confirm(r,d);a.equal(J.totals([r],d).amount,800);});
+test('寄り道後は承認を失効し、前後の距離は保留になる',()=>{const d=day(),r=record();J.confirm(r,d);d.stops.splice(2,0,{id:'x',name:'X社',job:'other'});J.rebuild(d);a.equal(J.validDecision(r,d),false);a.equal(d.legs[1].distanceOwner,'hold');a.throws(()=>J.distance(d));});
+test('共有区間の提出額、保留、別仕事を区別する',()=>{const d=day(),r=record();r.claimAmount=801;a.throws(()=>J.confirm(r,d));r.claimAmount=400;r.legId='shared';a.throws(()=>J.confirm(r,d));r.note='本部への提出分を確認';J.confirm(r,d);a.equal(J.totals([r],d).amount,400);r.owner='other';J.confirm(r,d);a.equal(J.totals([r],d).amount,0);a.equal(J.totals([r],d).other,1);});

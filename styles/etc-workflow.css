@@ -1,0 +1,37 @@
+#etcWorkflow { min-width:0; }
+#etcControls { border:0; padding:0; margin:0; min-width:0; }
+#etcControls legend { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+#etcWorkflow .etc-toolbar, #etcWorkflow .etc-submit { display:flex; gap:10px; flex-wrap:wrap; align-items:end; margin:12px 0; }
+#etcWorkflow label { display:flex; flex-direction:column; gap:6px; color:#30475b; font-weight:600; font-size:.87rem; min-width:0; }
+#etcWorkflow label.btn-primary { color:#fff; }
+#etcWorkflow input:not([type=file]), #etcWorkflow select { width:100%; box-sizing:border-box; min-width:0; min-height:44px; border:1px solid #acbac7; border-radius:8px; padding:9px; background:#fff; color:#18394c; font:inherit; }
+#etcWorkflow input:focus, #etcWorkflow select:focus { outline:3px solid #a2cfed; border-color:#1765aa; }
+#etcWorkflow .etc-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin:12px 0; }
+#etcWorkflow .etc-plan { background:#f1f6fa; border-radius:12px; padding:16px; margin:16px 0; }
+#etcWorkflow .etc-route-line { font-weight:600; line-height:1.8; overflow-wrap:anywhere; }
+#etcWorkflow details { margin-top:12px; }
+#etcWorkflow summary { cursor:pointer; padding:12px 0; font-weight:700; color:#23536f; }
+#etcWorkflow .etc-stop, #etcWorkflow .etc-leg { padding:14px 0; border-bottom:1px solid #cad5df; }
+#etcWorkflow .etc-add-stop { margin-top:16px; padding-top:12px; }
+#etcWorkflow .etc-totals { background:#eaf3fa; border:1px solid #b1c9dc; color:#183e5b; border-radius:10px; padding:14px; margin:16px 0; font-weight:700; line-height:1.8; }
+#etcWorkflow .etc-record { border:1px solid #c9d4dc; border-radius:12px; padding:16px; margin:16px 0; background:#fff; }
+#etcWorkflow .etc-receipt-head { display:grid; grid-template-columns:100px minmax(0,1fr); gap:16px; align-items:start; }
+#etcWorkflow .etc-receipt-head img { width:100%; height:175px; object-fit:contain; background:#f5f6f7; border:1px solid #d9dee3; }
+#etcWorkflow .etc-receipt-head strong { font-size:1.1rem; }
+#etcWorkflow .etc-receipt-head p, #etcWorkflow .etc-candidate { overflow-wrap:anywhere; line-height:1.6; }
+#etcWorkflow .etc-badge { display:inline-block; padding:5px 10px; border-radius:6px; font-size:.85rem; font-weight:700; }
+#etcWorkflow .etc-badge.pending { background:#fff2cc; color:#715000; }
+#etcWorkflow .etc-badge.hq { background:#e0f2e9; color:#155e42; }
+#etcWorkflow .etc-badge.other { background:#e9edf2; color:#465568; }
+#etcWorkflow .etc-candidate { padding:10px; background:#f3f7fb; border-radius:8px; }
+#etcWorkflow .etc-proof-large { display:block; width:min(100%,480px); height:auto; margin:10px auto; }
+#etcWorkflow .etc-submit { border-top:2px solid #d6e2ec; padding-top:16px; }
+#etcSaveStatus, #etcMode { overflow-wrap:anywhere; line-height:1.7; color:#31556e; }
+#etcWorkflow .btn { white-space:normal; min-height:44px; }
+@media(max-width:520px) {
+  #etcWorkflow .etc-fields { grid-template-columns:minmax(0,1fr); }
+  #etcWorkflow .etc-toolbar>label { flex:1 1 140px; }
+  #etcWorkflow .etc-receipt-head { grid-template-columns:82px minmax(0,1fr); gap:10px; }
+  #etcWorkflow .etc-record, #etcWorkflow .etc-plan { padding:12px; }
+  #etcWorkflow .etc-submit .btn { width:100%; }
+}

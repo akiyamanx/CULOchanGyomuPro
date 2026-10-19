@@ -1,0 +1,31 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Googleカレンダーの初回設定 — CULOchan業務Pro</title><style>body{font:16px/1.8 system-ui,sans-serif;color:#17324a;max-width:760px;padding:24px;margin:auto;background:#f7fafc}h1{font-size:25px}h2{font-size:20px;margin-top:32px}li{margin:12px 0}a{color:#1566a2}code{overflow-wrap:anywhere;background:#e4edf4;padding:4px}aside{background:#fff4d7;padding:16px;border-radius:8px}section{background:white;padding:20px;border:1px solid #d9e3ec;border-radius:12px;margin:20px 0}</style></head><body>
+<h1>Googleカレンダーの予定を見ながら訪問日時を決める</h1>
+<p>初回だけ、Google側でこのアプリ用の接続設定を作ります。設定後は訪問先の編集画面で「Googleカレンダーに接続」を押すと、選んだ日の予定の時間・内容・場所が表示されます。</p>
+<aside>これはGoogleの予定を読むための設定です。地図のAPIキーとは別です。Googleのパスワード・クライアントシークレット・アクセストークンをアプリやチャットに入力する必要はありません。</aside>
+<section><h2>1. Google側で準備する</h2><ol>
+<li><a href="https://console.cloud.google.com/" target="_blank" rel="noopener">Google Cloud Console</a>を開き、使うGoogleアカウントでログイン。自分で管理しているプロジェクトを選びます（既存の地図用プロジェクトでも構いません）。</li>
+<li>「APIとサービス」→「ライブラリ」で <strong>Google Calendar API</strong> を検索し、有効にします。</li>
+<li>「Google Auth Platform」でアプリ情報を設定。名前は「CULOchan訪問予定」など自分で分かる名前にします。連絡先メールはご自身のものを入力します。</li>
+<li>個人のGoogleアカウントなら「対象／Audience」は<strong>外部／External</strong>。まず「テスト」状態で、テストユーザーに<strong>接続するご自身のGoogleアカウント</strong>を追加します。組織アカウントでは管理者の制限に従ってください。</li>
+<li>「データアクセス／Data Access」で、予定を読む <code>https://www.googleapis.com/auth/calendar.events.readonly</code> と、カレンダー一覧を読む <code>https://www.googleapis.com/auth/calendar.calendarlist.readonly</code> を追加します。</li>
+<li>「クライアント／Clients」→「クライアントを作成」。アプリケーションの種類は<strong>ウェブ アプリケーション</strong>。</li>
+<li>「承認済みのJavaScript生成元」に <code>https://akiyamanx.github.io</code> を追加します。末尾のスラッシュ、<code>/CULOchanGyomuPro/</code> や <code>/preview/…</code> は付けません。この方式ではリダイレクトURIの追加は不要です。</li>
+<li>作成された<strong>クライアントID</strong>（末尾が <code>.apps.googleusercontent.com</code>）だけをコピーします。シークレットは使いません。</li>
+</ol></section>
+<section><h2>2. アプリで接続する</h2><ol>
+<li>訪問先のピン／一覧から「日時・備考を編集」を開きます。</li>
+<li>予定欄の「接続設定を開く」（接続中は「連携設定」）を押します。設定の「Googleカレンダー」→「初回の連携設定」にクライアントIDを貼り、「連携用IDを保存」。画面上部の「設定」からも同じ項目を開けます。</li>
+<li>「Googleカレンダーに接続」を押し、Google画面でアカウントを選びます。予定とカレンダー一覧の閲覧を両方許可すると表示できます。</li>
+<li>「表示するカレンダー」で、仕事用・個人用など確認したいものを選択。</li>
+<li>「入力中の画面に戻る」で訪問先の編集へ戻ります。訪問日を入力するか、前日／翌日のボタンや月カレンダーで日付を選びます。既存予定を見ながら、時刻と備考を入力して保存します。</li>
+</ol><p>Googleの予定を変更したら「更新」を押します。ページの再読み込みや接続期限切れの後は、設定の「Googleカレンダー」から接続し直してください。Googleへの新規予定の登録は、従来どおり保存後の「Googleカレンダーに追加」から確定します。</p></section>
+<section><h2>表示できないとき</h2><ul>
+<li><strong>origin_mismatch：</strong>JavaScript生成元を確認。変更が反映されるまで時間がかかる場合があります。</li>
+<li><strong>access_denied／アクセスをブロック：</strong>テストユーザーの登録、Google側の閲覧許可、組織の管理者設定を確認します。</li>
+<li><strong>Googleの接続画面が開かない：</strong>アプリ内ブラウザではなくChromeやEdgeでアプリを開き、ポップアップを許可します。</li>
+<li><strong>403／読み込み失敗：</strong>同じプロジェクトでCalendar APIが有効か、両方の閲覧権限を許可したか確認。失敗中は「予定なし」とは判断しません。</li>
+<li><strong>予定の内容が非公開：</strong>共有されたカレンダーの権限によっては時間だけが見えます。確認できないカレンダーはGoogle側でも確認してください。</li>
+</ul></section>
+<section><h2>データの扱い</h2><p>Googleの予定は閲覧だけに使います。この機能からGoogleの予定を作成・変更・削除しません。Googleから読み込んだ内容と接続トークンは、このページを開いている間だけメモリに保持し、GitHub・精算書・下書き・ブラウザの保存領域には保存しません。接続用クライアントIDだけを端末のブラウザに保存します。予定の通信先はGoogle Calendar APIです。</p><p>設定の「Googleカレンダー」内の「接続解除」で確認すると、この画面のデータを消し、Googleへの許可の取り消しも要求します。通信などで取り消せなかった場合は<a href="https://myaccount.google.com/connections" target="_blank" rel="noopener">Googleアカウントの接続管理</a>でも確認できます。</p><p>アプリ独自に入力した訪問予定は従来どおりこのブラウザに保存されます。Google予定と同じ訪問を両方に登録した場合は、出所が分かるよう両方を表示します。表示は日本時間。開始時刻の重なりを案内しますが、作業の終了時刻や移動時間から空き時間を自動保証する機能ではありません。</p></section>
+<p>設定の基準：<a href="https://developers.google.com/workspace/calendar/api/quickstart/js" target="_blank" rel="noopener">Google公式・JavaScriptクイックスタート</a> ／ <a href="https://developers.google.com/identity/oauth2/web/guides/use-token-model" target="_blank" rel="noopener">Google公式・Token model</a></p><p><a href="../index.html">アプリへ戻る</a></p>
+</body></html>
