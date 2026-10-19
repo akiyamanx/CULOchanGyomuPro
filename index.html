@@ -9,7 +9,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <link rel="apple-touch-icon" href="icons/icon-192.png">
     <link rel="stylesheet" href="styles/common.css">
-    <link rel="stylesheet" href="styles/receipt.css">
+    <link rel="stylesheet" href="styles/receipt.css?v=20261019-1">
     <link rel="stylesheet" href="styles/expense.css">
     <!-- v2.0追加 - 駐車場利用明細スタイル -->
     <link rel="stylesheet" href="styles/parking.css">
@@ -51,8 +51,8 @@
                     <label class="scan-btn file-control" id="scanFileBtn">
                         <span class="scan-btn-icon">📄</span>
                         <span class="scan-btn-text">スキャン画像を選択</span>
-                        <span class="scan-btn-hint">JPEG・PNG・PDF</span>
-                        <input type="file" accept="image/*,.pdf" onchange="ReceiptScanner.handleFileSelect(event)" class="file-input">
+                        <span class="scan-btn-hint">JPEG・PNG</span>
+                        <input type="file" accept="image/*" onchange="ReceiptScanner.handleFileSelect(event)" class="file-input">
                     </label>
                 </div>
                 <div id="scanPreview" class="scan-preview" style="display:none;">
@@ -65,6 +65,7 @@
                     </div>
                     <div class="preview-actions">
                         <button class="btn btn-primary" onclick="ReceiptScanner.startDetection()">🔍 レシートを検出する</button>
+                        <button class="btn btn-secondary" onclick="ReceiptScanner.prepareManual(true)">この画像を1枚として手入力</button>
                     </div>
                 </div>
                 <div id="detectionResult" class="detection-result" style="display:none;">
@@ -74,18 +75,21 @@
                     </div>
                     <div id="detectedReceipts" class="detected-list"></div>
                     <div class="result-actions">
-                        <button class="btn btn-ai" onclick="ReceiptScanner.recognizeAll()">🤖 AIで全て読み取る</button>
+                        <button class="btn btn-ai" onclick="ReceiptScanner.recognizeAll()">🤖 AIで読み取る</button>
+                        <button class="btn btn-secondary" onclick="ReceiptScanner.prepareManual()">AIを使わず手入力</button>
                     </div>
                 </div>
                 <div id="recognizedList" class="recognized-list" style="display:none;">
                     <div class="result-header">
-                        <span class="result-title">📝 認識済みレシート</span>
+                        <span class="result-title">📝 レシートの内容を確認・修正</span>
                         <button class="btn-small btn-select-all" onclick="ReceiptScanner.toggleSelectAll()">全選択/解除</button>
                     </div>
+                    <p class="card-desc">読み取れない内容は手入力できます。写真を見ながら日付・店名・金額・種類を確認してください。</p>
                     <div id="recognizedReceipts" class="receipt-cards"></div>
                     <div class="result-actions">
-                        <button class="btn btn-pdf" onclick="ReceiptScanner.generateA4Pdf()">🖨️ 選択レシートをA4 PDF出力</button>
-                        <button class="btn btn-save" onclick="ReceiptScanner.saveAll()">💾 保存する</button>
+                        <button class="btn btn-pdf" onclick="ReceiptScanner.generateA4Pdf()">🖨️ 写真だけをA4 PDF出力</button>
+                        <button class="btn btn-save" onclick="ReceiptScanner.saveAll()">💾 内容と写真を保存</button>
+                        <button class="btn btn-secondary" onclick="ReceiptScanner.sendToParking()">駐車場明細へ取り込む →</button>
                     </div>
                 </div>
             </div>
@@ -111,7 +115,7 @@
                 <div class="parking-actions">
                     <label class="btn btn-primary file-control">領収書を撮影<input type="file" accept="image/*" capture="environment" data-parking-upload onchange="ReceiptPhoto.addFiles(event)" class="file-input"></label>
                     <label class="btn btn-secondary file-control">写真をまとめて追加<input type="file" accept="image/*" multiple data-parking-upload onchange="ReceiptPhoto.addFiles(event)" class="file-input"></label>
-                    <button class="btn btn-secondary" onclick="ParkingManager.importFromScanner()">読取済みレシートを取り込む</button>
+                    <button class="btn btn-secondary" onclick="ParkingManager.importFromScanner()">確認済みレシートを取り込む</button>
                     <button class="btn btn-secondary" onclick="ParkingManager.addItem()">写真なしで金額を記録</button>
                 </div>
                 <p id="parkingPhotoStatus" class="parking-caption" role="status" aria-live="polite">1枚ずつでも、まとめてでも追加できます。AI読取は設定済みの場合に利用します。</p>
@@ -266,14 +270,15 @@
 
             </div>
             <div class="modal-footer">
-                <button class="btn btn-save" onclick="AppCore.saveSettings()">💾 保存する</button>
+                <button class="btn btn-save" onclick="AppCore.saveSettings()">💾 内容と写真を保存</button>
+                        <button class="btn btn-secondary" onclick="ReceiptScanner.sendToParking()">駐車場明細へ取り込む →</button>
             </div>
         </div>
     </div>
     <div class="loading-overlay" id="loading" style="display:none;"><div class="loading-spinner"></div><div class="loading-text" id="loadingText">処理中...</div></div>
     <script src="shared/app-core.js"></script>
     <script src="receipt/receipt-image-utils.js"></script>
-    <script src="receipt/receipt-scanner.js?v=20261014-3"></script>
+    <script src="receipt/receipt-scanner.js?v=20261019-1"></script>
     <script src="receipt/receipt-photo-geometry.js?v=20261014-3"></script>
     <script src="receipt/receipt-photo.js?v=20261014-3"></script>
     <script src="expense/expense-import.js"></script>
@@ -284,7 +289,7 @@
     <!-- v1.3追加 - Phase I: 駐車場明細IndexedDB管理 -->
     <script src="expense/parking-idb.js?v=20261014-3"></script>
     <script src="expense/parking-document.js?v=20261014-3"></script>
-    <script src="expense/parking-manager.js?v=20261014-5"></script>
+    <script src="expense/parking-manager.js?v=20261019-1"></script>
     <script src="expense/parking-pdf.js?v=20261014-6"></script>
     <script src="map/map-data-storage.js"></script>
     <script src="map/v1-converter.js"></script>

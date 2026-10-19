@@ -72,10 +72,12 @@ const ParkingManager = (() => {
     async function importFromScanner() {
         const receipts = ReceiptScanner.getRecognizedReceipts?.() || [];
         const selected = receipts.filter(r=>r.checked && r.data?.type === 'parking');
-        if (!selected.length) { alert('レシートタブで駐車場の領収書を読み取り、チェックしてください。'); return; }
+        if (!selected.length) { alert('レシートの種類を「駐車場」にして、取り込む写真にチェックしてください。'); return; }
+        if (ReceiptScanner.validateSelection && !ReceiptScanner.validateSelection(selected)) return;
         const count = await append(selected.map(r=>({imageDataUrl:r.imageDataUrl, originalImageDataUrl:r.imageDataUrl,
             ...ocrPatch(r.data)})));
-        if (count >= 0) alert(count ? count + '件の駐車場レシートを取り込みました。訪問先を確認してください。' : '同じ写真は取り込み済みです。');
+        if (count >= 0) alert(count ? count + '件の駐車場レシートを取り込みました。訪問先を確認してください。' : '同じ写真は取り込み済みです。変更がある場合は駐車場明細で修正してください。');
+        return count;
     }
     function ocrPatch(data) {
         return {date:/^\d{4}-\d{2}-\d{2}$/.test(data.date || '') ? data.date : '', amount:Math.max(0,Number(data.total)||0),
