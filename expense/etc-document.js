@@ -23,8 +23,9 @@ const EtcDocument = (() => {
     function pageCells(items,width,height) {
         if (Math.abs(width/height-842/595)>.025) throw new Error('A4横・5列×2段のETC利用証明書に対応しています。');
         const sx=width/842,sy=height/595,cells=[];
+        const xs=[17.28,177.48,335.88,494.28,652.68,809.28],ys=[17.92,297.28,577.72];
         for(let row=0;row<2;row++) for(let col=0;col<5;col++) {
-            const rect={x:(17+col*158.4)*sx,y:(17+row*280)*sy,w:158.4*sx,h:280*sy};
+            const rect={x:(xs[col]-.4)*sx,y:(ys[row]-.4)*sy,w:(xs[col+1]-xs[col]+.8)*sx,h:(ys[row+1]-ys[row]+.8)*sy};
             const parts=items.filter(i=>i.x>=rect.x && i.x<rect.x+rect.w && i.y>=rect.y && i.y<rect.y+rect.h);
             const lines=[];
             for(const part of parts) {let line=lines.find(l=>Math.abs(l.y-part.y)<2.5*sy);if(!line){line={y:part.y,parts:[]};lines.push(line);}line.parts.push(part);}

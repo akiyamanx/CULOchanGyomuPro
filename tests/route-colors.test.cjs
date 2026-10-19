@@ -58,3 +58,10 @@ test('個別に変更した色と、対象外ルートの色は変更しない',
     ];
     assert.deepEqual(fixture([['mm_routes',JSON.stringify(routes)]]).run('DataStorage.getRoutes()'), routes);
 });
+
+test('過去月のルートを月切替なしで読み、未保存の標準ルートも列挙できる',()=>{
+    const data=fixture([['mm_workspace_current','2026-10'],['mm_routes_2026-09',JSON.stringify([{id:'r',name:'9月のルート'}])]]);
+    assert.equal(data.run("DataStorage.getRoutes('2026-09')")[0].name,'9月のルート');
+    assert.equal(data.run("DataStorage.getRoutes('2026-08')").length,10);
+    assert.equal(data.storage.get('mm_workspace_current'),'2026-10');
+});

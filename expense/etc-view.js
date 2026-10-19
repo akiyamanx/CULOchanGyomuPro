@@ -26,7 +26,7 @@ const EtcView = (() => {
     }
     function legs(day) {
         const host=document.getElementById('etcLegs');if(!host)return;
-        host.innerHTML=day.legs.map((leg,i)=>'<div class="etc-leg"><strong>'+e(leg.label)+'</strong><div class="etc-fields">'+field('道路',select('leg',i,'road',leg.road,[['highway','高速を利用'],['general','一般道']]))+field('距離（km）',input('leg',i,'km',leg.km,'number'))+field('距離の提出先',select('leg',i,'distanceOwner',leg.distanceOwner,[['hq','本部に含める'],['other','別の仕事'],['hold','要確認']]))+'</div><details><summary>料金所の手がかり（任意）</summary><div class="etc-fields">'+field('入口料金所',input('leg',i,'entry',leg.entry))+field('出口料金所',input('leg',i,'exit',leg.exit))+'</div><p class="parking-caption">名称が明細と一致すると候補に使います。地図から取得できた道路名も照合します。</p></details></div>').join('');
+        host.innerHTML=day.legs.map((leg,i)=>'<div class="etc-leg"><strong>'+e(leg.label)+'</strong><div class="etc-fields">'+field('道路',select('leg',i,'road',leg.road,[['unknown','道路は未確認'],['highway','高速を利用'],['general','一般道']]))+field('距離（km）',input('leg',i,'km',leg.km,'number'))+field('距離の提出先',select('leg',i,'distanceOwner',leg.distanceOwner,[['hq','本部に含める'],['other','別の仕事'],['hold','要確認']]))+'</div><details><summary>料金所の手がかり（任意）</summary><div class="etc-fields">'+field('入口料金所',input('leg',i,'entry',leg.entry))+field('出口料金所',input('leg',i,'exit',leg.exit))+'</div><p class="parking-caption">名称が明細と一致すると候補に使います。地図から取得できた道路名も照合します。</p></details></div>').join('');
     }
     function records(state,day) {
         const records=state.records.filter(r=>r.date===state.selectedDate);

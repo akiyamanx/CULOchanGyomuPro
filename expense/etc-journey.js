@@ -9,7 +9,7 @@ const EtcJourney = (() => {
             const to=day.stops[i+1],id=from.id+'>'+to.id,context=JSON.stringify([from.address,to.address,from.job,to.job]);
             const saved=old.get(id),previous=saved?.context===context?saved:null;
             return {...(previous||{}),id,context,fromId:from.id,toId:to.id,label:from.name+' → '+to.name,
-                road:previous?.road||'highway',km:previous?.km??'',distanceOwner:previous?.distanceOwner||(from.job==='other'||to.job==='other'?'hold':'hq'),
+                road:previous?.road||'unknown',km:previous?.km??'',distanceOwner:previous?.distanceOwner||(from.job==='other'||to.job==='other'?'hold':'hq'),
                 roadText:previous?.roadText||'',entry:previous?.entry||'',exit:previous?.exit||''};
         });
         return day;
