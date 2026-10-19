@@ -347,7 +347,19 @@ const ParkingIDB = (() => {
         }
     }
 
+    async function replaceAll(items) {
+        const db = await _openDB();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(STORE_NAME, 'readwrite'), store = tx.objectStore(STORE_NAME);
+            tx.oncomplete = () => resolve();
+            tx.onerror = tx.onabort = () => reject(tx.error || new Error('写真の復元に失敗しました。'));
+            try { store.clear(); items.forEach(item => store.put(item)); }
+            catch (error) { tx.abort(); reject(error); }
+        });
+    }
+
     return {
+        replaceAll: replaceAll,
         getAll: getAll,
         put: put,
         putAll: putAll,

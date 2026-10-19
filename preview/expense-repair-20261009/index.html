@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-<script src="preview-storage.js"></script>
+<script src="preview-storage.js?v=20261019-15"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CULOchan業務Pro — 修正確認用</title>
     <meta name="theme-color" content="#16324a">
@@ -25,12 +25,13 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
     <link rel="stylesheet" href="styles/workflow.css">
     <link rel="stylesheet" href="styles/map-workspace.css?v=20261019-13">
-    <link rel="stylesheet" href="styles/settings.css?v=20261019-14">
+    <link rel="stylesheet" href="styles/settings.css?v=20261019-15">
     <link rel="stylesheet" href="styles/request-import.css">
     <link rel="stylesheet" href="styles/etc-workflow.css?v=20261019-8">
 </head>
-<body>
+<body inert>
     <div style="background:#fff3cd;color:#5d4600;padding:10px 16px;font-size:14px;position:relative;z-index:10000">修正確認用・保存データは普段の画面と別です。 <a href="tests/expense-tests.html">架空データで動作を検証</a></div>
+    <p id="storageStartup" role="status" class="storage-startup">保存データを確認しています…</p>
     <a class="skip-link" href="#mainContent">作業画面へ移動</a>
     <header class="app-header">
         <div class="brand-mark" aria-hidden="true">C</div>
@@ -304,11 +305,37 @@
                     </div>
                 </details>
                 <details class="settings-category" data-settings-category="data">
-                    <summary>バックアップ・データ管理<span>訪問先・ルートの保存、復元、削除</span></summary>
+                    <summary>バックアップ・データ管理<span>写真入りバックアップ、端末間共有、削除</span></summary>
                     <div class="settings-category-body">
                         <p id="settingsDataHint" class="setting-hint"></p>
-                        <p class="setting-hint">バックアップは全対象月の訪問先・ルート・区間・地図側の経費と地図設定です。レシート画像や精算書は含みません。</p>
-                        <div class="settings-data-actions"><button class="btn btn-secondary" onclick="exportBackup()">バックアップを保存</button><button class="btn btn-secondary" data-requires-idle onclick="SettingsPanel.dataAction('restore')">バックアップから復元</button><button class="btn btn-secondary settings-danger" data-requires-idle onclick="SettingsPanel.dataAction('reset')">現在の対象月のデータを削除</button></div>
+                        <h3>写真入りバックアップ</h3>
+                        <p class="setting-hint">全対象月の訪問先・ルート・経費、保存済みレシート写真、精算書の下書き・添付写真、ETC証憑をまとめます（64MBまで）。</p>
+                        <p class="setting-hint">入力途中の内容は先に保存してください。未保存の入力・書き出したPDF・Googleの予定・接続設定は含みません。他のタブを閉じてから操作してください。</p>
+                        <div class="settings-data-actions">
+                            <button class="btn btn-primary" id="fullBackupSave" data-requires-idle>写真入りバックアップを保存</button>
+                            <button class="btn btn-secondary" id="fullBackupRestore" data-requires-idle>ファイルから取り込む</button>
+                            <input type="file" id="fullBackupInput" accept=".json,application/json" hidden aria-label="写真入りバックアップファイル">
+                        </div>
+                        <details class="transfer-details"><summary>取り込み前の記録に戻したいとき</summary><p class="setting-hint">直前の取り込み前の記録を、この端末に退避します。下のボタンで書き出し、ファイルから取り込めます。</p><button class="btn btn-secondary" id="fullBackupPrevious" data-requires-idle>取り込み前の記録を書き出す</button></details>
+                        <hr>
+                        <h3>スマホ・タブレット・Surfaceで共有</h3>
+                        <p class="setting-hint">同じGoogleアカウントで接続して、送信・取り込みを行います。自動同期ではありません。取り込みはこの端末の保存済み記録をすべて置き換えます。</p>
+                        <p class="setting-hint"><a href="docs/data-sharing-setup.html" target="_blank" rel="noopener">初回の共有設定・使い方を開く ↗</a></p>
+                        <p id="driveAccount" class="setting-hint"></p>
+                        <div class="settings-data-actions"><button class="btn btn-secondary" id="driveConnect" data-requires-idle>Googleの共有先に接続</button><button class="btn btn-secondary" id="driveDisconnect" hidden>共有接続を終了</button></div>
+                        <div id="driveControls" hidden>
+                            <p id="driveRemoteStatus" class="setting-hint" role="status"></p>
+                            <div class="settings-data-actions">
+                                <button class="btn btn-secondary" id="driveRefresh" data-requires-idle>共有先を再確認</button>
+                                <button class="btn btn-primary" id="driveSend" data-requires-idle>この端末から共有先へ保存</button>
+                                <label for="driveRevision">取り込む版</label><select id="driveRevision" class="setting-input"></select>
+                                <button class="btn btn-secondary" id="driveReceive" data-requires-idle>選んだ版を取り込む</button>
+                            </div>
+                            <details class="transfer-details"><summary>別の端末でも変更した場合</summary><p class="setting-hint">まず必要な各端末のバックアップを保存してください。内容を確認して、どの端末の記録を使うか選べます。記録の自動合成は行いません。</p><button class="btn btn-secondary settings-danger" id="driveForceSend" data-requires-idle>この端末の内容を優先して共有</button></details>
+                        </div>
+                        <p id="transferStatus" class="setting-hint transfer-status" role="status" aria-live="polite"></p>
+                        <details class="transfer-details"><summary>以前の訪問先バックアップ</summary><p class="setting-hint">従来のファイルは訪問先・ルート等のみです。レシート画像・精算書は含みません。</p><div class="settings-data-actions"><button class="btn btn-secondary" onclick="exportBackup()">バックアップを保存</button><button class="btn btn-secondary" data-requires-idle onclick="SettingsPanel.dataAction('restore')">バックアップから復元</button></div></details>
+                        <details class="transfer-details"><summary>対象月のデータを削除</summary><button class="btn btn-secondary settings-danger" data-requires-idle onclick="SettingsPanel.dataAction('reset')">現在の対象月のデータを削除</button></details>
                     </div>
                 </details>
             </div>
@@ -316,23 +343,24 @@
         </div>
     </div>
     <div class="loading-overlay" id="loading" style="display:none;"><div class="loading-spinner"></div><div class="loading-text" id="loadingText">処理中...</div></div>
-    <script src="shared/settings-panel.js?v=20261019-14"></script>
+    <dialog id="transferBusy" aria-labelledby="transferBusyText"><p id="transferBusyText" role="status"></p><p>画面を閉じずにお待ちください。</p></dialog>
+    <script src="shared/settings-panel.js?v=20261019-15"></script>
     <script src="shared/app-core.js?v=20261019-14"></script>
     <script src="receipt/receipt-image-utils.js"></script>
-    <script src="receipt/receipt-scanner.js?v=20261019-2"></script>
+    <script src="receipt/receipt-scanner.js?v=20261019-15"></script>
     <script src="receipt/receipt-photo-geometry.js?v=20261014-3"></script>
     <script src="receipt/receipt-photo.js?v=20261014-3"></script>
     <script src="expense/expense-import.js"></script>
     <script src="shared/pdf-renderer.js"></script>
-    <script src="expense/expense-draft-store.js?v=20261019-7"></script>
+    <script src="expense/expense-draft-store.js?v=20261019-15"></script>
     <script src="expense/expense-draft-receipts.js?v=20261019-2"></script>
-    <script src="expense/expense-manager.js?v=20261019-7"></script>
+    <script src="expense/expense-manager.js?v=20261019-15"></script>
     <script src="expense/expense-pdf.js?v=20261019-7"></script>
     <script src="expense/expense-etc.js"></script>
     <!-- v1.3追加 - Phase I: 駐車場明細IndexedDB管理 -->
-    <script src="expense/parking-idb.js?v=20261014-3"></script>
+    <script src="expense/parking-idb.js?v=20261019-15"></script>
     <script src="expense/parking-document.js?v=20261014-3"></script>
-    <script src="expense/parking-manager.js?v=20261019-2"></script>
+    <script src="expense/parking-manager.js?v=20261019-15"></script>
     <script src="expense/parking-pdf.js?v=20261019-7"></script>
     <script src="map/map-data-storage.js?v=20261019-10"></script>
     <script src="map/v1-converter.js"></script>
@@ -350,7 +378,7 @@
     <script src="map/route-order.js"></script>
     <script src="map/segment-dialog.js"></script>
     <script src="map/distance-calc.js?v=20261019-7"></script>
-    <script src="map/ui-actions.js?v=20261019-10"></script>
+    <script src="map/ui-actions.js?v=20261019-15"></script>
     <script src="map/gcal-panel.js?v=20261019-13"></script>
     <script src="expense/parking-matcher.js?v=20261014-4"></script>
     <script src="expense/etc-document.js?v=20261019-7"></script>
@@ -358,10 +386,18 @@
     <script src="expense/etc-store.js?v=20261019-7"></script>
     <script src="expense/etc-reader.js?v=20261019-7"></script>
     <script src="expense/etc-view.js?v=20261019-7"></script>
-    <script src="expense/etc-workflow.js?v=20261019-7"></script>
+    <script src="expense/etc-workflow.js?v=20261019-15"></script>
     <script src="shared/workflow-ui.js?v=20261019-14"></script>
+    <script src="shared/backup-format.js?v=20261019-15"></script>
+    <script src="shared/backup-store.js?v=20261019-15"></script>
+    <script src="shared/drive-graph.js?v=20261019-15"></script>
+    <script src="shared/drive-transfer.js?v=20261019-15"></script>
+    <script src="shared/transfer-ui.js?v=20261019-15"></script>
     <script>
         document.addEventListener('DOMContentLoaded', async function() {
+            try { await BackupStore.start(); }
+            catch (error) { document.getElementById('storageStartup').textContent = '保存データの確認・復旧を完了できません。ほかのタブを閉じて再読み込みしてください。 ' + error.message; return; }
+            document.dispatchEvent(new Event('app:storage-ready'));
             ExpenseManager.init();
             document.getElementById('expParkingMonth').value = new Date().toLocaleDateString('sv-SE').slice(0, 7);
             document.getElementById('parkingFilterMonth').value = new Date().toLocaleDateString('sv-SE').slice(0,7);
@@ -372,6 +408,9 @@
             WorkflowUI.init();
             MapWorkspace.init();
             VisitPlanner.init();
+            TransferUI.init();
+            document.body.inert = false;
+            document.getElementById('storageStartup').hidden = true;
             var fi = document.getElementById('fileInput');
             RequestImport.init();
             if (fi) fi.addEventListener('change', RequestImport.handleFile);

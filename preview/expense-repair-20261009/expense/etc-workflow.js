@@ -150,6 +150,12 @@ const EtcWorkflow = (() => {
         clearTimeout(saveTimer);saveTimer=null;await persist();await queue;
         if(saveError&&!draftMode)throw new Error('現在のETC編集を保存できません。先に下書きとして保存してください。');
     }
+    async function settled() {
+        if(!ready||busy)throw new Error('ETCの読み込み・処理が終わってから操作してください。');
+        if(saveTimer){clearTimeout(saveTimer);saveTimer=null;await persist();}
+        await queue;
+        if(saveError&&!draftMode)throw new Error('現在のETC編集を保存できません。保存状態を確認してください。');
+    }
     function load(value) {if(value){state=EtcJourney.clone(value);draftMode=true;render();}else if(draftMode){state={records:[],days:{},selectedDate:new Date().toLocaleDateString('sv-SE')};render();} }
     function isManaged(date) {return Boolean(ready&&state.days[date]);}
     function assertSynced() {
@@ -177,5 +183,5 @@ const EtcWorkflow = (() => {
         const items=total.accepted.map(r=>({...r,captionLines:['日付：'+r.date+' '+r.time,'区間：'+(r.legId==='shared'?'共通区間':d.legs.find(l=>l.id===r.legId).label),'訪問先：'+r.visitCompany,'目的：'+r.machineName+'・'+r.purpose,...(r.claimAmount!==r.amount?['本部提出額：'+r.claimAmount+'円（証明書 '+r.amount+'円）']:[]),...(r.note?['メモ：'+r.note]:[])]}));
         await ParkingPdf.generate({items,pageSize:Number(el('etcPageSize').value),title:'高速道路利用明細',sourceLabel:'ETC・本部提出分'});
     }
-    return {init,capture,beforeLoad,load,isManaged,assertSynced,preview};
+    return {init,capture,beforeLoad,settled,load,isManaged,assertSynced,preview};
 })();

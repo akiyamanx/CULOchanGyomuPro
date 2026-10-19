@@ -1,5 +1,5 @@
 // 精算書と領収書のスナップショットを1トランザクションで保存する。
-// 一覧には画像を読み込まない。旧PreviewStorage下書きは元のまま読める。
+// 一覧には画像を読み込まない。旧localStorage下書きは元のまま読める。
 const ExpenseDraftStore = (() => {
     const DB_NAME = 'CULOchanExpenseDrafts_Preview_Expense_20261009';
     const LEGACY_KEY = 'travelExpenseDrafts';
@@ -56,5 +56,11 @@ const ExpenseDraftStore = (() => {
         if (typeof id === 'number') { PreviewStorage.setItem(LEGACY_KEY,JSON.stringify(legacy().filter(d=>d.id!==id))); return; }
         await write(tx=>{tx.objectStore('drafts').delete(id);tx.objectStore('summaries').delete(id);});
     }
-    return {list,get,save,remove};
+    async function replaceAll(drafts) {
+        await write(tx => {
+            tx.objectStore('drafts').clear(); tx.objectStore('summaries').clear();
+            drafts.forEach(draft => { tx.objectStore('drafts').put(draft); tx.objectStore('summaries').put(summary(draft)); });
+        });
+    }
+    return {list,get,save,remove,exportAll:()=>read('drafts'),replaceAll};
 })();

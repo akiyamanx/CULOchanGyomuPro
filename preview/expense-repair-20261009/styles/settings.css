@@ -17,6 +17,13 @@
 .settings-category-body button:disabled { opacity: .5; cursor: not-allowed; }
 .settings-category-body .settings-danger { color: #9d283e; border-color: #d5a3ac; background: #fff; }
 .settings-data-actions { display: grid; gap: 12px; }
+.transfer-details { margin: 18px 0; }
+.transfer-details > summary { padding: 10px 0; cursor: pointer; line-height: 1.7; }
+.transfer-status { white-space: pre-line; padding: 12px; background: #eef5fa; border-radius: 8px; }
+.settings-category-body hr { border: 0; border-top: 1px solid #d7e1e8; margin: 24px 0; }
+#transferBusy { max-width: min(400px, calc(100vw - 32px)); padding: 24px; border: 1px solid #b7c8d5; border-radius: 12px; color: #17324a; }
+#transferBusy::backdrop { background: #17324a99; }
+.storage-startup { position: fixed; inset: 20px 20px auto; z-index: 99999; padding: 20px; background: white; border: 2px solid #17324a; color: #17324a; }
 #settingsModal .modal-footer { justify-content: flex-end; position: sticky; bottom: 0; background: #fff; z-index: 2; }
 #googleCalendarSettingsStatus[data-state="ready"] { color: #156748; }
 #googleCalendarSettingsStatus[data-state="error"], #googleCalendarSettingsStatus[data-state="expired"] { color: #855100; background: #fff4d7; padding: 10px; border-radius: 8px; }
