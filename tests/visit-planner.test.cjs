@@ -31,3 +31,18 @@ test('訪問先の保存に失敗した時は成功結果を返さず、以前�
     assert.equal(vm.runInContext("DataStorage.updateCustomer('test',{appoDate:'2026-10-21T10:00'})",context),null);
     assert.equal(JSON.parse(data.get('mm_customers_2026-10'))[0].appoDate,'2026-10-20T09:00');
 });
+test('ピンを押すと安全な会社名・別々の電話リンク・日時備考の編集が表示される',()=>{
+    let content='',click;
+    const nodes=new Map();
+    const context=vm.createContext({console,VisitPlanner:Planner,ExpenseImport:require('../expense/expense-import'),
+        document:{getElementById:id=>{if(!nodes.has(id))nodes.set(id,{textContent:'',innerHTML:'',hidden:false});return nodes.get(id);}},
+        DataStorage:{getSettings:()=>({}),getCustomers:()=>[],getRoutes:()=>[]},RouteManager:{updateRoutePanel:()=>{}},
+        google:{maps:{Map:class{},Geocoder:class{},InfoWindow:class{setContent(html){content=html;}open(){}},
+            SymbolPath:{BACKWARD_CLOSED_ARROW:1},Point:class{},Marker:class{addListener(name,callback){click=callback;}}}}
+    });
+    vm.runInContext(fs.readFileSync(require.resolve('../map/map-core'),'utf8'),context);
+    vm.runInContext('MapCore.initMap(); MapCore.createMarker({id:"test",company:"<script>bad</script>",address:"東京都架空区1",phone:"03-0000-0000 / 090-0000-0000",status:"pending"},{lat:35,lng:139})',context);
+    click();assert.match(content,/&lt;script&gt;bad&lt;\/script&gt;/);
+    assert.match(content,/href="tel:0300000000"/);assert.match(content,/href="tel:09000000000"/);
+    assert.match(content,/日時・備考を編集/);assert.doesNotMatch(content,/<script>/);
+});
