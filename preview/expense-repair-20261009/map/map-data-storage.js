@@ -206,7 +206,7 @@ const DataStorage = (() => {
         const idx = customers.findIndex(c => c.id === id);
         if (idx !== -1) {
             customers[idx] = { ...customers[idx], ...updates };
-            saveCustomers(customers);
+            if (!saveCustomers(customers)) return null;
             return customers[idx];
         }
         return null;

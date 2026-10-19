@@ -205,7 +205,13 @@ const MapCore = (() => {
     }
 
     function showInfoWindow(marker, customer) {
-        const statusText = { pending: '🔴 未アポ', appointed: '🟢 アポ済み', completed: '⚪ 完了' };
+        const esc = ExpenseImport.escapeHtml;
+        const statusText = { pending: '未アポ', appointed: 'アポ済み', completed: '完了' };
+        const rawId = customer.id;
+        const phones = VisitPlanner.phoneNumbers(customer.phone);
+        customer = {...customer};
+        Object.keys(customer).forEach(key=> { if(typeof customer[key]==='string' && !['appoDate','status','routeId'].includes(key))customer[key]=esc(customer[key]); });
+        if(customer.floors)customer.floors=customer.floors.map(esc);
         const routes = DataStorage.getRoutes();
         const route = routes.find(r => r.id === customer.routeId);
 
@@ -222,11 +228,11 @@ const MapCore = (() => {
         if (customer.branch) html += `<p>🏢 営業所: ${customer.branch}</p>`;
         if (customer.equipType) html += `<p>⚙️ 型式: ${customer.equipType}</p>`;
         if (customer.filter) html += `<p>🔧 フィルター: ${customer.filter}</p>`;
-        if (route) html += `<p>🗺️ ${route.name}</p>`;
+        if (route) html += `<p>🗺️ ${esc(route.name)}</p>`;
         html += `<p>${statusText[customer.status] || statusText.pending}</p>`;
         if (customer.appoDate) {
             const d = new Date(customer.appoDate);
-            const dateStr = isNaN(d.getTime()) ? customer.appoDate : d.toLocaleString('ja-JP');
+            const dateStr = esc(isNaN(d.getTime()) ? customer.appoDate : d.toLocaleString('ja-JP'));
             html += `<p>📅 ${dateStr}</p>`;
         }
         if (customer.note) html += `<p style="font-size:11px;color:#64748b;white-space:pre-wrap;">📝 ${customer.note}</p>`;
@@ -234,19 +240,16 @@ const MapCore = (() => {
         if (customer.routeId) {
             const currentRoute = routes.find(r => r.id === customer.routeId);
             const currentOrder = currentRoute && currentRoute.order ? currentRoute.order : [];
-            const currentIdx = currentOrder.indexOf(customer.id);
+            const currentIdx = currentOrder.indexOf(rawId);
             const orderText = currentIdx >= 0 ? `${currentIdx + 1}番目` : '未設定';
             html += `<div class="info-visit-order">`;
             html += `<span>🔢 訪問順: ${orderText}</span>`;
-            html += `<button class="info-btn info-btn-order" onclick="RouteOrder.startEdit('${customer.routeId}')">並べ替え</button>`;
+            html += `<button class="info-btn info-btn-order" onclick="RouteOrder.startEdit(${esc(JSON.stringify(customer.routeId))})">並べ替え</button>`;
             html += `</div>`;
         }
         html += `<div class="info-actions">`;
-        html += `<button class="info-btn info-btn-edit" onclick="MapCore.openEdit('${customer.id}')">✏️ 編集</button>`;
-        if (customer.phone) {
-            const phoneNum = customer.phone.split('/')[0].replace(/[^0-9\-]/g, '');
-            html += `<button class="info-btn info-btn-call" onclick="window.open('tel:${phoneNum}')">📞 電話</button>`;
-        }
+        html += `<button class="info-btn info-btn-edit" onclick="MapCore.openEdit(${esc(JSON.stringify(rawId))})">日時・備考を編集</button>`;
+        phones.forEach((phone,index)=> {html += `<a class="info-btn info-btn-call" href="tel:${esc(phone)}">電話${phones.length>1?' '+(index+1):''}</a>`;});
         html += `</div></div>`;
         infoWindow.setContent(html);
         infoWindow.open(map, marker);
@@ -318,6 +321,7 @@ const MapCore = (() => {
     function openEdit(customerId) {
         const customer = DataStorage.getCustomers().find(c => c.id === customerId);
         if (!customer) return;
+        if (typeof restoreEditButtons === 'function') restoreEditButtons();
         currentEditId = customerId;
         document.getElementById('editCompany').value = customer.company || '';
         document.getElementById('editAddress').value = customer.address || '';
@@ -331,8 +335,9 @@ const MapCore = (() => {
         const routeSelect = document.getElementById('editRoute');
         routeSelect.innerHTML = '<option value="">未割当</option>';
         routes.forEach(r => {
-            routeSelect.innerHTML += `<option value="${r.id}" ${customer.routeId === r.id ? 'selected' : ''}>${r.name}</option>`;
+            routeSelect.innerHTML += `<option value="${ExpenseImport.escapeHtml(r.id)}" ${customer.routeId === r.id ? 'selected' : ''}>${ExpenseImport.escapeHtml(r.name)}</option>`;
         });
+        if (typeof VisitPlanner !== 'undefined') VisitPlanner.begin(customer);
         document.getElementById('editModal').style.display = 'flex';
         if (infoWindow) infoWindow.close();
     }
