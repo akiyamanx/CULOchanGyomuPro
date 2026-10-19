@@ -415,6 +415,7 @@ const ExpenseManager = (() => {
         const draft = await ExpenseDraftStore.get(id);
         if (!draft) { alert('下書きが見つかりません'); return; }
         if (!confirm('現在の入力を破棄して下書きを読み込みますか？')) return;
+        if (typeof EtcWorkflow !== 'undefined') await EtcWorkflow.beforeLoad();
         _setVal('expSubmitDate', draft.submitDate || new Date().toLocaleDateString('sv-SE'));
         _setVal('expSSName', draft.ssName || '千葉西SS');
         _setVal('expEmployeeName', draft.employeeName || '小出晃也');
