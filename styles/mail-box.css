@@ -73,3 +73,14 @@ body.mailbox-open { overflow: hidden; }
 
 /* BOXを開いている間は、上に出る一回きりのお知らせ(z-index最前面)が「閉じる」ボタンに被らないよう隠す */
 body.mailbox-open #migrationNotice { display: none; }
+
+/* Gmail import card */
+.mailbox-gmail { margin: 0 0 14px; }
+.mailbox-gmail p { margin: 6px 0; font-size: 14px; line-height: 1.55; overflow-wrap: anywhere; }
+.mailbox-field { display: block; margin: 10px 0 4px; font-size: 13px; }
+.mailbox-field > span { display: block; margin-bottom: 4px; color: #3b4a58; }
+.mailbox-input { width: 100%; box-sizing: border-box; min-height: 44px; padding: 8px 10px; font-size: 16px; border: 1px solid #8fa5b8; border-radius: 8px; background: #fff; }
+.mailbox-gmail-result { margin-top: 10px; }
+.mailbox-gmail-result[data-kind="error"] { border-color: #c0392b; background: #fdf0ee; }
+.mailbox-gmail-result[data-kind="warn"] { border-color: #b7791f; }
+.mailbox-gmail-result[data-kind="ok"] { border-color: #2f855a; }

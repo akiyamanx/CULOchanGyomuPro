@@ -3,11 +3,12 @@
 const MailBoxUI = (() => {
     const TABS = [['request', '依頼書'], ['unreadable', '判別不可'], ['reference', '通達']];
     const LABEL = { company: '会社名', address: '住所', purpose: '作業内容' };
-    let box, syncer, overlay, statusEl, bodyEl, tabsEl, opener, tab = 'unreadable', syncing = false;
+    let box, syncer, gTransport, gImport, gRunning = false, gAbort = null, gProgressEl = null, overlay, statusEl, bodyEl, tabsEl, opener, tab = 'unreadable', syncing = false;
     const selected = new Set();       // 判別不可でチェックした行
     const choice = new Map();         // 行ごとの月の選択 {ws, newMonth}
     const confirming = new Set();     // 取り消しの確認待ちの行
     let note = { text: '', kind: '' };
+    let gNote = null;                 // Gmail取り込みの直近の結果 {lines, kind}
 
     const h = (tag, attrs, ...kids) => {
         const el = document.createElement(tag);
@@ -89,6 +90,110 @@ const MailBoxUI = (() => {
             if (!mails) { sayAll('メールの一覧(mails)が見つかりません。', 'error'); return; }
             runIngest(mails.slice(0, 200));
         }, () => sayAll('ファイルを読めませんでした。', 'error'));
+    }
+
+
+    // ---- Gmail取り込み(読み取り専用。トークンはメモリ内だけ。仕様書 §20) ----
+    const SENDERS_KEY = 'culo_mail_gmail_senders';
+    const GMAIL_MSG = {
+        not_configured: 'Googleの接続設定(クライアントID)がまだ入っていません。手順書のとおりに設定してから、もう一度「Googleにつなぐ」を押してください。',
+        google_not_ready: 'Googleのログイン部品を読み込めませんでした。通信状態を確認して、もう一度お試しください。',
+        consent_denied: 'Googleでの許可が完了しませんでした。「Googleにつなぐ」からやり直してください。',
+        consent_timeout: 'Googleでの許可が時間内に終わりませんでした。「Googleにつなぐ」からやり直してください。',
+        scope_missing: 'Gmailの読み取りが許可されていません。「Googleにつなぐ」からやり直し、許可の画面でGmailの読み取りにチェックを入れてください。',
+        not_connected: 'Googleにつながっていません。「Googleにつなぐ」を押してください。',
+        auth_expired: '許可の有効期限が切れました。「Googleにつなぐ」からもう一度つないでください。',
+        rate_limited: 'Gmailの利用回数の上限に達しました。しばらく(数分〜)待ってから、もう一度お試しください。',
+        forbidden: 'Gmailへのアクセスが許可されていません(アカウントや組織の設定の可能性)。',
+        api_disabled: 'Googleの設定で Gmail API がまだ有効になっていません。手順書の「Gmail APIを有効にする」を確認してください。',
+        network: '通信に失敗しました。電波の良い場所で、もう一度お試しください。',
+        timeout: 'Googleからの返事が時間内にありませんでした。もう一度お試しください。',
+        server_error: 'Google側で一時的な問題が起きています。しばらく待ってからお試しください。',
+        bad_response: 'Googleから想定外の返事が返りました。取り込みを止めました。',
+        http_error: 'Googleからエラーが返りました。取り込みを止めました。',
+        aborted: '取り込みを中止しました。',
+        no_senders: '差出人が入っていません。上の「差出人」に、名前やメールアドレスの一部を入れてください。',
+        bad_terms: '差出人に使えない文字(スペース・かっこ・引用符など)が入っています。',
+        busy: 'すでに取り込み中です。',
+        ledger_save_failed: 'BOXへの保存に失敗しました。',
+        ingest_failed: 'BOXへの登録に失敗しました。'
+    };
+    const gErrText = code => GMAIL_MSG[code] || '取り込みを完了できませんでした。';
+    function readTerms() {
+        let raw = ''; try { raw = String(AppStorage.getItem(SENDERS_KEY) || ''); } catch (e) { raw = ''; }
+        if (!raw && typeof MailBoxDemo !== 'undefined' && MailBoxDemo.gmail && gMock()) return MailBoxDemo.defaultTerms;
+        return raw.split(/[,、，\n]+/).map(x => x.trim()).filter(Boolean);
+    }
+    const gMock = () => dev() && /[?&]mockGmail=1(&|$)/.test(location.search);
+    function gmailSummary(r) {
+        const lines = []; let kind = r.ok ? 'ok' : 'error';
+        const A = r.attachments || {}, S = r.ingest || {};
+        if (!r.ok) { lines.push(gErrText(r.code) + (r.stage === 'fetch' || r.stage === 'ingest' ? (r.mails ? `ここまでの${r.mails}通は取り込みました。` : '') : '')); if (r.code === 'aborted') kind = ''; }
+        else if (!r.found) lines.push('条件に合う新しいメールはありませんでした。');
+        else {
+            const parts = [];
+            if (S.registered) parts.push(`${S.registered}件を自動登録`); if (S.unreadable) parts.push(`確認が必要${S.unreadable}件`); if (S.reference) parts.push(`通達${S.reference}件`); if (S.duplicates) parts.push(`重複${S.duplicates}件は登録せず`);
+            lines.push(`${r.found}通を確認し、${r.mails}通を取り込みました` + (parts.length ? '(' + parts.join('、') + ')' : '') + '。');
+            if (!r.mails && A.skippedKnown) lines.push('すべて取り込み済みでした。');
+        }
+        if (r.failedMails) { lines.push(`${r.failedMails}通は取得に失敗しました(登録していません。次回また取りに行きます)。`); if (kind === 'ok') kind = 'warn'; }
+        if (r.truncated) { lines.push(r.stoppedBy === 'run_limit' ? '1回の取り込み量の上限に達したため、残りは次回に取り込みます。もう一度押してください。' : '1回の取り込み件数の上限のため、残りがあります。もう一度押してください。'); if (kind === 'ok') kind = 'warn'; }
+        if (A.tnef) { lines.push(`Outlook形式(winmail.dat)の添付が${A.tnef}件あり、開けないため判別不可に入れました。`); if (kind === 'ok') kind = 'warn'; }
+        if (r.senderUnverified) lines.push(`差出人を確かめられなかったメールが${r.senderUnverified}通あります(Gmailの検索結果を信じて取り込みました)。`);
+        if (r.syncOk === false) lines.push('端末間の同期には失敗しました(この端末の記録だけで重複を防いでいます)。');
+        return { lines, kind };
+    }
+    async function connectGmail() {
+        if (!gTransport || gRunning) return;
+        gNote = { lines: ['Googleの画面で許可してください…'], kind: '' }; render();
+        try { await gTransport.connect(); gNote = { lines: ['つながりました。「Gmailから取り込む」を押してください。'], kind: 'ok' }; }
+        catch (e) { gNote = { lines: [gErrText(e && e.code)], kind: 'error' }; }
+        render();
+    }
+    async function importGmail() {
+        if (!gImport || gRunning) return;
+        gRunning = true; gAbort = new AbortController(); gNote = null; render();
+        let r;
+        try {
+            r = await gImport.run({ signal: gAbort.signal, onProgress: p => {
+                if (!gProgressEl) return;
+                gProgressEl.textContent = p.stage === 'list' ? 'メールを探しています…' : p.stage === 'fetch' ? `メールを確認中 ${p.done}/${p.total}` : p.stage === 'ingest' ? 'BOXに登録中…' : '';
+            } });
+        } catch (e) { r = { ok: false, code: 'network', stage: 'fetch', attachments: {}, mails: 0 }; }
+        gRunning = false; gAbort = null;
+        const sum = gmailSummary(r);
+        gNote = sum;
+        sayAll(sum.lines[0] || '', sum.kind);
+        if (r.ingest && r.ingest.registered) tab = 'request'; else if (r.ingest && r.ingest.unreadable) tab = 'unreadable';
+        afterChange();
+    }
+    function gmailCard() {
+        if (!gTransport || !gImport) return null;
+        const st = gTransport.state();
+        const label = gRunning ? '取り込み中…' : st.connected ? '接続済み' : st.configured ? '未接続' : '設定が必要';
+        const kind = gRunning ? '' : st.connected ? 'ok' : 'warn';
+        gProgressEl = h('p', { class: 'mailbox-hint-s', role: 'status', 'aria-live': 'polite' }, gRunning ? 'メールを探しています…' : '');
+        const input = h('input', { type: 'text', id: 'mailGmailSenders', class: 'mailbox-input', value: readTerms().join(', '), autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', disabled: gRunning, placeholder: '名前やアドレスの一部(カンマ区切り)',
+            onchange: ev => { const v = ev.target.value.split(/[,、，\n]+/).map(x => x.trim()).filter(Boolean).join(','); try { AppStorage.setItem(SENDERS_KEY, v); } catch (e) { /* 保存できなくても今回の取り込みには使う */ } } });
+        const card = h('section', { class: 'mailbox-sync mailbox-gmail', 'aria-label': 'Gmailから取り込み' },
+            h('div', { class: 'mailbox-card-head' }, h('strong', {}, 'Gmailから取り込み'), chip(label, kind)),
+            h('p', { class: 'mailbox-sync-msg' }, '直近2か月の、下の差出人から届いた添付つきメールを読み、依頼書を自動で仕分けます。Gmailは読み取りだけで、送信・削除・書き換えはできません。'),
+            h('label', { class: 'mailbox-field', for: 'mailGmailSenders' }, h('span', {}, '差出人(名前やメールアドレスの一部)'), input),
+            h('p', { class: 'mailbox-hint-s' }, 'メール本文は読みません・保存しません。BOXに残るのは、件名・ファイル名・受信日と、登録した訪問先だけです。'));
+        if (!st.connected) {
+            card.append(h('div', { class: 'mailbox-note' },
+                h('p', {}, st.configured ? 'まだGoogleにつながっていません。先に「Googleにつなぐ」を押して、Gmailの読み取りを許可してください。' : 'Googleの接続設定(クライアントID)がまだありません。手順書のとおりに設定してから「Googleにつなぐ」を押してください。'),
+                h('p', { class: 'mailbox-hint-s' }, '許可の画面で「このアプリは確認されていません」と出ることがあります(アキヤさんが自分のアプリとして公開している場合)。出たときの進み方は手順書に書いてあります。つなぐのはアプリを開くたびに必要です(許可の情報を端末に保存しないため)。')));
+            card.append(h('div', { class: 'mailbox-actions' }, h('button', { type: 'button', class: 'btn btn-primary mailbox-btn-s', onclick: connectGmail }, 'Googleにつなぐ')));
+        } else {
+            card.append(h('div', { class: 'mailbox-actions' },
+                h('button', { type: 'button', class: 'btn btn-primary mailbox-btn-s', id: 'mailGmailImport', disabled: gRunning, onclick: importGmail }, gRunning ? '取り込み中…' : 'Gmailから取り込む'),
+                gRunning ? h('button', { type: 'button', class: 'btn btn-secondary mailbox-btn-s', onclick: () => { if (gAbort) gAbort.abort(); } }, '中止') : null,
+                !gRunning ? h('button', { type: 'button', class: 'btn btn-secondary mailbox-btn-s', onclick: () => { try { gTransport.disconnect(); } catch (e) { /* 何もしない */ } gNote = { lines: ['Googleとの接続を切りました。'], kind: '' }; render(); } }, '接続を切る') : null));
+        }
+        card.append(gProgressEl);
+        if (gNote && gNote.lines.length) card.append(h('div', { class: 'mailbox-note mailbox-gmail-result', 'data-kind': gNote.kind, role: gNote.kind === 'error' ? 'alert' : 'status' }, gNote.lines.map(t => h('p', {}, t))));
+        return card;
     }
 
     // ---- 端末間の台帳(スマホ・タブレットで同じメールを二重に登録しない) ----
@@ -270,10 +375,11 @@ const MailBoxUI = (() => {
                 h('button', { type: 'button', class: 'btn btn-secondary mailbox-btn-s', onclick: () => { box.reclassify(row.id); tab = 'unreadable'; sayAll('判別不可BOXに戻しました。', 'ok'); afterChange(); } }, '依頼書として見直す'),
                 h('button', { type: 'button', class: 'btn btn-secondary mailbox-btn-s', onclick: () => { box.dismissRow(row.id); sayAll('確認済みにしました。', 'ok'); afterChange(); } }, '確認済みにする')))));
     }
+    const gmailCardAvailable = () => !!(gTransport && gImport);
     function devTools() {
         if (!dev()) return null;
         return h('details', { class: 'mailbox-dev' }, h('summary', {}, '試験用の取り込み(開発用)'),
-            h('p', { class: 'mailbox-hint-s' }, 'Gmailにはまだ接続していません。架空データまたは解析結果のJSONで動作を確かめます。'),
+            h('p', { class: 'mailbox-hint-s' }, 'ここは試験用です。架空データまたは解析結果のJSONで動作を確かめます(Gmailの取り込みは上のカードです)。'),
             h('div', { class: 'mailbox-actions' },
                 h('button', { type: 'button', class: 'btn btn-secondary mailbox-btn-s', onclick: importDemo }, '架空データを取り込む'),
                 h('label', { class: 'btn btn-secondary mailbox-btn-s mailbox-file' }, '解析結果JSONを読み込む', h('input', { type: 'file', accept: 'application/json,.json', onchange: importJson }))));
@@ -289,8 +395,8 @@ const MailBoxUI = (() => {
         bodyEl.setAttribute('aria-labelledby', 'mailBoxTab-' + tab);
         const pane = !health.ok ? h('p', { class: 'mailbox-error', role: 'alert' }, 'メールBOXのデータを読み込めません(破損の可能性)。データは上書きしていません。アプリを再読込しても直らない場合は、このBOXのデータだけを消す操作が必要です。')
             : tab === 'request' ? requestPane(rows) : tab === 'unreadable' ? unreadablePane(rows) : referencePane(rows);
-        const empty = !rows.length && health.ok ? h('p', { class: 'mailbox-hint' }, 'Gmailからの取り込みはまだ有効になっていません。取り込みが始まると、届いた依頼書がここに並びます。') : null;
-        bodyEl.replaceChildren(...[syncCard(), pane, empty, devTools()].filter(Boolean));
+        const empty = !rows.length && health.ok ? h('p', { class: 'mailbox-hint' }, gmailCardAvailable() ? 'まだ取り込んだメールはありません。上の「Gmailから取り込み」から始めます。' : 'まだ取り込んだメールはありません。') : null;
+        bodyEl.replaceChildren(...[gmailCard(), syncCard(), pane, empty, devTools()].filter(Boolean));
         statusEl.textContent = note.text; statusEl.dataset.kind = note.kind;
     }
 
@@ -319,6 +425,13 @@ const MailBoxUI = (() => {
                 : (typeof DriveLedgerAdapter !== 'undefined' && typeof DriveTransfer !== 'undefined' && typeof BackupStore !== 'undefined' ? DriveLedgerAdapter.create({ transport: DriveTransfer, channel: BackupStore.channel }) : null);
             if (adapter && typeof MailLedgerSync !== 'undefined') syncer = MailLedgerSync.create({ mailBox: box, adapter });
         } catch (e) { syncer = null; console.error('mailbox: sync_init_failed'); }
+        gTransport = null; gImport = null;
+        try {
+            if (typeof GmailImport !== 'undefined' && typeof GmailSource !== 'undefined') {
+                const g = gMock() && typeof MailBoxDemo !== 'undefined' && MailBoxDemo.gmail ? MailBoxDemo.gmail() : (typeof GmailTransport !== 'undefined' && typeof RequestReader !== 'undefined' ? { transport: GmailTransport.create(), reader: RequestReader } : null);
+                if (g) { gTransport = g.transport; gImport = GmailImport.create({ source: GmailSource.create({ transport: g.transport }), reader: g.reader, mailBox: box, syncer, getTerms: readTerms, makeFile: g.makeFile }); }
+            }
+        } catch (e) { gTransport = null; gImport = null; console.error('mailbox: gmail_init_failed'); }
         overlay = document.getElementById('mailBoxOverlay');
         if (!overlay) return;
         statusEl = document.getElementById('mailBoxStatus'); bodyEl = document.getElementById('mailBoxBody'); tabsEl = document.getElementById('mailBoxTabs');

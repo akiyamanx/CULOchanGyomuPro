@@ -43,6 +43,59 @@ const MailBoxDemo = (() => {
             write: async a => { fail(); const id = a.fileId || ('mock-' + a.deviceId.slice(0, 8)); drive.files.set(id, { deviceId: a.deviceId, savedAt: a.savedAt, text: a.text }); return { id }; }
         };
     }
-    return { mails, ledgerAdapter };
+
+    // 試験用の「偽のGmail」(?mailboxDev=1&mockGmail=1 のときだけ使う。Googleにも本物のGmailにも接続しない)。
+    // 本物の GmailSource・GmailImport は実コードのまま動き、通信(GmailTransport)と解析(リーダー)だけを偽物に替える。
+    // window.__mockGmail = { configured, connected, fail:'', calls } を画面確認用に外から操作できる。fail にはエラーコード(auth_expired など)を入れる。
+    const defaultTerms = ['試験'];
+    function gmail() {
+        const mg = window.__mockGmail = window.__mockGmail || { configured: true, connected: false, fail: '', calls: 0 };
+        const SIG = { pdf: [0x25, 0x50, 0x44, 0x46, 0x2d], xlsx: [0x50, 0x4b, 0x03, 0x04], xls: [0xd0, 0xcf, 0x11, 0xe0] };
+        const MIME = { pdf: 'application/pdf', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', xls: 'application/vnd.ms-excel' };
+        const hex = n => 'a0b1c2d3e4f5' + String(n).padStart(4, '0');
+        const results = new Map(), msgs = [];
+        mails().filter(m => m.attachments.length).forEach((m, i) => {
+            const parts = m.attachments.map((a, j) => {
+                results.set(a.fileName, a.parseError ? { kind: a.kind, opened: false, items: [], errorCode: a.parseError } : { kind: a.kind, opened: true, items: a.parse.items, ocr: a.parse.ocr });
+                return { partId: String(j + 1), fileName: a.fileName, mime: MIME[a.kind], kind: a.kind };
+            });
+            msgs.push({ id: hex(i + 1), subject: m.subject, parts });
+        });
+        msgs.push({ id: hex(90), subject: '【デモ】Outlook形式の添付', parts: [{ partId: '1', fileName: 'winmail.dat', mime: 'application/ms-tnef', kind: 'tnef' }] });
+        msgs.push({ id: hex(91), subject: '【デモ】現場写真', parts: [{ partId: '1', fileName: 'デモ_現場写真.jpg', mime: 'image/jpeg', kind: 'image' }] });
+        const bytesOf = new Map(); let seq = 0;
+        const b64url = u8 => btoa(String.fromCharCode(...u8)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        const ok = body => ({ ok: true, status: 200, headers: { get: () => null }, json: async () => body });
+        const err = (code, status) => Object.assign(new Error(code), { code, status: status || 0 });
+        return {
+            transport: {
+                prepare: async () => {},
+                connect: async () => { if (!mg.configured) throw err('not_configured'); if (mg.failConnect) throw err(mg.failConnect); mg.connected = true; return { connected: true }; },
+                disconnect: () => { mg.connected = false; },
+                state: () => ({ connected: !!mg.connected, configured: !!mg.configured }),
+                request: async (url, options, consume) => {
+                    mg.calls++;
+                    if (!mg.connected) throw err('not_connected');
+                    if (mg.fail) { if (mg.fail === 'auth_expired') mg.connected = false; throw err(mg.fail); }
+                    const u = new URL(url), path = u.pathname.replace('/gmail/v1/users/me/messages', '');
+                    if (path === '') {
+                        const max = Math.min(Number(u.searchParams.get('maxResults')) || 50, 500), off = Number(u.searchParams.get('pageToken') || 0) || 0;
+                        const slice = msgs.slice(off, off + max);
+                        return consume(ok({ messages: slice.map(m => ({ id: m.id })), ...(off + max < msgs.length ? { nextPageToken: String(off + max) } : {}) }));
+                    }
+                    const am = path.match(/^\/([0-9a-f]+)\/attachments\/([\w-]+)$/);
+                    if (am) { const b = bytesOf.get(am[2]); if (!b) throw err('not_found', 404); return consume(ok({ size: b.length, data: b64url(b) })); }
+                    const mm = path.match(/^\/([0-9a-f]+)$/);
+                    const m = mm && msgs.find(x => x.id === mm[1]);
+                    if (!m) throw err('not_found', 404);
+                    return consume(ok({ id: m.id, internalDate: String(Date.now() - 86400000), payload: { partId: '', mimeType: 'multipart/mixed', filename: '', headers: [{ name: 'From', value: '"架空 試験" <shiken@example.invalid>' }, { name: 'Subject', value: m.subject }],
+                        parts: m.parts.map(p => { const id = 'MOCKATT' + (++seq); const sig = SIG[p.kind] || [0x00]; bytesOf.set(id, Uint8Array.from([...sig, 1, 2, 3, 4])); return { partId: p.partId, mimeType: p.mime, filename: p.fileName, body: { size: sig.length + 4, attachmentId: id } }; }) } }));
+                }
+            },
+            reader: { readForMail: async file => results.get(file.name) || { kind: 'pdf', opened: false, items: [], errorCode: 'read_failed' } },
+            makeFile: (bytes, name, mime) => ({ name, size: bytes.length, type: mime, arrayBuffer: async () => bytes.buffer })
+        };
+    }
+    return { mails, ledgerAdapter, gmail, defaultTerms };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = MailBoxDemo;
