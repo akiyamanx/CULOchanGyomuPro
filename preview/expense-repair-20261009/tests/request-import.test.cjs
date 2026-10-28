@@ -105,7 +105,8 @@ test('重複判定は別会社・別作業・別日時・別シリアルを同�
 test('登録先の事前読取は月を変更せず、保存失敗と不正データを隠さない', () => {
     const storage = new Map([['mm_workspace_current','2026-10'],['mm_customers_2026-09','[{"id":"existing","routeId":"route_2"}]']]);
     let fail = false;
-    const context = vm.createContext({console, localStorage:{getItem:key=>storage.get(key)??null,setItem:(key,value)=>{if(fail)throw Error('quota');storage.set(key,value);}}});
+    const mockStorage = {getItem:key=>storage.get(key)??null,setItem:(key,value)=>{if(fail)throw Error('quota');storage.set(key,value);},removeItem:key=>storage.delete(key)};
+    const context = vm.createContext({console, localStorage:mockStorage, PreviewStorage:mockStorage});
     vm.runInContext(fs.readFileSync(require.resolve('../map/map-data-storage.js'),'utf8'),context);
     const run = code=>vm.runInContext(code,context);
     assert.equal(run("DataStorage.getCustomersForWorkspace('2026-09')[0].routeId"),'route_2');

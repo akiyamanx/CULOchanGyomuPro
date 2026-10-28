@@ -405,12 +405,13 @@ const ParkingMatcher = (() => {
             var rankIcon = idx === 0 ? '🥇' : (idx === 1 ? '🥈' : '🥉');
             var company = (c.customer.company || '').replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            var safeId = id.replace(/'/g, '&#39;');
-            var safeName = (c.customer.company || '').replace(/'/g, '&#39;');
+            // onclickの引数はJSON文字列にしてからHTMLエスケープする(会社名に ' や " があっても属性から抜けない)
+            var safeId = ExpenseImport.escapeHtml(JSON.stringify(String(id)));
+            var safeName = ExpenseImport.escapeHtml(JSON.stringify(String(c.customer.company || '')));
 
             html += '<button class="parking-match-item" '
-                + 'onclick="ParkingMatcher.applyMatchResult(\''
-                + safeId + '\',\'' + safeName + '\')">'
+                + 'onclick="ParkingMatcher.applyMatchResult('
+                + safeId + ',' + safeName + ')">'
                 + '<span class="match-rank">' + rankIcon + '</span>'
                 + '<span class="match-company">' + company + '</span>'
                 + '<span class="match-info">'

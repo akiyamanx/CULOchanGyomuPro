@@ -1,0 +1,23 @@
+.request-import { margin: 18px 0 24px; padding: 20px; border: 2px solid #a7c8e4; border-radius: 10px; background: #f8fbff; scroll-margin-top: 90px; }
+.request-import[hidden] { display: none; }
+.request-import .btn { width: auto; }
+.request-import .section-desc { margin: 10px 0; }
+.request-import h3 { font-size: 19px; }
+#requestImportStatus { margin: 16px 0; font-weight: 600; }
+.request-card { padding: 18px; margin: 16px 0; border: 1px solid #bdcddd; border-radius: 8px; background: white; }
+.request-select { display: flex; align-items: center; gap: 12px; min-height: 44px; font-weight: 600; cursor: pointer; }
+.request-select input { width: 22px; height: 22px; flex-shrink: 0; accent-color: #1765aa; }
+.request-source { overflow-wrap: anywhere; font-size: 13px; color: #506477; margin: 8px 0 14px; }
+.request-warning { color: #744900; background: #fff5dc; padding: 10px 12px; border-radius: 5px; margin: 10px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.request-warning:empty { display: none; }
+.request-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 14px; }
+.request-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: 14px; }
+.request-field input, .request-field select, .request-field textarea { box-sizing: border-box; width: 100%; min-width: 0; min-height: 44px; font: inherit; font-size: 16px; padding: 10px; color: #16324a; background: white; border: 1px solid #8b9faf; border-radius: 5px; }
+.request-field textarea { resize: vertical; }
+.request-wide { grid-column: 1/-1; }
+.request-month { max-width: 240px; margin-top: 18px; }
+.request-card details { margin-top: 14px; border-top: 1px solid #e0e7ed; }
+.request-card summary { padding: 14px 0; cursor: pointer; min-height: 44px; }
+.request-original { max-width: 100%; height: auto; }
+.request-card pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: 13px; }
+@media (max-width:600px) { .request-import { padding: 12px; } .request-card { padding: 12px; } .request-grid { grid-template-columns: minmax(0,1fr); } }

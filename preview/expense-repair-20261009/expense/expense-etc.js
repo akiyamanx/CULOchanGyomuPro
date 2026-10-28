@@ -65,7 +65,7 @@ const ExpenseEtc = (() => {
         sortedDates.forEach(date => {
             const dayTotal = byDate[date].reduce((s, r) => s + r.amount, 0);
             html += '<div class="exp-picker-date-group">'
-                + '<div class="exp-picker-date-label">📅 ' + date
+                + '<div class="exp-picker-date-label">📅 ' + ExpenseImport.escapeHtml(date)
                 + ' <span style="font-weight:normal;font-size:0.75rem;">（¥' + dayTotal.toLocaleString() + '）</span></div>';
             byDate[date].forEach(r => {
                 const route = (r.entry || '—') + ' → ' + (r.exit || '—');

@@ -1,0 +1,20 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>写真入りバックアップ・端末間共有</title>
+<style>body{font:16px/1.9 system-ui,sans-serif;color:#17324a;max-width:760px;margin:auto;padding:24px}h1{font-size:26px}h2{font-size:21px;margin-top:32px}code{overflow-wrap:anywhere;background:#eef5fa}li{margin:12px 0}a{color:#176397}.note{padding:16px;background:#eef5fa;border-radius:12px}</style>
+<h1>写真入りバックアップ・端末間共有</h1>
+<p>スマホ、GalaxyのAndroidタブレット、Surfaceで同じ記録を引き継げます。各端末で同じアプリのURLを開いてください。確認用ページと普段のページは、保存場所も共有先も別です。</p>
+<h2>まず、写真入りバックアップを保存</h2>
+<ol><li>入力した訪問先・レシート・精算書の下書きを保存します。</li><li>このアプリを開いている別のタブを閉じます。</li><li>「設定」→「バックアップ・データ管理」→「写真入りバックアップを保存」。ダウンロード先にJSONファイルがあることを確認してください。</li></ol>
+<p>ファイルには全対象月の保存済み記録と写真が入ります。入力途中の内容、ダウンロード済みPDF、Googleの予定、APIキーや連携用IDは含みません。64MBまで対応しています。ファイルは暗号化していないため、仕事の記録として保管してください。</p>
+<h2>Googleの初回設定</h2>
+<ol><li><a href="https://console.cloud.google.com/apis/library/drive.googleapis.com" target="_blank" rel="noopener">Google Drive APIを開く</a>。カレンダー連携で使ったものと同じプロジェクトを選び、「有効にする」を押します。</li><li>Google Auth Platformの「データアクセス」→「スコープを追加または削除」。次を追加して更新・保存します。<br><code>https://www.googleapis.com/auth/drive.appdata</code><br>すでに登録したカレンダーの2つのスコープは残します。</li><li>テスト中の場合は、接続に使う同じGoogleアカウントが「テストユーザー」に入っていることを確認します。</li><li>アプリに戻って「Googleの共有先に接続」を押し、Googleの画面で許可します。接続だけでは記録を送りません。</li></ol>
+<p>各端末の「設定」→「Googleカレンダー」→「初回の連携設定」に、同じOAuthクライアントIDを保存してください。端末ごとにGoogleへ接続します。パスワードやクライアントシークレットの入力は不要です。</p>
+<h2>端末を持ち替えるとき</h2>
+<ol><li>作業していた端末で入力を保存し、「この端末から共有先へ保存」。</li><li>次に使う端末で「共有先を再確認」。</li><li>保存日時を見て「選んだ版を取り込む」。取り込み内容を確認して進めると、再読み込み後に使えます。</li></ol>
+<p class="note">自動同期ではありません。取り込みは端末に保存済みの全対象月を置き換えます。先に両端末のバックアップを保存してください。取り込み直前の記録は、その端末の「取り込み前の記録に戻したいとき」から書き出せます。</p>
+<h2>両方の端末で編集した場合</h2>
+<p>通常の送信は止まり、共有先に別の更新があることを知らせます。まず各端末でバックアップを保存してください。使いたい版を取り込み、内容を確認します。手元の記録を選ぶ場合だけ「別の端末でも変更した場合」→「この端末の内容を優先して共有」を使います。自動で記録を合成する機能はありません。</p>
+<p>共有版はGoogle Driveのアプリ専用領域へ新しく追加し、以前の版を自動削除しません。Driveの通常のファイル一覧には表示されません。「共有接続を終了」はこの画面の接続を終える操作です。Googleカレンダーの接続許可や共有先の記録は取り消しません。</p>
+<h2>うまくいかないとき</h2>
+<p>接続が切れたらもう一度接続してください。許可エラーの場合は同じプロジェクトのDrive APIと追加スコープを確認します。復元中に画面を閉じた場合は、次の起動時に取り込み前の状態へ復旧します。確認・復旧エラーが出たら、編集せず他のタブを閉じて再読み込みしてください。最新版のChromeまたはEdgeで使えます。</p>
+<p><a href="https://developers.google.com/workspace/drive/api/guides/appdata" target="_blank" rel="noopener">Google公式：アプリ専用データの保存</a></p>
+<p><a href="../index.html">アプリへ戻る</a></p></html>

@@ -1,0 +1,36 @@
+#settingsModal .settings-content { max-width: 600px; width: 100%; color: #17324a; }
+#settingsModal .modal-title { margin: 0; font-size: 21px; }
+#settingsModal .modal-header { gap: 12px; position: sticky; top: 0; background: #fff; z-index: 2; }
+#settingsModal .btn-clear { min-width: 44px; min-height: 44px; }
+.settings-intro { margin: 0 0 16px; color: #536677; font-size: 14px; }
+.settings-category { border: 1px solid #d7e1e8; border-radius: 12px; margin: 12px 0; background: #fff; }
+.settings-category > summary { cursor: pointer; padding: 16px; min-height: 64px; color: #17324a; font-weight: 600; }
+.settings-category > summary span { display: block; margin: 6px 0 0 18px; font-size: 12px; line-height: 1.6; font-weight: 400; color: #536677; }
+.settings-category[open] > summary { border-bottom: 1px solid #d7e1e8; background: #f2f7fa; border-radius: 12px 12px 0 0; }
+.settings-category-body { padding: 16px; min-width: 0; }
+.settings-category-body .setting-group { margin: 0 0 20px; }
+.settings-category-body .setting-input { width: 100%; min-width: 0; font-size: 16px; }
+.settings-category-body .setting-hint, .settings-category-body .visit-help { color: #536677; line-height: 1.7; overflow-wrap: anywhere; }
+.settings-category-body .setting-hint:empty { display: none; }
+.settings-category-body a { color: #176397; overflow-wrap: anywhere; }
+.settings-category-body .btn { white-space: normal; max-width: 100%; min-height: 44px; }
+.settings-category-body button:disabled { opacity: .5; cursor: not-allowed; }
+.settings-category-body .settings-danger { color: #9d283e; border-color: #d5a3ac; background: #fff; }
+.settings-data-actions { display: grid; gap: 12px; }
+.transfer-details { margin: 18px 0; }
+.transfer-details > summary { padding: 10px 0; cursor: pointer; line-height: 1.7; }
+.transfer-status { white-space: pre-line; padding: 12px; background: #eef5fa; border-radius: 8px; }
+.settings-category-body hr { border: 0; border-top: 1px solid #d7e1e8; margin: 24px 0; }
+#transferBusy { max-width: min(400px, calc(100vw - 32px)); padding: 24px; border: 1px solid #b7c8d5; border-radius: 12px; color: #17324a; }
+#transferBusy::backdrop { background: #17324a99; }
+.storage-startup { position: fixed; inset: 20px 20px auto; z-index: 99999; padding: 20px; background: white; border: 2px solid #17324a; color: #17324a; }
+#settingsModal .modal-footer { justify-content: flex-end; position: sticky; bottom: 0; background: #fff; z-index: 2; }
+#googleCalendarSettingsStatus[data-state="ready"] { color: #156748; }
+#googleCalendarSettingsStatus[data-state="error"], #googleCalendarSettingsStatus[data-state="expired"] { color: #855100; background: #fff4d7; padding: 10px; border-radius: 8px; }
+@media (max-width: 480px) {
+    #settingsModal { padding: 8px; }
+    #settingsModal .settings-content { max-height: calc(100dvh - 16px); }
+    #settingsModal .modal-body { padding: 12px; }
+    .settings-category-body { padding: 12px; }
+    .settings-category > summary { padding: 14px 12px; }
+}

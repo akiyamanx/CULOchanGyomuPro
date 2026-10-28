@@ -11,6 +11,10 @@
 
 const RouteManager = (() => {
     let polylines = [];
+    // 画面に出す文字列は必ずエスケープする(会社名・ルート名は取込データ由来)
+    const esc = value => ExpenseImport.escapeHtml(value);
+    const jsArg = value => esc(JSON.stringify(String(value)));
+    const safeColor = color => /^#[0-9a-fA-F]{3,8}$/.test(String(color || '')) ? color : '#9e9e9e';
 
     function updateRoutePanel() {
         const routes = DataStorage.getRoutes();
@@ -29,19 +33,19 @@ const RouteManager = (() => {
             }
             html += `<div class="route-section">`;
             html += `<div class="route-header" onclick="RouteManager.toggleRouteSection(this)">`;
-            html += `<span class="route-color-dot" style="background:${route.color}"></span>`;
-            html += `<span>${route.name}</span>`;
+            html += `<span class="route-color-dot" style="background:${safeColor(route.color)}"></span>`;
+            html += `<span>${esc(route.name)}</span>`;
             html += `<span class="route-count">${members.length}件</span>`;
             if (members.length >= 1) {
-                html += `<button class="route-dist-btn" onclick="event.stopPropagation();RouteManager.calcDistance('${route.id}')">距離計算</button>`;
+                html += `<button class="route-dist-btn" onclick="event.stopPropagation();RouteManager.calcDistance(${jsArg(route.id)})">距離計算</button>`;
             }
             html += `</div>`;
             if (members.length > 0) {
                 html += `<div class="route-stops">`;
                 members.forEach((m, idx) => {
-                    html += `<div class="route-stop" onclick="MapCore.focusMarker('${m.id}')">`;
+                    html += `<div class="route-stop" onclick="MapCore.focusMarker(${jsArg(m.id)})">`;
                     html += `<span class="stop-number">${idx + 1}</span>`;
-                    html += `<span>${m.company || '不明'}`;
+                    html += `<span>${esc(m.company || '不明')}`;
                     if (m.unitCount > 1) html += ` (${m.unitCount}台)`;
                     html += `</span></div>`;
                 });
@@ -60,9 +64,9 @@ const RouteManager = (() => {
             html += `</div>`;
             html += `<div class="route-stops">`;
             unassigned.forEach((m, idx) => {
-                html += `<div class="route-stop" onclick="MapCore.focusMarker('${m.id}')">`;
+                html += `<div class="route-stop" onclick="MapCore.focusMarker(${jsArg(m.id)})">`;
                 html += `<span class="stop-number">-</span>`;
-                html += `<span>${m.company || '不明'}</span>`;
+                html += `<span>${esc(m.company || '不明')}</span>`;
                 html += `</div>`;
             });
             html += `</div></div>`;
@@ -87,8 +91,8 @@ const RouteManager = (() => {
         activeRoutes.forEach(r => {
             const count = customers.filter(c => c.routeId === r.id).length;
             html += `<div class="legend-item">`;
-            html += `<span class="legend-color" style="background:${r.color}"></span>`;
-            html += `<span>${r.name}（${count}件）</span>`;
+            html += `<span class="legend-color" style="background:${safeColor(r.color)}"></span>`;
+            html += `<span>${esc(r.name)}（${count}件）</span>`;
             html += `</div>`;
         });
         html += `<div style="border-top:1px solid #e2e8f0;margin:6px 0;"></div>`;
@@ -154,7 +158,7 @@ const RouteManager = (() => {
             if (members.length === 0) continue;
             const rAppointed = members.filter(c => c.status === 'appointed').length;
             const rCompleted = members.filter(c => c.status === 'completed').length;
-            html += `<div class="summary-card"><h3><span style="color:${route.color}">●</span> ${route.name}</h3>`;
+            html += `<div class="summary-card"><h3><span style="color:${safeColor(route.color)}">●</span> ${esc(route.name)}</h3>`;
             html += `<div class="summary-row"><span>件数</span><span class="summary-value">${members.length}件</span></div>`;
             html += `<div class="summary-row"><span>アポ済み</span><span class="summary-value">${rAppointed}件</span></div>`;
             html += `<div class="summary-row"><span>完了</span><span class="summary-value">${rCompleted}件</span></div></div>`;

@@ -17,7 +17,7 @@ const DataStorage = (() => {
 
     // v2.3 - 現在のワークスペースIDを取得
     function getCurrentWorkspaceId() {
-        return localStorage.getItem(WS_KEYS.currentWs) || null;
+        return AppStorage.getItem(WS_KEYS.currentWs) || null;
     }
 
     // v2.3 - ワークスペースIDからキーを生成（例: mm_customers_2026-02）
@@ -42,7 +42,7 @@ const DataStorage = (() => {
     // v2.3 - ワークスペース一覧を取得
     function getWorkspaces() {
         try {
-            const data = localStorage.getItem(WS_KEYS.workspaces);
+            const data = AppStorage.getItem(WS_KEYS.workspaces);
             return data ? JSON.parse(data) : [];
         } catch (e) {
             console.error('ワークスペース読込エラー:', e);
@@ -52,7 +52,7 @@ const DataStorage = (() => {
 
     // v2.3 - ワークスペース一覧を保存
     function saveWorkspaces(workspaces) {
-        localStorage.setItem(WS_KEYS.workspaces, JSON.stringify(workspaces));
+        AppStorage.setItem(WS_KEYS.workspaces, JSON.stringify(workspaces));
     }
 
     // v2.3 - 新しいワークスペースを作成
@@ -72,8 +72,8 @@ const DataStorage = (() => {
         saveWorkspaces(workspaces);
 
         const routeKey = 'mm_routes_' + yearMonth;
-        if (!localStorage.getItem(routeKey)) {
-            localStorage.setItem(routeKey, JSON.stringify([...DEFAULT_ROUTES]));
+        if (!AppStorage.getItem(routeKey)) {
+            AppStorage.setItem(routeKey, JSON.stringify([...DEFAULT_ROUTES]));
         }
         return ws;
     }
@@ -85,7 +85,7 @@ const DataStorage = (() => {
             console.error('ワークスペースが見つかりません:', wsId);
             return false;
         }
-        localStorage.setItem(WS_KEYS.currentWs, wsId);
+        AppStorage.setItem(WS_KEYS.currentWs, wsId);
         return true;
     }
 
@@ -95,13 +95,13 @@ const DataStorage = (() => {
         workspaces = workspaces.filter(ws => ws.id !== wsId);
         saveWorkspaces(workspaces);
         WS_DATA_KEYS.forEach(key => {
-            localStorage.removeItem('mm_' + key + '_' + wsId);
+            AppStorage.removeItem('mm_' + key + '_' + wsId);
         });
         if (getCurrentWorkspaceId() === wsId) {
             if (workspaces.length > 0) {
-                localStorage.setItem(WS_KEYS.currentWs, workspaces[0].id);
+                AppStorage.setItem(WS_KEYS.currentWs, workspaces[0].id);
             } else {
-                localStorage.removeItem(WS_KEYS.currentWs);
+                AppStorage.removeItem(WS_KEYS.currentWs);
             }
         }
     }
@@ -120,20 +120,20 @@ const DataStorage = (() => {
     function migrateIfNeeded() {
         if (getWorkspaces().length > 0) return;
 
-        const oldCustomers = localStorage.getItem('mm_customers');
-        const oldRoutes = localStorage.getItem('mm_routes');
+        const oldCustomers = AppStorage.getItem('mm_customers');
+        const oldRoutes = AppStorage.getItem('mm_routes');
         if (!oldCustomers && !oldRoutes) {
             const now = new Date();
             const currentMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
             createWorkspace(currentMonth);
-            localStorage.setItem(WS_KEYS.currentWs, currentMonth);
+            AppStorage.setItem(WS_KEYS.currentWs, currentMonth);
             return;
         }
 
         const now = new Date();
         const currentMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
         createWorkspace(currentMonth);
-        localStorage.setItem(WS_KEYS.currentWs, currentMonth);
+        AppStorage.setItem(WS_KEYS.currentWs, currentMonth);
 
         const migrations = [
             { old: 'mm_customers', new: 'mm_customers_' + currentMonth },
@@ -143,10 +143,10 @@ const DataStorage = (() => {
         ];
 
         migrations.forEach(m => {
-            const data = localStorage.getItem(m.old);
+            const data = AppStorage.getItem(m.old);
             if (data) {
-                localStorage.setItem(m.new, data);
-                localStorage.removeItem(m.old);
+                AppStorage.setItem(m.new, data);
+                AppStorage.removeItem(m.old);
             }
         });
     }
@@ -155,7 +155,7 @@ const DataStorage = (() => {
 
     function getCustomers() {
         try {
-            const data = localStorage.getItem(getKeys().customers);
+            const data = AppStorage.getItem(getKeys().customers);
             return data ? JSON.parse(data) : [];
         } catch (e) {
             console.error('顧客データ読込エラー:', e);
@@ -165,13 +165,26 @@ const DataStorage = (() => {
 
     function saveCustomers(customers) {
         try {
-            localStorage.setItem(getKeys().customers, JSON.stringify(customers));
+            AppStorage.setItem(getKeys().customers, JSON.stringify(customers));
             return true;
         } catch (e) {
             console.error('顧客データ保存エラー:', e);
             alert('データの保存に失敗しました。ストレージ容量を確認してください。');
             return false;
         }
+    }
+
+    // Import review can inspect a destination month without switching the open workspace.
+    // Invalid stored data must not be treated as an empty list and overwritten.
+    function getCustomersForWorkspace(wsId) {
+        const raw = AppStorage.getItem('mm_customers_' + wsId);
+        const customers = raw ? JSON.parse(raw) : [];
+        if (!Array.isArray(customers)) throw new Error('保存済みの訪問先データを読み込めません。');
+        return customers;
+    }
+
+    function saveCustomersForWorkspace(wsId, customers) {
+        AppStorage.setItem('mm_customers_' + wsId, JSON.stringify(customers));
     }
 
     function addCustomer(customer) {
@@ -193,7 +206,7 @@ const DataStorage = (() => {
         const idx = customers.findIndex(c => c.id === id);
         if (idx !== -1) {
             customers[idx] = { ...customers[idx], ...updates };
-            saveCustomers(customers);
+            if (!saveCustomers(customers)) return null;
             return customers[idx];
         }
         return null;
@@ -210,35 +223,47 @@ const DataStorage = (() => {
 
     const DEFAULT_ROUTES = [
         { id: 'route_1', name: 'ルート1', color: '#4285f4', order: [] },
-        { id: 'route_2', name: 'ルート2', color: '#ea4335', order: [] },
+        { id: 'route_2', name: 'ルート2', color: '#283593', order: [] },
         { id: 'route_3', name: 'ルート3', color: '#34a853', order: [] },
         { id: 'route_4', name: 'ルート4', color: '#ff9800', order: [] },
         { id: 'route_5', name: 'ルート5', color: '#9c27b0', order: [] },
         { id: 'route_6', name: 'ルート6', color: '#00bcd4', order: [] },
-        { id: 'route_7', name: 'ルート7', color: '#e91e63', order: [] },
+        { id: 'route_7', name: 'ルート7', color: '#00796b', order: [] },
         { id: 'route_8', name: 'ルート8', color: '#795548', order: [] },
         { id: 'route_9', name: 'ルート9', color: '#607d8b', order: [] },
-        { id: 'route_10', name: 'ルート10', color: '#ff5722', order: [] }
+        { id: 'route_10', name: 'ルート10', color: '#8a9400', order: [] }
     ];
 
-    function getRoutes() {
+    // 赤系の旧初期色だけ置換する。月別データやバックアップにも読込時に適用し、
+    // 訪問順・距離などの保存内容と、利用者が個別に変更した色は保持する。
+    const LEGACY_ROUTE_COLORS = {
+        route_2: '#ea4335', route_7: '#e91e63', route_10: '#ff5722'
+    };
+
+    function getRoutes(workspaceId) {
         try {
-            const data = localStorage.getItem(getKeys().routes);
-            return data ? JSON.parse(data) : [...DEFAULT_ROUTES];
+            const data = AppStorage.getItem(workspaceId ? 'mm_routes_' + workspaceId : getKeys().routes);
+            const routes = data ? JSON.parse(data) : DEFAULT_ROUTES;
+            return routes.map(route => {
+                const oldColor = LEGACY_ROUTE_COLORS[route.id];
+                return oldColor && String(route.color).toLowerCase() === oldColor
+                    ? { ...route, color: DEFAULT_ROUTES.find(item => item.id === route.id).color }
+                    : route;
+            });
         } catch (e) {
             return [...DEFAULT_ROUTES];
         }
     }
 
     function saveRoutes(routes) {
-        localStorage.setItem(getKeys().routes, JSON.stringify(routes));
+        AppStorage.setItem(getKeys().routes, JSON.stringify(routes));
     }
 
     // --- 区間データ（高速/下道） ---
 
-    function getSegments() {
+    function getSegments(workspaceId) {
         try {
-            const data = localStorage.getItem(getKeys().segments);
+            const data = AppStorage.getItem(workspaceId ? 'mm_segments_' + workspaceId : getKeys().segments);
             return data ? JSON.parse(data) : {};
         } catch (e) {
             return {};
@@ -246,14 +271,14 @@ const DataStorage = (() => {
     }
 
     function saveSegments(segments) {
-        localStorage.setItem(getKeys().segments, JSON.stringify(segments));
+        AppStorage.setItem(getKeys().segments, JSON.stringify(segments));
     }
 
     // --- ジオコーディングキャッシュ ---
 
     function getGeoCache() {
         try {
-            const data = localStorage.getItem(WS_KEYS.geocache);
+            const data = AppStorage.getItem(WS_KEYS.geocache);
             return data ? JSON.parse(data) : {};
         } catch (e) {
             return {};
@@ -263,14 +288,14 @@ const DataStorage = (() => {
     function setGeoCache(address, latLng) {
         const cache = getGeoCache();
         cache[address] = latLng;
-        localStorage.setItem(WS_KEYS.geocache, JSON.stringify(cache));
+        AppStorage.setItem(WS_KEYS.geocache, JSON.stringify(cache));
     }
 
     // --- 設定 ---
 
     function getSettings() {
         try {
-            const data = localStorage.getItem(WS_KEYS.settings);
+            const data = AppStorage.getItem(WS_KEYS.settings);
             return data ? JSON.parse(data) : { homeAddress: '', apiKey: '' };
         } catch (e) {
             return { homeAddress: '', apiKey: '' };
@@ -278,14 +303,14 @@ const DataStorage = (() => {
     }
 
     function saveSettings(settings) {
-        localStorage.setItem(WS_KEYS.settings, JSON.stringify(settings));
+        AppStorage.setItem(WS_KEYS.settings, JSON.stringify(settings));
     }
 
     // --- 精算書データ ---
 
     function getExpenses() {
         try {
-            const data = localStorage.getItem(getKeys().expenses);
+            const data = AppStorage.getItem(getKeys().expenses);
             return data ? JSON.parse(data) : [];
         } catch (e) {
             console.error('精算書データ読込エラー:', e);
@@ -295,7 +320,7 @@ const DataStorage = (() => {
 
     function saveExpenses(expenses) {
         try {
-            localStorage.setItem(getKeys().expenses, JSON.stringify(expenses));
+            AppStorage.setItem(getKeys().expenses, JSON.stringify(expenses));
             return true;
         } catch (e) {
             console.error('精算書データ保存エラー:', e);
@@ -333,10 +358,10 @@ const DataStorage = (() => {
             allWorkspaceData.push({
                 id: ws.id,
                 name: ws.name,
-                customers: JSON.parse(localStorage.getItem(prefix + 'customers' + suffix) || '[]'),
-                routes: JSON.parse(localStorage.getItem(prefix + 'routes' + suffix) || '[]'),
-                segments: JSON.parse(localStorage.getItem(prefix + 'segments' + suffix) || '[]'),
-                expenses: JSON.parse(localStorage.getItem(prefix + 'expenses' + suffix) || '[]')
+                customers: JSON.parse(AppStorage.getItem(prefix + 'customers' + suffix) || '[]'),
+                routes: JSON.parse(AppStorage.getItem(prefix + 'routes' + suffix) || '[]'),
+                segments: JSON.parse(AppStorage.getItem(prefix + 'segments' + suffix) || '[]'),
+                expenses: JSON.parse(AppStorage.getItem(prefix + 'expenses' + suffix) || '[]')
             });
         });
 
@@ -387,10 +412,10 @@ const DataStorage = (() => {
                     data.allWorkspaceData.forEach(function(wsData) {
                         var prefix = 'mm_';
                         var suffix = '_' + wsData.id;
-                        localStorage.setItem(prefix + 'customers' + suffix, JSON.stringify(wsData.customers || []));
-                        localStorage.setItem(prefix + 'routes' + suffix, JSON.stringify(wsData.routes || []));
-                        localStorage.setItem(prefix + 'segments' + suffix, JSON.stringify(wsData.segments || []));
-                        localStorage.setItem(prefix + 'expenses' + suffix, JSON.stringify(wsData.expenses || []));
+                        AppStorage.setItem(prefix + 'customers' + suffix, JSON.stringify(wsData.customers || []));
+                        AppStorage.setItem(prefix + 'routes' + suffix, JSON.stringify(wsData.routes || []));
+                        AppStorage.setItem(prefix + 'segments' + suffix, JSON.stringify(wsData.segments || []));
+                        AppStorage.setItem(prefix + 'expenses' + suffix, JSON.stringify(wsData.expenses || []));
                     });
                     if (data.settings) {
                         var current = getSettings();
@@ -398,7 +423,7 @@ const DataStorage = (() => {
                         saveSettings(data.settings);
                     }
                     if (data.currentWorkspaceId) {
-                        localStorage.setItem(WS_KEYS.currentWs, data.currentWorkspaceId);
+                        AppStorage.setItem(WS_KEYS.currentWs, data.currentWorkspaceId);
                     }
                     var wsCount = data.allWorkspaceData.length;
                     alert('📂 全ワークスペースを復元しました！\n📅 ' + wsCount + '件のワークスペース\nページをリロードします。');
@@ -438,16 +463,17 @@ const DataStorage = (() => {
 
     function resetAll() {
         const KEYS = getKeys();
-        localStorage.removeItem(KEYS.customers);
-        localStorage.removeItem(KEYS.routes);
-        localStorage.removeItem(KEYS.segments);
-        localStorage.removeItem(KEYS.expenses);
+        AppStorage.removeItem(KEYS.customers);
+        AppStorage.removeItem(KEYS.routes);
+        AppStorage.removeItem(KEYS.segments);
+        AppStorage.removeItem(KEYS.expenses);
     }
 
     return {
         getWorkspaces, createWorkspace, switchWorkspace, deleteWorkspace,
         renameWorkspace, getCurrentWorkspaceId, migrateIfNeeded,
-        getCustomers, saveCustomers, addCustomer, updateCustomer, deleteCustomer,
+        getCustomers, saveCustomers, getCustomersForWorkspace, saveCustomersForWorkspace,
+        addCustomer, updateCustomer, deleteCustomer,
         getRoutes, saveRoutes, DEFAULT_ROUTES, updateRouteOrder,
         getSegments, saveSegments,
         getGeoCache, setGeoCache,

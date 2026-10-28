@@ -2,17 +2,20 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="shared/app-storage.js?v=20261028-1"></script>
     <title>CULOchan業務Pro</title>
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#1a1a2e">
+    <meta name="theme-color" content="#16324a">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <link rel="apple-touch-icon" href="icons/icon-192.png">
     <link rel="stylesheet" href="styles/common.css">
-    <link rel="stylesheet" href="styles/receipt.css">
-    <link rel="stylesheet" href="styles/expense.css">
+    <link rel="stylesheet" href="styles/receipt.css?v=20261019-2">
+    <link rel="stylesheet" href="styles/expense.css?v=20261019-3">
     <!-- v2.0追加 - 駐車場利用明細スタイル -->
     <link rel="stylesheet" href="styles/parking.css">
+    <link rel="stylesheet" href="styles/parking-workflow.css?v=20261014-6">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600&display=swap">
     <link rel="stylesheet" href="styles/map/map-styles.css">
     <link rel="stylesheet" href="styles/map/map-expense-styles.css">
     <link rel="stylesheet" href="styles/map/route-order-styles.css">
@@ -21,37 +24,41 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
-    <!-- v1.7 デバッグ用: eruda ※Phase G完了後に削除予定 -->
-    <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-    <script>eruda.init();</script>
+    <link rel="stylesheet" href="styles/workflow.css">
+    <link rel="stylesheet" href="styles/map-workspace.css?v=20261019-13">
+    <link rel="stylesheet" href="styles/settings.css?v=20261019-15">
+    <link rel="stylesheet" href="styles/request-import.css">
+    <link rel="stylesheet" href="styles/etc-workflow.css?v=20261019-8">
 </head>
-<body>
+<body inert>
+    <div id="migrationNotice" role="note" hidden style="background:#fff3cd;color:#5d4600;padding:10px 16px;font-size:14px;position:relative;z-index:10000">新しい版になりました。念のため、「設定 → バックアップ・データ管理」で写真入りバックアップを保存しておくと安心です。 <button type="button" id="migrationNoticeClose" style="margin-left:8px;padding:4px 10px;">閉じる</button></div>
+    <p id="storageStartup" role="status" class="storage-startup">保存データを確認しています…</p>
+    <a class="skip-link" href="#mainContent">作業画面へ移動</a>
     <header class="app-header">
-        <h1 class="app-title">CULOchan<span class="accent">業務</span>Pro</h1>
-        <button class="settings-btn" onclick="AppCore.openSettings()">⚙️</button>
+        <div class="brand-mark" aria-hidden="true">C</div>
+        <div><h1 class="app-title">CULOchan<span class="accent">業務</span>Pro</h1><p class="app-tagline">訪問から精算まで、ひとつの流れに。</p></div>
+        <button class="settings-btn" onclick="AppCore.openSettings()" aria-label="アプリの設定">⚙ <span>設定</span></button>
     </header>
-    <nav class="tab-nav">
-        <button class="tab-btn active" data-tab="receipt" onclick="AppCore.switchTab('receipt')">
-            <span class="tab-icon">📸</span><span class="tab-label">レシート</span>
-        </button>
-        <button class="tab-btn" data-tab="expense" onclick="AppCore.switchTab('expense')">
-            <span class="tab-icon">🧾</span><span class="tab-label">精算書</span>
-        </button>
-        <button class="tab-btn" data-tab="map" onclick="AppCore.switchTab('map')">
-            <span class="tab-icon">🗺️</span><span class="tab-label">マップ</span>
-        </button>
+    <nav class="tab-nav" aria-label="仕事の流れ">
+        <p class="nav-caption">WORK FLOW <span>仕事の流れ</span></p>
+        <button class="tab-btn active" data-tab="map" aria-current="page" aria-controls="tab-map" onclick="AppCore.switchTab('map')"><span class="tab-icon">01</span><span class="nav-copy"><span class="tab-label">訪問・ルート</span><span class="nav-hint">予定と回る順番を整える</span></span></button>
+        <button class="tab-btn" data-tab="receipt" aria-controls="tab-receipt" onclick="AppCore.switchTab('receipt')"><span class="tab-icon">02</span><span class="nav-copy"><span class="tab-label">レシート</span><span class="nav-hint">現場で使った経費を記録</span></span></button>
+        <button class="tab-btn" data-tab="expense" aria-controls="tab-expense" onclick="AppCore.switchTab('expense')"><span class="tab-icon">03</span><span class="nav-copy"><span class="tab-label">精算・PDF</span><span class="nav-hint">金額を確認して仕上げる</span></span></button>
+        <div class="nav-note">会社を出て、訪問して、会社へ。<br>一日の記録をここに。</div>
     </nav>
-    <main class="main-content">
-        <div class="tab-panel active" id="tab-receipt">
+    <main class="main-content" id="mainContent" tabindex="-1">
+        <div class="tab-panel" id="tab-receipt" aria-labelledby="receiptTitle">
+            <div class="screen-heading"><div><p class="eyebrow">STEP 02 · 経費を記録</p><h2 id="receiptTitle" tabindex="-1">レシートをまとめる</h2><p>画像を選んで読み取り、内容を確認して保存します。</p></div><button class="btn btn-secondary compact-action" onclick="WorkflowUI.openParking()">駐車場代を記録</button></div>
+            <ol class="mini-steps" aria-label="レシートの手順"><li><b>1</b>画像を選択</li><li><b>2</b>読み取り・確認</li><li><b>3</b>保存</li></ol>
             <div class="panel-card">
-                <div class="card-title">📸 レシートスキャナー</div>
-                <p class="card-desc">スキャナーで取り込んだレシートを自動認識・管理</p>
+                <div class="card-title">レシートの画像を選ぶ</div>
+                <p class="card-desc">複数のレシートが写った画像も選べます。読み取り後に金額や日付を確認してください。</p>
                 <div class="scan-input-area">
-                    <label class="scan-btn" id="scanFileBtn">
+                    <label class="scan-btn file-control" id="scanFileBtn">
                         <span class="scan-btn-icon">📄</span>
                         <span class="scan-btn-text">スキャン画像を選択</span>
-                        <span class="scan-btn-hint">JPEG / PNG / PDF</span>
-                        <input type="file" accept="image/*,.pdf" onchange="ReceiptScanner.handleFileSelect(event)" style="display:none">
+                        <span class="scan-btn-hint">JPEG・PNG</span>
+                        <input type="file" accept="image/*" onchange="ReceiptScanner.handleFileSelect(event)" class="file-input">
                     </label>
                 </div>
                 <div id="scanPreview" class="scan-preview" style="display:none;">
@@ -64,6 +71,7 @@
                     </div>
                     <div class="preview-actions">
                         <button class="btn btn-primary" onclick="ReceiptScanner.startDetection()">🔍 レシートを検出する</button>
+                        <button class="btn btn-secondary" onclick="ReceiptScanner.prepareManual(true)">この画像を1枚として手入力</button>
                     </div>
                 </div>
                 <div id="detectionResult" class="detection-result" style="display:none;">
@@ -73,240 +81,369 @@
                     </div>
                     <div id="detectedReceipts" class="detected-list"></div>
                     <div class="result-actions">
-                        <button class="btn btn-ai" onclick="ReceiptScanner.recognizeAll()">🤖 AIで全て読み取る</button>
+                        <button class="btn btn-ai" onclick="ReceiptScanner.recognizeAll()">🤖 AIで読み取る</button>
+                        <button class="btn btn-secondary" onclick="ReceiptScanner.prepareManual()">AIを使わず手入力</button>
                     </div>
                 </div>
                 <div id="recognizedList" class="recognized-list" style="display:none;">
                     <div class="result-header">
-                        <span class="result-title">📝 認識済みレシート</span>
+                        <span class="result-title">📝 レシートの内容を確認・修正</span>
                         <button class="btn-small btn-select-all" onclick="ReceiptScanner.toggleSelectAll()">全選択/解除</button>
                     </div>
+                    <p class="card-desc">読み取れない内容は手入力できます。写真を見ながら日付・店名・金額・種類を確認してください。</p>
                     <div id="recognizedReceipts" class="receipt-cards"></div>
                     <div class="result-actions">
-                        <button class="btn btn-pdf" onclick="ReceiptScanner.generateA4Pdf()">🖨️ 選択レシートをA4 PDF出力</button>
-                        <button class="btn btn-save" onclick="ReceiptScanner.saveAll()">💾 保存する</button>
+                        <button class="btn btn-pdf" onclick="ReceiptScanner.generateA4Pdf()">🖨️ 写真だけをA4 PDF出力</button>
+                        <button class="btn btn-save" onclick="ReceiptScanner.saveAll()">💾 内容と写真を保存</button>
+                        <button class="btn btn-secondary" onclick="ReceiptScanner.sendToParking()">駐車場明細へ取り込む →</button>
                     </div>
                 </div>
             </div>
             <div class="panel-card">
-                <div class="card-title">📂 保存済みレシート</div>
+                <div class="card-title">保存済みレシート</div>
                 <div id="savedReceiptList" class="saved-list">
                     <p class="empty-msg">保存されたレシートはありません</p>
                 </div>
             </div>
+            <div class="next-action"><div><strong>記録ができたら、精算へ</strong><p>駐車場代・ETC・走行距離をまとめられます。</p></div><button class="btn btn-primary compact-action" onclick="AppCore.switchTab('expense')">精算・PDFへ →</button></div>
         </div>
-        <div class="tab-panel" id="tab-expense">
-            <div class="panel-card">
-                <div class="card-title">📋 基本情報</div>
+        <div class="tab-panel" id="tab-expense" aria-labelledby="expenseTitle">
+            <div class="screen-heading"><div><p class="eyebrow">STEP 03 · 精算を仕上げる</p><h2 id="expenseTitle" tabindex="-1">交通費を精算する</h2><p>経費を取り込み、明細と合計を確認してPDFにします。</p></div></div>
+            <div class="expense-layout"><div class="expense-work">
+            <section class="expense-imports" aria-labelledby="importTitle">
+                <h3 class="section-title" id="importTitle"><span>1</span> 経費を取り込む</h3>
+                <p class="section-desc">必要なものだけ取り込めます。明細に直接入力しても大丈夫です。</p>
+                <details class="panel-card fold-card" id="routeImport"><summary><span>訪問ルート・走行距離</span><span class="summary-note">日付とルートを選択</span></summary><div class="fold-body" id="tabExpense"></div></details>
+                <div class="panel-card import-etc"><div><h4>高速道路の料金</h4><p class="section-desc">ETCのCSVから利用日ごとに取り込みます。</p></div><label class="btn btn-secondary file-control">ETC CSVを選択<input type="file" accept=".csv" onchange="ExpenseEtc.handleFile(event)" class="file-input"></label><a href="https://www.etc-meisai.jp/" target="_blank" rel="noopener" class="text-link">ETC利用照会を開く ↗</a></div>
+            <details class="panel-card fold-card" id="etcSection"><summary><span>ETC PDF・寄り道</span><span class="summary-note">月まとめ取込 → 日別に確認</span></summary><div class="fold-body" id="etcWorkflow"></div></details>
+            <details class="panel-card parking-section fold-card" id="parkingSection">
+                <summary><span>駐車場代を取り込む・記録する</span><span class="summary-note">レシート・手入力</span></summary><div class="fold-body">
+                <p class="card-desc">写真を追加 → 写真を整える → 訪問先を確認 → 提出用PDF。追加した写真は端末に保存されます。</p>
+                <div class="parking-actions">
+                    <label class="btn btn-primary file-control">領収書を撮影<input type="file" accept="image/*" capture="environment" data-parking-upload onchange="ReceiptPhoto.addFiles(event)" class="file-input"></label>
+                    <label class="btn btn-secondary file-control">写真をまとめて追加<input type="file" accept="image/*" multiple data-parking-upload onchange="ReceiptPhoto.addFiles(event)" class="file-input"></label>
+                    <button class="btn btn-secondary" onclick="ParkingManager.importFromScanner()">確認済みレシートを取り込む</button>
+                    <button class="btn btn-secondary" onclick="ParkingManager.addItem()">写真なしで金額を記録</button>
+                </div>
+                <p id="parkingPhotoStatus" class="parking-caption" role="status" aria-live="polite">1枚ずつでも、まとめてでも追加できます。AI読取は設定済みの場合に利用します。</p>
+                <div class="parking-filter-grid">
+                    <label>表示・出力する月<input type="month" id="parkingFilterMonth" onchange="document.getElementById('parkingFilterDay').value='';ParkingManager.renderParkingList()"></label>
+                    <label>利用日で絞る（任意）<input type="date" id="parkingFilterDay" onchange="document.getElementById('parkingFilterMonth').value=this.value.slice(0,7);ParkingManager.renderParkingList()"></label>
+                </div>
+                <p class="parking-caption">月・日付が空欄なら全期間。日付不明の写真は、確認できるよう常に表示します。</p>
+                <div class="parking-actions"><button class="btn btn-secondary" onclick="ParkingManager.selectVisible(true)">表示中を全選択</button><button class="btn btn-secondary" onclick="ParkingManager.selectVisible(false)">表示中の選択を解除</button></div>
+                <datalist id="parkingPurposes"><option value="メンテナンス"><option value="修理"><option value="本体設置"><option value="営業"><option value="その他"></datalist>
+                <div id="parkingItemList"></div>
+                <div class="parking-total-bar"><span class="parking-total-label">表示中の駐車場合計</span><span class="parking-total-amount" id="parkingTotal">¥0</span></div>
+                <div class="parking-submit-card"><h4>領収書を本部へ提出する</h4><div class="parking-actions">
+                    <label>1ページの枚数<select id="parkingPageSize"><option value="6">6枚（横3枚×2段）</option><option value="4">4枚（横2枚×2段）</option></select></label>
+                    <span id="parkingPdfCount" role="status"></span><button class="btn btn-primary" onclick="ParkingPdf.generate()">提出用PDFを確認</button>
+                </div><p class="parking-caption">各写真の下に、日付・訪問先の会社名・機種名と作業内容を横書きで記載します。</p></div>
+                <div class="parking-btn-row"><label for="expParkingMonth">精算書に反映する月</label><input class="exp-input" type="month" id="expParkingMonth"><button class="btn btn-save" onclick="ExpenseManager.reflectParkingMonth()">駐車場代を精算書に反映</button></div>
+                <p class="parking-caption">精算書には対象月の全明細の金額を反映します。写真のPDF選択とは別です。</p>
+                <details><summary>駐車場記録の管理</summary><button class="btn btn-danger-quiet" onclick="ParkingManager.clearAll()">すべての駐車場記録を削除</button></details>
+            </div></details>
+            </section>
+            <h3 class="section-title"><span>2</span> 内容を確認・入力</h3>
+            <section class="panel-card"><h4 class="card-title">提出先・行先</h4>
                 <div class="exp-basic-form">
                     <div class="exp-basic-row">
-                        <div class="exp-fg"><label>提出日</label><input type="date" class="exp-input" id="expSubmitDate"></div>
-                        <div class="exp-fg"><label>SS名</label><input type="text" class="exp-input" id="expSSName" value="千葉西SS"></div>
+                        <div class="exp-fg"><label for="expSubmitDate">提出日</label><input type="date" class="exp-input" id="expSubmitDate"></div>
+                        <div class="exp-fg"><label for="expSSName">SS名</label><input type="text" class="exp-input" id="expSSName" value="千葉西SS"></div>
                     </div>
-                    <div class="exp-fg"><label>行先（会社名）</label><textarea class="exp-textarea" id="expDestCompany" rows="2" placeholder="東京ガス㈱ → ㈱マーフィード → 千葉スバル㈱新港店"></textarea></div>
-                    <div class="exp-fg"><label>行先（住所）</label><textarea class="exp-textarea" id="expDestAddress" rows="2" placeholder="千葉県袖ケ浦市 → 東京都足立区 → 千葉県千葉市美浜区"></textarea></div>
-                    <div class="exp-fg"><label>氏名</label><input type="text" class="exp-input" id="expEmployeeName" value="小出晃也"></div>
+                    <div class="exp-fg"><label for="expDestCompany">行先（会社名）</label><textarea class="exp-textarea" id="expDestCompany" rows="2" placeholder="東京ガス㈱ → ㈱マーフィード → 千葉スバル㈱新港店"></textarea></div>
+                    <div class="exp-fg"><label for="expDestAddress">行先（住所）</label><textarea class="exp-textarea" id="expDestAddress" rows="2" placeholder="千葉県袖ケ浦市 → 東京都足立区 → 千葉県千葉市美浜区"></textarea></div>
+                    <div class="exp-fg"><label for="expEmployeeName">氏名</label><input type="text" class="exp-input" id="expEmployeeName" value="小出晃也"></div>
                 </div>
-            </div>
-            <div class="panel-card">
-                <div class="card-title">🚃 交通費明細</div>
-                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
-                    <a href="https://www.etc-meisai.jp/" target="_blank" class="btn btn-etc" style="flex:1;min-width:140px;">🛣️ ETC利用照会を開く</a>
-                    <label class="btn btn-primary" style="flex:1;min-width:140px;cursor:pointer;text-align:center;">📥 ETC CSV取り込み<input type="file" accept=".csv" onchange="ExpenseEtc.handleFile(event)" style="display:none;"></label>
-                </div>
-                <div id="expenseRows"></div>
-                <button class="btn btn-primary" onclick="ExpenseManager.addRow()" style="margin-top:10px;">➕ 行を追加</button>
-            </div>
-            <div class="panel-card">
-                <div class="exp-total-display"><div class="exp-total-label">合計金額</div><div class="exp-total-amount" id="expGrandTotal">¥0</div></div>
-            </div>
-            <div class="panel-card">
-                <div class="exp-btn-row">
-                    <button class="btn btn-pdf" onclick="ExpensePdf.generate()">📄 PDF出力</button>
-                    <button class="btn" style="background:var(--bg-card-hover);color:var(--text-secondary);border:1px solid var(--border);" onclick="ExpenseManager.clearAll()">🗑️ クリア</button>
-                </div>
-                <div class="exp-btn-row"><button class="btn btn-save" onclick="ExpenseManager.saveDraft()">💾 下書き保存</button></div>
-            </div>
-            <div class="panel-card">
-                <div class="card-title">📁 下書き一覧</div>
-                <div id="expDraftList"><p class="empty-msg">下書きはありません</p></div>
-            </div>
-            <!-- v2.0追加 - Phase F 駐車場利用明細セクション -->
-            <div class="panel-card parking-section">
-                <div class="card-title">🅿️ 駐車場利用明細</div>
-                <p class="card-desc">パーキングレシートの管理・明細PDF出力</p>
-                <div class="parking-btn-row">
-                    <button class="btn btn-primary" onclick="ParkingManager.importFromScanner()">📸 レシートから取り込み</button>
-                    <button class="btn btn-save" onclick="ParkingManager.addItem()">➕ 手動追加</button>
-                </div>
-                <div id="parkingItemList" style="margin-top:10px;">
-                    <p class="empty-msg">駐車場利用データはありません</p>
-                </div>
-                <div class="parking-total-bar">
-                    <span class="parking-total-label">駐車場合計</span>
-                    <span class="parking-total-amount" id="parkingTotal">¥0</span>
-                </div>
-                <div class="parking-btn-row">
-                    <button class="btn btn-pdf" onclick="ParkingPdf.generate()">🖨️ 駐車場明細PDF出力</button>
-                    <button class="btn" style="background:var(--bg-card-hover);color:var(--text-secondary);border:1px solid var(--border);" onclick="ParkingManager.clearAll()">🗑️ クリア</button>
-                </div>
-            </div>
+            </section>
+            <section class="panel-card"><div class="section-heading"><h4 class="card-title">日別の交通費</h4><span class="summary-note">利用日ごとに1件</span></div>
+                <div id="expenseRows"></div><button class="btn btn-secondary" onclick="ExpenseManager.addRow()">＋ 別の日の明細を追加</button>
+            </section>
+            <section class="panel-card" id="loadedDraftReceipts" hidden>
+                <h4 class="card-title">この下書きの領収書</h4><p id="loadedDraftReceiptCount"></p>
+                <p id="draftReceiptEditStatus" class="section-desc" role="status"></p>
+                <div id="draftReceiptCards"></div>
+                <label class="draft-choice">1ページの枚数<select id="draftReceiptPageSize" onchange="ExpenseDraftReceipts.setPageSize(this.value)"><option value="6">6枚（横3枚×2段）</option><option value="4">4枚（横2枚×2段）</option></select></label>
+                <button class="btn btn-primary" onclick="ExpenseDraftReceipts.preview()">この下書きの領収書PDFを見る</button>
+            </section>
+            </div><aside class="expense-finish" aria-label="精算の仕上げ">
+                <section class="panel-card finish-card"><h3 class="section-title"><span>3</span> 保存・PDF出力</h3>
+                    <div class="exp-total-display"><div class="exp-total-label">精算する合計</div><div class="exp-total-amount" id="expGrandTotal">¥0</div><p class="section-desc">入力中のすべての明細の合計</p></div>
+                    <button class="btn btn-primary" onclick="ExpensePdf.generate()">精算書をPDFにする</button>
+                    <label class="draft-choice">下書きに付ける領収書<select id="draftReceiptSource" onchange="ExpenseDraftReceipts.updateHint()"><option value="current">駐車場欄で選んだ分</option><option value="loaded" id="draftReceiptLoadedOption" disabled>読み込んだ下書きの分</option><option value="none">領収書を付けない</option></select></label>
+                    <p id="draftReceiptHint" class="save-hint" role="status"></p>
+                    <button class="btn btn-secondary" onclick="ExpenseManager.saveDraft()">下書きを保存</button>
+                    <p class="save-hint">写真と説明も下書きに残ります。修正後に保存すると新しい下書きが追加されます。</p>
+                    <details class="reset-details"><summary>入力をやり直す</summary><button class="btn btn-danger-quiet" onclick="ExpenseManager.clearAll()">精算書の入力をクリア</button></details>
+                </section>
+                <section class="panel-card"><h3 class="card-title">保存した下書き</h3><div id="expDraftList"><p class="empty-msg">下書きはありません</p></div></section>
+            </aside></div>
         </div>
         <!-- マップタブ -->
-        <div class="tab-panel" id="tab-map">
+        <div class="tab-panel active" id="tab-map" aria-labelledby="mapTitle">
+            <div class="screen-heading"><div><p class="eyebrow">STEP 01 · 訪問を準備</p><h2 id="mapTitle" tabindex="-1">訪問先とルート</h2><p>地図のピンから電話・予定登録。会社から回る順番を整えます。</p></div><div class="visit-heading-actions"><button class="btn btn-primary compact-action" id="mapQuickExpand">地図を大きくして予定を組む</button><button class="btn btn-secondary compact-action" onclick="showAddModal()">＋ 訪問先を追加</button></div></div>
             <div id="countBadge" style="display:none;">0件</div>
             <div class="map-compact-bar">
-                <button class="compact-ws-btn" id="compactWsBtn" onclick="showWorkspaceMenu()">📅 --</button>
-                <button class="compact-legend-btn" onclick="toggleLegend()">📍</button>
-                <div class="compact-count" id="compactCount">0件</div>
-                <button class="compact-toggle-btn" id="compactToggleBtn" onclick="toggleMapToolbar()">▼</button>
+                <span class="workspace-label">対象月</span><button class="compact-ws-btn" id="compactWsBtn" onclick="showWorkspaceMenu()" aria-label="対象月を切り替える">--</button>
+                <div class="compact-count" id="compactCount" role="status">0件</div>
+                <label class="btn btn-secondary file-control compact-action">Excel・依頼書を取り込む<input type="file" id="fileInput" accept=".csv,.xlsx,.xls,.pdf" multiple class="file-input"></label>
+                <button class="compact-toggle-btn" id="compactToggleBtn" onclick="toggleMapToolbar()" aria-expanded="false" aria-controls="mapToolbarDropdown">その他 ⋯</button>
             </div>
-            <div class="map-toolbar-dropdown" id="mapToolbarDropdown">
-                <label class="toolbar-item" for="fileInput">
-                    <span class="toolbar-icon">📁</span><span class="toolbar-label">CSV読込</span>
-                </label>
-                <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" style="display:none">
-                <button class="toolbar-item" onclick="showAddModal(); toggleMapToolbar();">
-                    <span class="toolbar-icon">➕</span><span class="toolbar-label">メンテナンス先を追加</span>
-                </button>
-                <button class="toolbar-item" onclick="exportPDF(); toggleMapToolbar();">
-                    <span class="toolbar-icon">📄</span><span class="toolbar-label">PDF出力</span>
-                </button>
-                <button class="toolbar-item" onclick="openGoogleCalendar(); toggleMapToolbar();">
-                    <span class="toolbar-icon">📅</span><span class="toolbar-label">Googleカレンダー</span>
-                </button>
-                <button class="toolbar-item" onclick="toggleMenu(); toggleMapToolbar();">
-                    <span class="toolbar-icon">⚙️</span><span class="toolbar-label">設定・バックアップ</span>
-                </button>
+            <section class="request-import" id="requestImportPanel" hidden aria-labelledby="requestImportTitle">
+                <div class="section-heading"><h3 id="requestImportTitle" tabindex="-1">読み取った訪問先を確認</h3><button type="button" class="btn btn-secondary" id="requestImportCancel">取込を閉じる・中止</button></div>
+                <p class="section-desc">Excel・CSVの一覧と業務依頼書、PDFに対応。内容を直してから追加できます。既存の訪問先は残ります。</p>
+                <p class="section-desc">PDFは端末内で文字を読み取ります。初回は読取ツールのダウンロードに通信が必要です。</p>
+                <label class="request-field request-month">登録先の月<input type="month" id="requestImportMonth" required></label>
+                <p class="section-desc">新しい月を選ぶと、その月の一覧を作成します。希望日時の取込だけでは「アポ済み」に変更しません。</p>
+                <p id="requestImportStatus" role="status" aria-live="polite"></p>
+                <p id="requestImportErrors" role="alert" class="request-warning"></p>
+                <div id="requestImportResults"></div>
+                <button type="button" class="btn btn-primary" id="requestImportSave">選択した0件を追加登録</button>
+            </section>
+            <div class="map-toolbar-dropdown" id="mapToolbarDropdown" hidden>
+                <button class="toolbar-item" onclick="exportPDF(); toggleMapToolbar();">訪問先一覧をPDFにする</button>
+                <button class="toolbar-item" onclick="openGoogleCalendar(); toggleMapToolbar();">Googleカレンダーを開く ↗</button>
+                <button class="toolbar-item" onclick="toggleMapToolbar(); AppCore.openSettings('data');">バックアップ・データ管理</button>
             </div>
             <div class="ws-menu-overlay" id="wsMenuOverlay" style="display:none;" onclick="hideWorkspaceMenu()">
                 <div class="ws-menu" onclick="event.stopPropagation()">
-                    <div class="ws-menu-title">📅 ワークスペース切替</div>
+                    <div class="ws-menu-title">対象月を切り替える</div>
                     <div class="ws-menu-list" id="wsMenuList"></div>
                     <div class="ws-menu-actions"><button class="ws-menu-add" onclick="showAddWorkspaceDialog()">➕ 新しい月を追加</button></div>
                 </div>
             </div>
             <div class="modal-overlay" id="addWsModal" style="display:none;">
                 <div class="modal">
-                    <h2>📅 ワークスペース追加</h2>
-                    <div class="modal-row"><label>年月</label><input type="month" id="addWsMonth"></div>
-                    <div class="modal-row"><label>名前（任意）</label><input type="text" id="addWsName" placeholder="例：3月メンテ"></div>
+                    <h2>対象月を追加</h2>
+                    <div class="modal-row"><label for="addWsMonth">年月</label><input type="month" id="addWsMonth"></div>
+                    <div class="modal-row"><label for="addWsName">名前（任意）</label><input type="text" id="addWsName" placeholder="例：3月メンテ"></div>
                     <div class="modal-buttons"><button class="modal-cancel" onclick="hideAddWorkspaceDialog()">キャンセル</button><button class="modal-submit" onclick="addWorkspace()">作成</button></div>
                 </div>
             </div>
-            <div class="menu-panel" id="menuPanel" style="display:none;">
-                <button onclick="exportBackup()">💾 バックアップ保存</button>
-                <button onclick="importBackup()">📂 バックアップ復元</button>
-                <input type="file" id="backupInput" accept=".json" style="display:none">
-                <button onclick="AppCore.openSettings()">⚙️ 設定</button>
-                <button onclick="showResetConfirm()">🗑️ 全データ削除</button>
+            <div id="menuPanel" style="display:none;"></div>
+            <input type="file" id="backupInput" accept=".json" class="file-input" aria-label="訪問先・ルートのバックアップファイル">
+            <div class="visit-layout" id="visitLayout">
+                <section class="bottom-panel" id="bottomPanel" aria-label="訪問先とルートの一覧">
+                    <div class="panel-tabs" aria-label="訪問情報の切り替え">
+                        <button class="tab active" data-tab="list" aria-pressed="true" onclick="mapSwitchTab('list')">訪問先</button>
+                        <button class="tab" data-tab="route" aria-pressed="false" onclick="mapSwitchTab('route')">ルート</button>
+                        <button class="tab" data-tab="summary" aria-pressed="false" onclick="mapSwitchTab('summary')">進捗</button>
+                    </div>
+                    <div class="panel-content">
+                        <div class="tab-content active" id="tabList"><div id="customerList" class="customer-list"></div></div>
+                        <div class="tab-content" id="tabRoute"><div id="routeManager" class="route-manager"></div></div>
+                        <div class="tab-content" id="tabSummary"><div id="summaryContent" class="summary-content"></div></div>
+                    </div>
+                </section>
+                <section class="map-region" aria-label="訪問先の地図">
+                    <div class="map-region-header"><div><h3>地図から訪問先を選ぶ</h3><p class="visit-help">ピン → 電話・日時・備考 → ルートへ</p></div><div class="map-view-actions"><button class="btn btn-secondary" id="mapListButton" aria-expanded="false" aria-controls="bottomPanel" hidden>訪問先・ルート</button><button class="compact-legend-btn" onclick="toggleLegend()">色の説明</button><button class="btn btn-primary" id="mapExpandButton" aria-expanded="false" aria-controls="visitLayout">地図を大きく</button></div></div>
+                    <div class="map-canvas"><div id="map"></div><div class="map-setup" id="mapSetup"><span class="map-placeholder-icon" aria-hidden="true">⌖</span><h4>地図を使う準備</h4><p id="mapSetupMessage">設定でGoogle Maps APIキーと会社住所を登録すると、地図と距離計算が使えます。</p><button class="btn btn-secondary compact-action" onclick="AppCore.openSettings('maps')">地図の設定を開く</button><p class="map-setup-hint">訪問先の登録・編集は、先に進められます。</p></div></div>
+                    <div class="legend" id="legend" style="display:none;"><div class="legend-title">ルートと状態の色 <button class="legend-close" onclick="toggleLegend()" aria-label="色の説明を閉じる">✕</button></div><div id="legendItems"></div></div>
+                </section>
             </div>
-            <div id="map"></div>
-            <div class="legend" id="legend" style="display:none;">
-                <div class="legend-title">📍 ルート凡例 <button class="legend-close" onclick="toggleLegend()">✕</button></div>
-                <div id="legendItems"></div>
-            </div>
-            <div class="bottom-panel" id="bottomPanel">
-                <div class="panel-handle" onclick="togglePanel()"><div class="handle-bar"></div></div>
-                <div class="panel-tabs">
-                    <button class="tab active" data-tab="list" onclick="mapSwitchTab('list')">📋 リスト</button>
-                    <button class="tab" data-tab="route" onclick="mapSwitchTab('route')">🗺️ ルート</button>
-                    <button class="tab" data-tab="summary" onclick="mapSwitchTab('summary')">📊 集計</button>
-                    <button class="tab" data-tab="expense" onclick="mapSwitchTab('expense')">💰 精算書</button>
-                </div>
-                <div class="panel-content">
-                    <div class="tab-content active" id="tabList"><div id="customerList" class="customer-list"></div></div>
-                    <div class="tab-content" id="tabRoute"><div id="routeManager" class="route-manager"></div></div>
-                    <div class="tab-content" id="tabSummary"><div id="summaryContent" class="summary-content"><p class="empty-msg">ルートを作成すると集計が表示されます</p></div></div>
-                    <div class="tab-content" id="tabExpense"><p class="empty-msg">💰 精算書タブを選択すると表示されます</p></div>
-                </div>
-            </div>
-            <div class="modal-overlay" id="addModal" style="display:none;"><div class="modal"><h2>➕ メンテナンス先を追加</h2><div class="modal-row"><label>会社名 *</label><input type="text" id="addCompany" placeholder="例：㈱サンプル会社"></div><div class="modal-row"><label>住所 *</label><input type="text" id="addAddress" placeholder="例：東京都港区虎ノ門1-1-1"></div><div class="modal-row"><label>電話番号</label><input type="tel" id="addPhone" placeholder="例：03-1234-5678"></div><div class="modal-row"><label>担当者</label><input type="text" id="addContact" placeholder="例：山田様"></div><div class="modal-row"><label>目的</label><select id="addPurpose"><option value="">未設定</option><option value="メンテナンス">メンテナンス</option><option value="修理">修理</option><option value="本体設置">本体設置</option><option value="その他">その他</option></select></div><div class="modal-row"><label>備考</label><textarea id="addNote" placeholder="台数や機種、駐車場情報など..."></textarea></div><div class="modal-buttons"><button class="modal-cancel" onclick="hideAddModal()">キャンセル</button><button class="modal-submit" onclick="addNewLocation()">追加する</button></div></div></div>
-            <div class="modal-overlay" id="editModal" style="display:none;"><div class="modal"><h2>📝 詳細編集</h2><div class="modal-row"><label>会社名</label><input type="text" id="editCompany"></div><div class="modal-row"><label>住所</label><input type="text" id="editAddress"></div><div class="modal-row"><label>電話番号</label><input type="tel" id="editPhone"></div><div class="modal-row"><label>担当者</label><input type="text" id="editContact"></div><div class="modal-row"><label>ルート</label><select id="editRoute"></select></div><div class="modal-row"><label>アポ日時</label><input type="datetime-local" id="editAppoDate"></div><div class="modal-row"><label>ステータス</label><select id="editStatus"><option value="pending">未アポ</option><option value="appointed">アポ済み</option><option value="completed">完了</option></select></div><div class="modal-row"><label>目的</label><select id="editPurpose"><option value="">未設定</option><option value="メンテナンス">メンテナンス</option><option value="修理">修理</option><option value="本体設置">本体設置</option><option value="その他">その他</option></select></div><div class="modal-row"><label>備考</label><textarea id="editNote"></textarea></div><div class="modal-buttons"><button class="modal-cancel" onclick="hideEditModal()">キャンセル</button><button class="modal-delete" onclick="deleteLocation()">🗑️ 削除</button><button class="modal-submit" onclick="saveEdit()">保存</button></div></div></div>
+            <div class="next-action"><div><strong>訪問が終わったら、経費を記録</strong><p>レシートを保存してから、精算書にまとめましょう。</p></div><button class="btn btn-secondary compact-action" onclick="AppCore.switchTab('receipt')">レシートへ →</button><button class="text-link" onclick="WorkflowUI.openRouteImport()">走行距離を精算する →</button></div>
+            <div class="modal-overlay" id="addModal" style="display:none;"><div class="modal"><h2>訪問先を追加</h2><div class="modal-row"><label for="addCompany">会社名 *</label><input type="text" id="addCompany" placeholder="例：㈱サンプル会社"></div><div class="modal-row"><label for="addAddress">住所 *</label><input type="text" id="addAddress" placeholder="例：東京都港区虎ノ門1-1-1"></div><div class="modal-row"><label for="addPhone">電話番号</label><input type="tel" id="addPhone" placeholder="例：03-1234-5678"></div><div class="modal-row"><label for="addContact">担当者</label><input type="text" id="addContact" placeholder="例：山田様"></div><div class="modal-row"><label for="addPurpose">目的</label><select id="addPurpose"><option value="">未設定</option><option value="メンテナンス">メンテナンス</option><option value="修理">修理</option><option value="本体設置">本体設置</option><option value="その他">その他</option></select></div><div class="modal-row"><label for="addNote">備考</label><textarea id="addNote" placeholder="台数や機種、駐車場情報など..."></textarea></div><div class="modal-buttons"><button class="modal-cancel" onclick="hideAddModal()">キャンセル</button><button class="modal-submit" onclick="addNewLocation()">追加する</button></div></div></div>
+            <div class="modal-overlay" id="editModal" style="display:none;"><div class="modal visit-editor">
+                <header class="visit-editor-header"><div><h2>電話・訪問予定を登録</h2><strong id="visitEditorName"></strong><p id="visitEditorAddress" class="visit-help"></p></div><button type="button" class="modal-cancel" onclick="hideEditModal()" aria-label="訪問先の編集を閉じる">閉じる</button></header>
+                <div class="visit-editor-actions"><div id="visitPhoneActions"></div><a class="btn btn-secondary" href="https://calendar.google.com" target="_blank" rel="noopener">Googleカレンダーを開く ↗</a></div>
+                <div class="visit-editor-grid"><section aria-label="訪問先の編集">
+                    <div class="visit-date-fields"><div class="modal-row"><label for="visitScheduleDay">訪問日</label><input type="date" id="visitScheduleDay"></div><div class="modal-row"><label for="visitScheduleTime">訪問時刻</label><input type="time" id="visitScheduleTime"></div></div><input type="hidden" id="editAppoDate">
+                    <p id="visitScheduleHint" class="visit-help" role="status"></p>
+                    <div class="visit-date-fields"><div class="modal-row"><label for="editStatus">アポの状態</label><select id="editStatus"><option value="pending">未アポ</option><option value="appointed">アポ済み</option><option value="completed">完了</option></select></div><div class="modal-row"><label for="editRoute">ルート</label><select id="editRoute"></select></div></div>
+                    <div class="modal-row"><label for="editNote">備考・電話で確認したこと</label><textarea id="editNote" rows="4"></textarea></div>
+                    <div class="modal-row"><label for="editPurpose">作業内容</label><select id="editPurpose"><option value="">未設定</option><option value="メンテナンス">メンテナンス</option><option value="修理">修理</option><option value="本体設置">本体設置</option><option value="その他">その他</option></select></div>
+                    <details class="visit-contact-details"><summary>会社名・住所・連絡先を編集</summary><div class="modal-row"><label for="editCompany">会社名</label><input type="text" id="editCompany"></div><div class="modal-row"><label for="editAddress">住所</label><input type="text" id="editAddress"></div><div class="modal-row"><label for="editPhone">電話番号</label><input type="tel" id="editPhone"></div><div class="modal-row"><label for="editContact">担当者</label><input type="text" id="editContact"></div></details>
+                </section><section class="visit-calendar" aria-label="Googleカレンダーと訪問予定">
+                    <h3>予定を見ながら日時を決める</h3>
+                    <div class="google-calendar-actions"><button type="button" class="btn btn-secondary" id="googleCalendarRefresh" hidden>更新</button><button type="button" class="text-link" id="googleCalendarSettings" onclick="AppCore.openSettings('google')">連携設定</button></div>
+                    <p id="googleCalendarStatus" class="visit-help" role="status">Googleカレンダーは未接続です。</p>
+                    <div class="visit-calendar-nav visit-day-nav"><button type="button" data-visit-shift="-1" aria-label="前日の予定">‹</button><strong id="visitSelectedDay"></strong><button type="button" data-visit-shift="1" aria-label="翌日の予定">›</button></div>
+                    <details class="visit-month-picker"><summary>月カレンダーから日を選ぶ</summary>
+                    <div class="visit-calendar-nav"><button type="button" data-visit-month="-1" aria-label="前の月の予定">‹</button><strong id="visitCalendarMonth" aria-live="polite"></strong><button type="button" data-visit-month="1" aria-label="次の月の予定">›</button></div>
+                    <div class="visit-weekdays" aria-hidden="true"><span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span></div><div id="visitCalendarDays" class="visit-calendar-days"></div>
+                    <p class="visit-help">G：Googleの予定 ／ 訪：アプリの訪問予定。日付を押すと訪問日に入ります。</p></details>
+                    <h4>Googleカレンダーの予定</h4><div id="googleVisitAgenda" aria-live="polite"></div>
+                    <details class="visit-local-agenda" open><summary id="visitAgendaTitle">このアプリに保存した訪問予定</summary><div id="visitAgenda" aria-live="polite"></div></details>
+                    <p class="visit-help">表示は日本時間。Googleの予定は閲覧のみです。変更後は「更新」。訪問予定の保存とGoogleへの追加は別々に行います。</p>
+                </section></div>
+                <p id="visitEditError" role="alert" tabindex="-1"></p><div class="modal-buttons"><button class="modal-cancel" onclick="hideEditModal()">キャンセル</button><button class="modal-delete" onclick="deleteLocation()">削除</button><button class="modal-submit" onclick="saveEdit()">予定・備考を保存</button></div>
+            </div></div>
             <div class="modal-overlay" id="resetModal" style="display:none;"><div class="modal"><h2>🗑️ データをリセット</h2><p class="confirm-text">現在のワークスペースのデータをすべて削除しますか？<br>この操作は取り消せません。<br><strong id="resetCount">0件</strong>のデータが削除されます</p><div class="modal-buttons"><button class="modal-cancel" onclick="hideResetConfirm()">キャンセル</button><button class="modal-delete" onclick="resetAllData()">削除する</button></div></div></div>
             <div class="loading-overlay" id="mapLoading" style="display:none;"><div class="loading-content"><div class="loading-spinner"></div><p>📍 処理中...</p><p id="mapLoadingProgress"></p></div></div>
 
         </div>
     </main>
-    <!-- v2.1改修 - 統合設定モーダル（Gemini API + Maps API + 自宅住所を1箇所で管理） -->
     <div class="modal-overlay" id="settingsModal" style="display:none;" onclick="AppCore.closeSettings(event)">
-        <div class="modal-content" onclick="event.stopPropagation()">
-            <div class="modal-header">
-                <span class="modal-title">⚙️ 設定</span>
-                <button class="btn-small btn-clear" onclick="AppCore.closeSettings()">✕</button>
-            </div>
+        <div class="modal-content settings-content" onclick="event.stopPropagation()">
+            <div class="modal-header"><h2 class="modal-title">設定</h2><button class="btn-small btn-clear" onclick="AppCore.closeSettings()" aria-label="設定を閉じる">✕</button></div>
             <div class="modal-body">
-                <div class="setting-group">
-                    <label class="setting-label">🔑 Gemini APIキー</label>
-                    <p class="setting-hint">レシートのAI読み取りに使用します</p>
-                    <input type="password" id="settingGeminiKey" class="setting-input" placeholder="AIza...">
-                    <p class="setting-hint" style="margin-top:8px;">
-                        <a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--accent-light);">Google AI Studio でAPIキーを取得 →</a>
-                    </p>
-                </div>
-                <div class="setting-group" style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px;">
-                    <label class="setting-label">🗺️ Google Maps APIキー</label>
-                    <p class="setting-hint">マップの地図表示・距離計算に使用します</p>
-                    <input type="password" id="settingMapsKey" class="setting-input" placeholder="AIza...">
-                    <p class="setting-hint" style="margin-top:8px;">
-                        <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color:var(--accent-light);">Google Cloud Console でAPIキーを取得 →</a>
-                    </p>
-                </div>
-                <div class="setting-group" style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px;">
-                    <label class="setting-label">🏠 自宅住所（出発点）</label>
-                    <p class="setting-hint">マップの距離計算の出発点として使用します</p>
-                    <input type="text" id="settingHomeAddr" class="setting-input" placeholder="例：千葉県袖ケ浦市...">
-                </div>
-
+                <p class="settings-intro">変更したい項目を開いてください。</p>
+                <p id="settingsStatus" class="setting-hint" role="status"></p>
+                <details class="settings-category" data-settings-category="google">
+                    <summary>Googleカレンダー<span>接続・アカウント・表示するカレンダー</span></summary>
+                    <div class="settings-category-body">
+                        <p id="googleCalendarSettingsStatus" class="visit-help" role="status"></p>
+                        <div class="google-calendar-actions"><button type="button" class="btn btn-primary" id="googleCalendarConnect">Googleカレンダーに接続</button><button type="button" class="btn btn-secondary settings-danger" id="googleCalendarDisconnect" hidden>接続解除</button></div>
+                    <details id="googleCalendarSelection" class="google-calendar-details" hidden><summary id="googleCalendarSelectionCount">表示するカレンダー</summary><div id="googleCalendarChoices"></div><p class="visit-help">確認したいカレンダーを選んでください。閲覧権限のない予定は表示できません。</p></details>
+                    <details id="googleCalendarSetup" class="google-calendar-details"><summary>初回の連携設定</summary><p class="visit-help">初回だけ、Google側でこのアプリの連携用IDを作ります。地図のAPIキーとは別です。</p><a href="docs/google-calendar-setup.html" target="_blank" rel="noopener">設定手順を開く ↗</a><div class="modal-row"><label for="googleCalendarClientId">OAuthクライアントID</label><input type="text" id="googleCalendarClientId" autocomplete="off" spellcheck="false" placeholder="…apps.googleusercontent.com"></div><button type="button" class="btn btn-secondary" id="googleCalendarSaveClient">連携用IDを保存</button><p class="visit-help">IDだけをこのブラウザに保存します。パスワードやシークレットは入力しません。</p><a href="https://myaccount.google.com/connections" target="_blank" rel="noopener">Googleアカウントの接続管理 ↗</a></details>
+                    </div>
+                </details>
+                <details class="settings-category" data-settings-category="maps">
+                    <summary>地図・会社住所<span>地図表示・会社からの距離計算</span></summary>
+                    <div class="settings-category-body">
+                        <div class="setting-group"><label class="setting-label" for="settingMapsKey">Google Maps APIキー</label><input type="password" id="settingMapsKey" class="setting-input" autocomplete="off" placeholder="AIza..."><p class="setting-hint"><a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Google Cloud Console を開く ↗</a></p></div>
+                        <div class="setting-group"><label class="setting-label" for="settingHomeAddr">会社住所（出発・帰着）</label><p class="setting-hint">会社から出発し、最後に会社へ戻る距離を計算します。</p><input type="text" id="settingHomeAddr" class="setting-input" placeholder="例：千葉県袖ケ浦市..."></div>
+                        <button class="btn btn-primary" onclick="AppCore.saveSettings('Maps')">地図・住所の設定を保存</button>
+                        <p id="settingsMapsStatus" class="setting-hint" role="status"></p>
+                        <button class="btn btn-secondary" id="settingsReload" data-requires-idle hidden onclick="SettingsPanel.dataAction('reload')">保存済みの設定で再読み込み</button>
+                    </div>
+                </details>
+                <details class="settings-category" data-settings-category="ai">
+                    <summary>レシートのAI読取<span>Gemini APIキー</span></summary>
+                    <div class="settings-category-body">
+                        <div class="setting-group"><label class="setting-label" for="settingGeminiKey">Gemini APIキー</label><p class="setting-hint">レシートのAI読み取りに使用します。</p><input type="password" id="settingGeminiKey" class="setting-input" autocomplete="off" placeholder="AIza..."><p class="setting-hint"><a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio でAPIキーを取得 ↗</a></p></div>
+                        <button class="btn btn-primary" onclick="AppCore.saveSettings('AI')">AI読取の設定を保存</button><p id="settingsAIStatus" class="setting-hint" role="status"></p>
+                    </div>
+                </details>
+                <details class="settings-category" data-settings-category="data">
+                    <summary>バックアップ・データ管理<span>写真入りバックアップ、端末間共有、削除</span></summary>
+                    <div class="settings-category-body">
+                        <p id="settingsDataHint" class="setting-hint"></p>
+                        <h3>写真入りバックアップ</h3>
+                        <p class="setting-hint">全対象月の訪問先・ルート・経費、保存済みレシート写真、精算書の下書き・添付写真、ETC証憑をまとめます（64MBまで）。</p>
+                        <p class="setting-hint">入力途中の内容は先に保存してください。未保存の入力・書き出したPDF・Googleの予定・接続設定は含みません。他のタブを閉じてから操作してください。</p>
+                        <div class="settings-data-actions">
+                            <button class="btn btn-primary" id="fullBackupSave" data-requires-idle>写真入りバックアップを保存</button>
+                            <button class="btn btn-secondary" id="fullBackupRestore" data-requires-idle>ファイルから取り込む</button>
+                            <input type="file" id="fullBackupInput" accept=".json,application/json" hidden aria-label="写真入りバックアップファイル">
+                        </div>
+                        <details class="transfer-details"><summary>取り込み前の記録に戻したいとき</summary><p class="setting-hint">直前の取り込み前の記録を、この端末に退避します。下のボタンで書き出し、ファイルから取り込めます。</p><button class="btn btn-secondary" id="fullBackupPrevious" data-requires-idle>取り込み前の記録を書き出す</button></details>
+                        <hr>
+                        <h3>スマホ・タブレット・Surfaceで共有</h3>
+                        <p class="setting-hint">同じGoogleアカウントで接続して、送信・取り込みを行います。自動同期ではありません。取り込みはこの端末の保存済み記録をすべて置き換えます。</p>
+                        <p class="setting-hint"><a href="docs/data-sharing-setup.html" target="_blank" rel="noopener">初回の共有設定・使い方を開く ↗</a></p>
+                        <p id="driveAccount" class="setting-hint"></p>
+                        <div class="settings-data-actions"><button class="btn btn-secondary" id="driveConnect" data-requires-idle>Googleの共有先に接続</button><button class="btn btn-secondary" id="driveDisconnect" hidden>共有接続を終了</button></div>
+                        <div id="driveControls" hidden>
+                            <p id="driveRemoteStatus" class="setting-hint" role="status"></p>
+                            <div class="settings-data-actions">
+                                <button class="btn btn-secondary" id="driveRefresh" data-requires-idle>共有先を再確認</button>
+                                <button class="btn btn-primary" id="driveSend" data-requires-idle>この端末から共有先へ保存</button>
+                                <label for="driveRevision">取り込む版</label><select id="driveRevision" class="setting-input"></select>
+                                <button class="btn btn-secondary" id="driveReceive" data-requires-idle>選んだ版を取り込む</button>
+                            </div>
+                            <details class="transfer-details"><summary>別の端末でも変更した場合</summary><p class="setting-hint">まず必要な各端末のバックアップを保存してください。内容を確認して、どの端末の記録を使うか選べます。記録の自動合成は行いません。</p><button class="btn btn-secondary settings-danger" id="driveForceSend" data-requires-idle>この端末の内容を優先して共有</button></details>
+                        </div>
+                        <p id="transferStatus" class="setting-hint transfer-status" role="status" aria-live="polite"></p>
+                        <details class="transfer-details"><summary>以前の訪問先バックアップ</summary><p class="setting-hint">従来のファイルは訪問先・ルート等のみです。レシート画像・精算書は含みません。</p><div class="settings-data-actions"><button class="btn btn-secondary" onclick="exportBackup()">バックアップを保存</button><button class="btn btn-secondary" data-requires-idle onclick="SettingsPanel.dataAction('restore')">バックアップから復元</button></div></details>
+                        <details class="transfer-details"><summary>対象月のデータを削除</summary><button class="btn btn-secondary settings-danger" data-requires-idle onclick="SettingsPanel.dataAction('reset')">現在の対象月のデータを削除</button></details>
+                    </div>
+                </details>
             </div>
-            <div class="modal-footer">
-                <button class="btn btn-save" onclick="AppCore.saveSettings()">💾 保存する</button>
-            </div>
+            <div class="modal-footer"><button class="btn btn-secondary" id="settingsReturn" onclick="AppCore.closeSettings()">設定を閉じる</button></div>
         </div>
     </div>
     <div class="loading-overlay" id="loading" style="display:none;"><div class="loading-spinner"></div><div class="loading-text" id="loadingText">処理中...</div></div>
-    <script src="shared/app-core.js"></script>
+    <dialog id="transferBusy" aria-labelledby="transferBusyText"><p id="transferBusyText" role="status"></p><p>画面を閉じずにお待ちください。</p></dialog>
+    <script src="shared/settings-panel.js?v=20261019-15"></script>
+    <script src="shared/app-core.js?v=20261019-14"></script>
     <script src="receipt/receipt-image-utils.js"></script>
-    <script src="receipt/receipt-scanner.js"></script>
-    <script src="expense/expense-manager.js"></script>
-    <script src="expense/expense-pdf.js"></script>
+    <script src="receipt/receipt-scanner.js?v=20261019-15"></script>
+    <script src="receipt/receipt-photo-geometry.js?v=20261014-3"></script>
+    <script src="receipt/receipt-photo.js?v=20261014-3"></script>
+    <script src="expense/expense-import.js"></script>
+    <script src="shared/pdf-renderer.js"></script>
+    <script src="expense/expense-draft-store.js?v=20261019-15"></script>
+    <script src="expense/expense-draft-receipts.js?v=20261019-2"></script>
+    <script src="expense/expense-manager.js?v=20261019-15"></script>
+    <script src="expense/expense-pdf.js?v=20261019-7"></script>
     <script src="expense/expense-etc.js"></script>
     <!-- v1.3追加 - Phase I: 駐車場明細IndexedDB管理 -->
-    <script src="expense/parking-idb.js"></script>
-    <script src="expense/parking-manager.js"></script>
-    <script src="expense/parking-pdf.js"></script>
-    <script src="map/map-data-storage.js"></script>
+    <script src="expense/parking-idb.js?v=20261019-15"></script>
+    <script src="expense/parking-document.js?v=20261014-3"></script>
+    <script src="expense/parking-manager.js?v=20261019-15"></script>
+    <script src="expense/parking-pdf.js?v=20261019-7"></script>
+    <script src="map/map-data-storage.js?v=20261019-10"></script>
     <script src="map/v1-converter.js"></script>
-    <script src="map/csv-handler.js"></script>
-    <script src="map/map-core.js"></script>
+    <script src="map/request-parser.js?v=20261019-9"></script>
+    <script src="map/request-reader.js?v=20261019-9"></script>
+    <script src="map/request-import.js"></script>
+    <script src="map/map-core.js?v=20261019-10"></script>
+    <script src="map/google-calendar-data.js?v=20261019-13"></script>
+    <script src="map/google-visit-calendar.js?v=20261019-14"></script>
+    <script src="map/visit-planner.js?v=20261019-13"></script>
+    <script src="map/map-workspace.js?v=20261019-11"></script>
+    <script src="map/route-list-pdf.js"></script>
     <script src="map/route-manager.js"></script>
     <script src="map/map-expense-form.js"></script>
     <script src="map/route-order.js"></script>
     <script src="map/segment-dialog.js"></script>
-    <script src="map/distance-calc.js"></script>
-    <script src="map/ui-actions.js"></script>
-    <script src="map/gcal-panel.js"></script>
-    <script src="expense/parking-matcher.js"></script>
+    <script src="map/distance-calc.js?v=20261019-7"></script>
+    <script src="map/ui-actions.js?v=20261019-15"></script>
+    <script src="map/gcal-panel.js?v=20261019-13"></script>
+    <script src="expense/parking-matcher.js?v=20261014-4"></script>
+    <script src="expense/etc-document.js?v=20261019-7"></script>
+    <script src="expense/etc-journey.js?v=20261019-7"></script>
+    <script src="expense/etc-store.js?v=20261019-7"></script>
+    <script src="expense/etc-reader.js?v=20261019-7"></script>
+    <script src="expense/etc-view.js?v=20261019-7"></script>
+    <script src="expense/etc-workflow.js?v=20261019-15"></script>
+    <script src="shared/workflow-ui.js?v=20261019-14"></script>
+    <script src="shared/backup-format.js?v=20261019-15"></script>
+    <script src="shared/backup-store.js?v=20261019-15"></script>
+    <script src="shared/drive-graph.js?v=20261019-15"></script>
+    <script src="shared/drive-transfer.js?v=20261019-15"></script>
+    <script src="shared/transfer-ui.js?v=20261019-15"></script>
+    <script>
+        (function() {
+            var KEY = 'culo_migration_notice_20261028';
+            document.addEventListener('DOMContentLoaded', function() {
+                var box = document.getElementById('migrationNotice');
+                var close = document.getElementById('migrationNoticeClose');
+                try { if (!box || window.localStorage.getItem(KEY)) return; } catch (e) { return; }
+                box.hidden = false;
+                close.addEventListener('click', function() {
+                    box.hidden = true;
+                    try { window.localStorage.setItem(KEY, '1'); } catch (e) {}
+                });
+            });
+        })();
+    </script>
     <script>
         document.addEventListener('DOMContentLoaded', async function() {
+            try { await BackupStore.start(); }
+            catch (error) { document.getElementById('storageStartup').textContent = '保存データの確認・復旧を完了できません。ほかのタブを閉じて再読み込みしてください。 ' + error.message; return; }
+            document.dispatchEvent(new Event('app:storage-ready'));
             ExpenseManager.init();
+            document.getElementById('expParkingMonth').value = new Date().toLocaleDateString('sv-SE').slice(0, 7);
+            document.getElementById('parkingFilterMonth').value = new Date().toLocaleDateString('sv-SE').slice(0,7);
             await ParkingManager.init();
-            GcalPanel.init();
-            GcalPanel.initPanelSwipe();
             DataStorage.migrateIfNeeded();
+            await EtcWorkflow.init();
             updateWsButton();
+            WorkflowUI.init();
+            MapWorkspace.init();
+            VisitPlanner.init();
+            TransferUI.init();
+            document.body.inert = false;
+            document.getElementById('storageStartup').hidden = true;
             var fi = document.getElementById('fileInput');
-            if (fi) fi.addEventListener('change', function(e) { CsvHandler.handleFile(e); });
+            RequestImport.init();
+            if (fi) fi.addEventListener('change', RequestImport.handleFile);
             var bi = document.getElementById('backupInput');
             if (bi) bi.addEventListener('change', function(e) { DataStorage.importBackup(e); });
             var mapSettings = DataStorage.getSettings();
             if (mapSettings.apiKey) {
+                document.getElementById('mapSetupMessage').textContent = '地図を読み込み中です。訪問先の一覧はそのまま使えます。';
                 var s = document.createElement('script');
                 s.src = 'https://maps.googleapis.com/maps/api/js?key=' + mapSettings.apiKey + '&libraries=places,geometry&callback=initMap';
                 s.async = true; s.defer = true;
+                s.onerror = function() { document.getElementById('mapSetupMessage').textContent = '地図を読み込めませんでした。通信状態と地図の設定を確認してください。'; };
                 document.body.appendChild(s);
             }
         });
     </script>
 </body>
 </html>
+
+

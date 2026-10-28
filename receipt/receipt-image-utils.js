@@ -269,3 +269,4 @@ const ImageUtils = (() => {
         cropRegion: cropRegion
     };
 })();
+

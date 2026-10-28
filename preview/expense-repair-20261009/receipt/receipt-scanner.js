@@ -280,7 +280,7 @@ const ReceiptScanner = (() => {
         items.forEach(function(item, i) {
             var div = document.createElement('div');
             div.className = 'detected-item';
-            div.innerHTML = '<img src="' + item.dataUrl + '" alt="レシート' + (i + 1) + '">'
+            div.innerHTML = '<img src="' + _escHtml(item.dataUrl) + '" alt="レシート' + (i + 1) + '">'
                 + '<div class="detected-item-label">レシート ' + (i + 1) + '</div>';
             container.appendChild(div);
         });
@@ -392,6 +392,18 @@ const ReceiptScanner = (() => {
     }
 
     // ==========================================
+    // 保存済みレシートの読み込み。読めないときは例外にして、壊れたデータを空配列で上書きしない。
+    function readSaved() {
+        const raw = PreviewStorage.getItem('gyomupro_receipts');
+        if (!raw) return [];
+        const value = JSON.parse(raw);
+        if (!Array.isArray(value)) throw new Error('保存済みレシートの形式を確認できません');
+        return value;
+    }
+    function isQuotaError(error) {
+        return !!error && (error.name === 'QuotaExceededError' || error.name === 'NS_ERROR_DOM_QUOTA_REACHED' || error.code === 22 || error.code === 1014);
+    }
+
     // v1.3改修 - 保存（重複チェック付き）
     // ==========================================
     async function saveAll() {
@@ -399,7 +411,7 @@ const ReceiptScanner = (() => {
         if (!selected.length) { alert('保存するレシートを選択してください'); return; }
         if (!validateSelection(selected)) return;
         try {
-            const saved = JSON.parse(PreviewStorage.getItem('gyomupro_receipts') || '[]');
+            const saved = readSaved();
             const ids = [];
             selected.forEach(r => {
                 const index = saved.findIndex(existing => r.savedId ? existing.id === r.savedId : existing.imageDataUrl === r.imageDataUrl);
@@ -414,7 +426,8 @@ const ReceiptScanner = (() => {
             renderSavedReceipts();
             alert('✅ ' + selected.length + '件の内容と写真を保存しました。');
         } catch (error) {
-            alert('保存できませんでした。入力内容と写真はこの画面に残っています。ブラウザの空き容量・保存設定を確認してください。');
+            if (isQuotaError(error)) alert('ブラウザの保存容量がいっぱいで、保存できませんでした。保存済みレシートを減らすか、「駐車場へ送る」（写真は別の保存領域に入ります）を使ってください。入力内容と写真はこの画面に残っています。既に保存したレシートは変わっていません。');
+            else alert('保存できませんでした。入力内容と写真はこの画面に残っています。ブラウザの空き容量・保存設定を確認してください。保存済みのデータは上書きしていません。');
         }
     }
 
@@ -426,7 +439,13 @@ const ReceiptScanner = (() => {
     function renderSavedReceipts() {
         var container = document.getElementById('savedReceiptList');
         if (!container) return;
-        var saved = JSON.parse(PreviewStorage.getItem('gyomupro_receipts') || '[]');
+        var saved;
+        try { saved = readSaved(); }
+        catch (error) {
+            container.textContent = '保存済みレシートを読み込めません。データは上書きせず残しています。再読み込みしてもこの表示が続く場合は、バックアップから確認してください。';
+            _deleteMode = false;
+            return;
+        }
         if (saved.length === 0) {
             container.innerHTML = '<p class="empty-msg">保存されたレシートはありません</p>';
             _deleteMode = false;
@@ -447,10 +466,10 @@ const ReceiptScanner = (() => {
                 // v1.4 - 削除モード時のみチェックボックス表示
                 if (_deleteMode) {
                     html += '<input type="checkbox" class="saved-del-check" '
-                        + 'data-id="' + r.id + '">';
+                        + 'data-id="' + _escHtml(r.id) + '">';
                 }
                 html += '<span class="saved-item-store">' + _escHtml(r.store || '不明') + '</span>'
-                    + '<span class="saved-item-amount">¥' + (r.total || 0).toLocaleString() + '</span>'
+                    + '<span class="saved-item-amount">¥' + _escHtml((Number(r.total) || 0).toLocaleString()) + '</span>'
                     + (!_deleteMode ? '<button class="btn-small saved-open" data-open-receipt="' + _escHtml(r.id) + '">開く・修正</button>' : '')
                     + '</div>';
             });
@@ -475,7 +494,7 @@ const ReceiptScanner = (() => {
     function openSaved(id) {
         if (_reading || !mayReplace()) return;
         try {
-            const saved = JSON.parse(PreviewStorage.getItem('gyomupro_receipts') || '[]');
+            const saved = readSaved();
             const receipt = saved.find(r => r.id === id);
             if (!receipt) throw new Error('保存済みレシートが見つかりません。');
             if (!receipt.imageDataUrl) throw new Error('このレシートには写真が保存されていません。');
@@ -512,11 +531,16 @@ const ReceiptScanner = (() => {
         if (!confirm(checks.length + '件のレシートを削除しますか？')) return;
         var deleteIds = [];
         checks.forEach(function(cb) { deleteIds.push(cb.getAttribute('data-id')); });
-        var saved = JSON.parse(PreviewStorage.getItem('gyomupro_receipts') || '[]');
-        saved = saved.filter(function(r) {
-            return deleteIds.indexOf(r.id) === -1;
-        });
-        PreviewStorage.setItem('gyomupro_receipts', JSON.stringify(saved));
+        try {
+            var saved = readSaved();
+            saved = saved.filter(function(r) {
+                return deleteIds.indexOf(r.id) === -1;
+            });
+            PreviewStorage.setItem('gyomupro_receipts', JSON.stringify(saved));
+        } catch (error) {
+            alert('削除できませんでした。保存済みレシートは変更していません。');
+            return;
+        }
         _deleteMode = false;
         renderSavedReceipts();
     }

@@ -16,9 +16,9 @@ const MapCore = (() => {
     let currentEditId = null;
 
     const PIN_COLORS = {
-        pending: '#ea4335',
-        appointed: '#34a853',
-        completed: '#9e9e9e'
+        pending: '#b57b17',
+        appointed: '#1765aa',
+        completed: '#177050'
     };
 
     function initMap() {
@@ -39,6 +39,8 @@ const MapCore = (() => {
 
         geocoder = new google.maps.Geocoder();
         infoWindow = new google.maps.InfoWindow();
+        const setup = document.getElementById('mapSetup');
+        if (setup) setup.hidden = true;
 
         const customers = DataStorage.getCustomers();
         if (customers.length > 0) {
@@ -94,6 +96,13 @@ const MapCore = (() => {
     }
 
     async function geocodeAndPlot(customers) {
+        // Registration and list editing do not require a loaded Google map.
+        if (!map || !geocoder) {
+            updateCountBadge();
+            updateCustomerList();
+            RouteManager.updateRoutePanel();
+            return;
+        }
         const loading = document.getElementById('mapLoading');
         const progress = document.getElementById('mapLoadingProgress');
         loading.style.display = 'flex';
@@ -136,6 +145,7 @@ const MapCore = (() => {
         if (markers.length > 0) { map.fitBounds(bounds, { padding: 50 }); }
         updateCountBadge();
         updateCustomerList();
+        RouteManager.updateRoutePanel();
     }
 
     function geocodeAddressAsync(address) {
@@ -195,7 +205,13 @@ const MapCore = (() => {
     }
 
     function showInfoWindow(marker, customer) {
-        const statusText = { pending: '🔴 未アポ', appointed: '🟢 アポ済み', completed: '⚪ 完了' };
+        const esc = ExpenseImport.escapeHtml;
+        const statusText = { pending: '未アポ', appointed: 'アポ済み', completed: '完了' };
+        const rawId = customer.id;
+        const phones = VisitPlanner.phoneNumbers(customer.phone);
+        customer = {...customer};
+        Object.keys(customer).forEach(key=> { if(typeof customer[key]==='string' && !['appoDate','status','routeId'].includes(key))customer[key]=esc(customer[key]); });
+        if(customer.floors)customer.floors=customer.floors.map(esc);
         const routes = DataStorage.getRoutes();
         const route = routes.find(r => r.id === customer.routeId);
 
@@ -212,11 +228,11 @@ const MapCore = (() => {
         if (customer.branch) html += `<p>🏢 営業所: ${customer.branch}</p>`;
         if (customer.equipType) html += `<p>⚙️ 型式: ${customer.equipType}</p>`;
         if (customer.filter) html += `<p>🔧 フィルター: ${customer.filter}</p>`;
-        if (route) html += `<p>🗺️ ${route.name}</p>`;
+        if (route) html += `<p>🗺️ ${esc(route.name)}</p>`;
         html += `<p>${statusText[customer.status] || statusText.pending}</p>`;
         if (customer.appoDate) {
             const d = new Date(customer.appoDate);
-            const dateStr = isNaN(d.getTime()) ? customer.appoDate : d.toLocaleString('ja-JP');
+            const dateStr = esc(isNaN(d.getTime()) ? customer.appoDate : d.toLocaleString('ja-JP'));
             html += `<p>📅 ${dateStr}</p>`;
         }
         if (customer.note) html += `<p style="font-size:11px;color:#64748b;white-space:pre-wrap;">📝 ${customer.note}</p>`;
@@ -224,19 +240,16 @@ const MapCore = (() => {
         if (customer.routeId) {
             const currentRoute = routes.find(r => r.id === customer.routeId);
             const currentOrder = currentRoute && currentRoute.order ? currentRoute.order : [];
-            const currentIdx = currentOrder.indexOf(customer.id);
+            const currentIdx = currentOrder.indexOf(rawId);
             const orderText = currentIdx >= 0 ? `${currentIdx + 1}番目` : '未設定';
             html += `<div class="info-visit-order">`;
             html += `<span>🔢 訪問順: ${orderText}</span>`;
-            html += `<button class="info-btn info-btn-order" onclick="RouteOrder.startEdit('${customer.routeId}')">並べ替え</button>`;
+            html += `<button class="info-btn info-btn-order" onclick="RouteOrder.startEdit(${esc(JSON.stringify(customer.routeId))})">並べ替え</button>`;
             html += `</div>`;
         }
         html += `<div class="info-actions">`;
-        html += `<button class="info-btn info-btn-edit" onclick="MapCore.openEdit('${customer.id}')">✏️ 編集</button>`;
-        if (customer.phone) {
-            const phoneNum = customer.phone.split('/')[0].replace(/[^0-9\-]/g, '');
-            html += `<button class="info-btn info-btn-call" onclick="window.open('tel:${phoneNum}')">📞 電話</button>`;
-        }
+        html += `<button class="info-btn info-btn-edit" onclick="MapCore.openEdit(${esc(JSON.stringify(rawId))})">日時・備考を編集</button>`;
+        phones.forEach((phone,index)=> {html += `<a class="info-btn info-btn-call" href="tel:${esc(phone)}">電話${phones.length>1?' '+(index+1):''}</a>`;});
         html += `</div></div>`;
         infoWindow.setContent(html);
         infoWindow.open(map, marker);
@@ -270,25 +283,26 @@ const MapCore = (() => {
         const routes = DataStorage.getRoutes();
         const listEl = document.getElementById('customerList');
         if (customers.length === 0) {
-            listEl.innerHTML = '<p class="empty-msg">📁 CSVファイルを読み込むか、➕ボタンで追加してください</p>';
+            listEl.innerHTML = '<div class="empty-msg"><strong>この月の訪問先はまだありません</strong><br>「訪問先を追加」か「Excel・依頼書を取り込む」で<br>準備を始めましょう。</div>';
             return;
         }
+        const esc = ExpenseImport.escapeHtml;
+        const statuses = { pending: '未アポ', appointed: 'アポ済み', completed: '訪問完了' };
         let html = '';
         for (const c of customers) {
             const route = routes.find(r => r.id === c.routeId);
-            const statusClass = `status-${c.status || 'pending'}`;
-            html += `<div class="customer-item" onclick="MapCore.focusMarker('${c.id}')">`;
-            html += `<div class="customer-status ${statusClass}"></div>`;
-            html += `<div class="customer-info">`;
-            html += `<div class="customer-name">${c.company || '不明'}`;
-            if (c.managementNo) html += ` <small style="color:#94a3b8;font-weight:400;">${c.managementNo}</small>`;
-            html += `</div>`;
-            html += `<div class="customer-address">${c.address || ''}`;
-            if (c.floors && c.floors.length > 0) html += ` 🏢${c.floors.join(',')}`;
-            html += `</div></div>`;
+            const status = statuses[c.status] ? c.status : 'pending';
+            html += `<button type="button" class="customer-item" data-customer-id="${esc(c.id)}">`;
+            html += `<span class="customer-status status-${status}" aria-hidden="true"></span>`;
+            html += `<span class="customer-info">`;
+            html += `<span class="customer-name">${esc(c.company || '不明')}`;
+            if (c.managementNo) html += ` <small>${esc(c.managementNo)}</small>`;
+            html += `</span>`;
+            html += `<span class="customer-address">${esc(c.address || '')}`;
+            if (c.floors && c.floors.length > 0) html += ` · ${esc(c.floors.join(','))}`;
+            html += `</span><span class="customer-meta">${statuses[status]} · ${esc(route ? route.name : 'ルート未割当')}</span></span>`;
             if (c.unitCount > 1) html += `<span class="customer-count">${c.unitCount}台</span>`;
-            if (route) html += `<span class="customer-route" style="background:${route.color}">${route.name}</span>`;
-            html += `</div>`;
+            html += `</button>`;
         }
         listEl.innerHTML = html;
     }
@@ -299,13 +313,15 @@ const MapCore = (() => {
             map.setCenter(marker.getPosition());
             map.setZoom(16);
             google.maps.event.trigger(marker, 'click');
-            document.getElementById('bottomPanel').classList.add('collapsed');
+        } else {
+            openEdit(customerId);
         }
     }
 
     function openEdit(customerId) {
         const customer = DataStorage.getCustomers().find(c => c.id === customerId);
         if (!customer) return;
+        if (typeof restoreEditButtons === 'function') restoreEditButtons();
         currentEditId = customerId;
         document.getElementById('editCompany').value = customer.company || '';
         document.getElementById('editAddress').value = customer.address || '';
@@ -319,15 +335,17 @@ const MapCore = (() => {
         const routeSelect = document.getElementById('editRoute');
         routeSelect.innerHTML = '<option value="">未割当</option>';
         routes.forEach(r => {
-            routeSelect.innerHTML += `<option value="${r.id}" ${customer.routeId === r.id ? 'selected' : ''}>${r.name}</option>`;
+            routeSelect.innerHTML += `<option value="${ExpenseImport.escapeHtml(r.id)}" ${customer.routeId === r.id ? 'selected' : ''}>${ExpenseImport.escapeHtml(r.name)}</option>`;
         });
+        if (typeof VisitPlanner !== 'undefined') VisitPlanner.begin(customer);
         document.getElementById('editModal').style.display = 'flex';
-        infoWindow.close();
+        if (infoWindow) infoWindow.close();
     }
 
     function refreshAllMarkers() {
         const customers = DataStorage.getCustomers();
         clearMarkers();
+        if (!map) { updateCountBadge(); updateCustomerList(); return; }
         const cache = DataStorage.getGeoCache();
         for (const c of customers) {
             const cached = cache[c.address];
@@ -353,3 +371,4 @@ const MapCore = (() => {
 function initMap() {
     MapCore.initMap();
 }
+

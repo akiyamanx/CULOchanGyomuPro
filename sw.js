@@ -1,44 +1,63 @@
 // ==========================================
-// CULOchan業務Pro — Service Worker v5.2
+// CULOchan業務Pro — Service Worker v6.0
 // CACHE_NAMEはデプロイごとにインクリメントすること！
-// v4.3 2026-04-02 - 駐車場PDF日本語対応+レシート90度回転
-// v4.4 2026-04-02 - 保存済みレシート削除機能+重複防止
-// v4.5 2026-04-02 - レシート回転調整UI（🔄ボタン・任意角度回転対応）
-// v4.6 2026-04-02 - チェックボックス式削除UI（誤削除防止）
-// v4.7 2026-04-03 - Phase G: 駐車場×顧客自動マッチング
-// v4.8 2026-04-04 - Phase H: Googleカレンダー連携
-// v4.9 2026-04-04 - Phase H: GCal直接起動ボタン追加
-// v5.0 2026-04-04 - Phase H: GCalスワイプパネル追加
-// v5.1 2026-04-04 - Phase H: GCal iframe→アプリ直接起動方式に変更
-// v5.2 2026-04-04 - Phase H不要コード整理 + Phase I: IndexedDB移行（parking-idb.js追加）
+// v4.3〜v5.2 (2026-04) 旧本番の履歴は git log を参照
+// v6.0 2026-10-28 - お試し版(写真入りバックアップ・Drive共有・ETC・依頼書取込)を本番へ統合
+//   - 認証付きGoogle通信(accounts.google.com / *.googleapis.com など)と非GETは一切キャッシュしない
+//   - キャッシュ対象は自サイトの静的ファイルと、既知のCDN(cdnjs・Googleフォント)のみ
+//   - お試し版の置き場所(/preview/)は触らない
+//   - ASSETSは実在するファイルだけ(tests/sw-assets.test.cjs が検査する)
 // ==========================================
 
-const CACHE_NAME = 'gyomupro-v43';
+const CACHE_NAME = 'gyomupro-v44';
 const ASSETS = [
     './',
     './index.html',
+    './manifest.json',
+    './shared/app-storage.js',
+    './icons/icon-192.png',
     './styles/common.css',
     './styles/receipt.css',
     './styles/expense.css',
     './styles/parking.css',
+    './styles/parking-workflow.css',
     './styles/map/map-styles.css',
     './styles/map/map-expense-styles.css',
     './styles/map/route-order-styles.css',
     './styles/map/workspace-styles.css',
+    './styles/workflow.css',
+    './styles/map-workspace.css',
+    './styles/settings.css',
+    './styles/request-import.css',
+    './styles/etc-workflow.css',
+    './shared/settings-panel.js',
     './shared/app-core.js',
-    './receipt/receipt-scanner.js',
     './receipt/receipt-image-utils.js',
+    './receipt/receipt-scanner.js',
+    './receipt/receipt-photo-geometry.js',
+    './receipt/receipt-photo.js',
+    './expense/expense-import.js',
+    './shared/pdf-renderer.js',
+    './expense/expense-draft-store.js',
+    './expense/expense-draft-receipts.js',
     './expense/expense-manager.js',
     './expense/expense-pdf.js',
     './expense/expense-etc.js',
     './expense/parking-idb.js',
+    './expense/parking-document.js',
     './expense/parking-manager.js',
-    './expense/parking-matcher.js',
     './expense/parking-pdf.js',
     './map/map-data-storage.js',
     './map/v1-converter.js',
-    './map/csv-handler.js',
+    './map/request-parser.js',
+    './map/request-reader.js',
+    './map/request-import.js',
     './map/map-core.js',
+    './map/google-calendar-data.js',
+    './map/google-visit-calendar.js',
+    './map/visit-planner.js',
+    './map/map-workspace.js',
+    './map/route-list-pdf.js',
     './map/route-manager.js',
     './map/map-expense-form.js',
     './map/route-order.js',
@@ -46,13 +65,52 @@ const ASSETS = [
     './map/distance-calc.js',
     './map/ui-actions.js',
     './map/gcal-panel.js',
-    './manifest.json'
+    './expense/parking-matcher.js',
+    './expense/etc-document.js',
+    './expense/etc-journey.js',
+    './expense/etc-store.js',
+    './expense/etc-reader.js',
+    './expense/etc-view.js',
+    './expense/etc-workflow.js',
+    './shared/workflow-ui.js',
+    './shared/backup-format.js',
+    './shared/backup-store.js',
+    './shared/drive-graph.js',
+    './shared/drive-transfer.js',
+    './shared/transfer-ui.js'
 ];
+
+// ネットワークを通さずSWを素通りさせるホスト(認証情報や個人データが乗る通信)
+const BYPASS_HOSTS = [
+    'accounts.google.com',
+    'apis.google.com',
+    'oauth2.googleapis.com',
+    'www.googleapis.com',
+    'content.googleapis.com',
+    'generativelanguage.googleapis.com',
+    'maps.googleapis.com',
+    'calendar.google.com'
+];
+// キャッシュしてよい外部ホスト(認証なしの静的配信のみ)
+const CACHEABLE_HOSTS = ['cdnjs.cloudflare.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];
+
+function shouldHandle(request) {
+    if (request.method !== 'GET') return false;
+    if (request.headers && request.headers.has && (request.headers.has('Authorization') || request.headers.has('Range'))) return false;
+    let url;
+    try { url = new URL(request.url); } catch (e) { return false; }
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return false;
+    if (BYPASS_HOSTS.includes(url.hostname)) return false;
+    if (url.hostname.endsWith('.googleapis.com') && url.hostname !== 'fonts.googleapis.com') return false;
+    if (url.origin === self.location.origin) return !url.pathname.includes('/preview/');
+    return CACHEABLE_HOSTS.includes(url.hostname);
+}
 
 self.addEventListener('install', event => {
     event.waitUntil(
         caches.open(CACHE_NAME)
-            .then(cache => cache.addAll(ASSETS))
+            // 1件の取得失敗でインストール全体が止まらないように個別に追加する
+            .then(cache => Promise.allSettled(ASSETS.map(path => cache.add(new Request(path, { cache: 'reload' })))))
             .then(() => self.skipWaiting())
     );
 });
@@ -69,20 +127,29 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
-    if (event.request.url.includes('generativelanguage.googleapis.com')) return;
-    if (event.request.url.includes('maps.googleapis.com')) return;
-    
+    const request = event.request;
+    if (!shouldHandle(request)) return;
+    const sameOrigin = new URL(request.url).origin === self.location.origin;
+
     event.respondWith(
-        fetch(event.request)
+        // 自サイトのファイルはブラウザのHTTPキャッシュに頼らず、毎回サーバーに確認する(古い画面が残らないように)
+        fetch(sameOrigin ? new Request(request, { cache: 'no-cache' }) : request)
             .then(response => {
-                if (response.ok) {
+                if (response.ok && response.type !== 'opaque') {
                     const clone = response.clone();
-                    caches.open(CACHE_NAME).then(cache => {
-                        cache.put(event.request, clone);
-                    });
+                    caches.open(CACHE_NAME).then(cache => cache.put(request, clone)).catch(() => {});
                 }
                 return response;
             })
-            .catch(() => caches.match(event.request))
+            .catch(async () => {
+                // オフライン時: 同じURL、?v=の違いは無視、画面の移動は index.html
+                const cached = await caches.match(request, { ignoreSearch: true });
+                if (cached) return cached;
+                if (request.mode === 'navigate') {
+                    const page = await caches.match('./index.html');
+                    if (page) return page;
+                }
+                return Response.error();
+            })
     );
 });
