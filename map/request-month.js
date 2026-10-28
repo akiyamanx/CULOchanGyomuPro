@@ -115,6 +115,29 @@ const RequestMonth = (() => {
         }
         return {month:null, basis:null, scheduleUnset:true, needsReview:false, reason:'作業日が決まっていないため、月に紐づけず「日程未定」に登録します。', candidates:[], receivedMonth};
     }
-    return {parseDates, resolveRegistrationMonth};
+    // 取り込み時の登録先。作業日あり→その月 / 作業日なし→日程未定 / 複数月など→自動では決めない。
+    // 'unscheduled' は DataStorage.UNSCHEDULED_ID と同じ値(テストで一致を確認)。
+    const UNSCHEDULED_ID = 'unscheduled';
+    function registrationTarget(resolution) {
+        if (!resolution || resolution.needsReview) return {workspaceId:null, reviewNeeded:true, reason:(resolution && resolution.reason) || '登録先を判定できません。'};
+        if (resolution.month) return {workspaceId:resolution.month, reviewNeeded:false, reason:resolution.reason};
+        if (resolution.scheduleUnset) return {workspaceId:UNSCHEDULED_ID, reviewNeeded:false, reason:resolution.reason};
+        return {workspaceId:null, reviewNeeded:true, reason:resolution.reason || '登録先を判定できません。'};
+    }
+    // 取り込み項目を登録先ごとに振り分ける(元の項目は書き換えない)。受信月は参考情報 receivedMonth として残す。
+    function routeItems(items, {today, receivedDate} = {}) {
+        const plan = {workspaces:{}, review:[], total:0};
+        for (const item of items || []) {
+            const resolution = resolveRegistrationMonth({workDateText:item.workDateText, titleText:item.titleText, receivedDate:item.receivedDate || receivedDate, today});
+            const target = registrationTarget(resolution);
+            const copy = {...item};
+            if (resolution.receivedMonth) copy.receivedMonth = resolution.receivedMonth;
+            plan.total += 1;
+            if (target.reviewNeeded) { copy.reviewReason = target.reason; plan.review.push(copy); continue; }
+            (plan.workspaces[target.workspaceId] = plan.workspaces[target.workspaceId] || []).push(copy);
+        }
+        return plan;
+    }
+    return {parseDates, resolveRegistrationMonth, registrationTarget, routeItems, UNSCHEDULED_ID};
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = RequestMonth;

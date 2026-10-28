@@ -65,8 +65,7 @@ function updateWsButton() {
     var current = workspaces.find(function(ws) { return ws.id === wsId; });
     var shortName = '--';
     if (current) {
-        var match = current.id.match(/^\d{4}-(\d{2})$/);
-        shortName = match ? parseInt(match[1]) + '月' : current.name;
+        shortName = DataStorage.workspaceLabel(current).short;
     }
     if (btn) btn.textContent = '📅 ' + shortName;
     if (compactBtn) compactBtn.textContent = '📅 ' + shortName;
@@ -98,9 +97,11 @@ function showWorkspaceMenu() {
     } else {
         workspaces.forEach(function(ws) {
             var isActive = ws.id === currentId;
-            var match = ws.id.match(/^\d{4}-(\d{2})$/);
-            var displayMonth = match ? parseInt(match[1]) + '月' : ws.id;
-            var displayYear = match ? ws.id.substring(0, 4) + '年' : '';
+            // 月以外(日程未定など)は表示名を使い、YYYY-MM前提の切り出しをしない
+            var label = DataStorage.workspaceLabel(ws);
+            var displayMonth = label.month;
+            var displayYear = label.year;
+            var isReserved = DataStorage.isReservedWorkspaceId(ws.id);
             var customers = 0;
             try {
                 var data = AppStorage.getItem('mm_customers_' + ws.id);
@@ -111,10 +112,10 @@ function showWorkspaceMenu() {
             html += '<div class="ws-menu-item-main">';
             html += '<span class="ws-menu-check">' + (isActive ? '✅' : '　') + '</span>';
             html += '<span class="ws-menu-name">' + ExpenseImport.escapeHtml(displayYear + displayMonth) + '</span>';
-            html += '<span class="ws-menu-sub">' + ExpenseImport.escapeHtml(ws.name) + '</span>';
+            html += '<span class="ws-menu-sub">' + ExpenseImport.escapeHtml(isReserved ? '日付が決まっていない依頼' : ws.name) + '</span>';
             html += '</div>';
             html += '<span class="ws-menu-count">' + customers + '件</span>';
-            if (!isActive) {
+            if (!isActive && !isReserved) {
                 html += '<button class="ws-menu-delete" onclick="event.stopPropagation(); confirmDeleteWorkspace(' + ExpenseImport.escapeHtml(JSON.stringify(String(ws.id))) + ', ' + ExpenseImport.escapeHtml(JSON.stringify(String(ws.name))) + ')">🗑️</button>';
             }
             html += '</div>';
@@ -186,6 +187,10 @@ function addWorkspace() {
     var monthInput = document.getElementById('addWsMonth').value;
     if (!monthInput) {
         alert('年月を選択してください。');
+        return;
+    }
+    if (!DataStorage.isMonthWorkspaceId(monthInput)) {
+        alert('年月の形式が正しくありません。');
         return;
     }
     var name = document.getElementById('addWsName').value.trim();

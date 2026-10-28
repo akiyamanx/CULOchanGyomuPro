@@ -15,6 +15,14 @@ const DataStorage = (() => {
     // v2.3 - ワークスペース依存キーのベース名
     const WS_DATA_KEYS = ['customers', 'routes', 'segments', 'expenses'];
 
+    // 日程未定の訪問先の置き場(予約済みワークスペース)。保存・バックアップ・一覧は月と同じ仕組みを使う。
+    // バックアップ許可リスト(shared/backup-format.js)は mm_*_<英数字とハイフン> を通すため変更不要。
+    const UNSCHEDULED_ID = 'unscheduled';
+    const UNSCHEDULED_NAME = '日程未定';
+    const MONTH_ID = /^\d{4}-(0[1-9]|1[0-2])$/;
+    const isMonthWorkspaceId = id => typeof id === 'string' && MONTH_ID.test(id);
+    const isReservedWorkspaceId = id => id === UNSCHEDULED_ID;
+
     // v2.3 - 現在のワークスペースIDを取得
     function getCurrentWorkspaceId() {
         return AppStorage.getItem(WS_KEYS.currentWs) || null;
@@ -57,6 +65,10 @@ const DataStorage = (() => {
 
     // v2.3 - 新しいワークスペースを作成
     function createWorkspace(yearMonth, name) {
+        if (!isMonthWorkspaceId(yearMonth) && !isReservedWorkspaceId(yearMonth)) {
+            console.warn('ワークスペースIDが正しくありません:', yearMonth);
+            return null;
+        }
         const workspaces = getWorkspaces();
         if (workspaces.find(ws => ws.id === yearMonth)) {
             console.warn('ワークスペース既に存在:', yearMonth);
@@ -64,7 +76,7 @@ const DataStorage = (() => {
         }
         const ws = {
             id: yearMonth,
-            name: name || yearMonth.replace(/^(\d{4})-(\d{2})$/, (_, y, m) => `${y}年${parseInt(m)}月`),
+            name: name || (isReservedWorkspaceId(yearMonth) ? UNSCHEDULED_NAME : yearMonth).replace(/^(\d{4})-(\d{2})$/, (_, y, m) => `${y}年${parseInt(m)}月`),
             createdAt: new Date().toISOString()
         };
         workspaces.push(ws);
@@ -91,6 +103,8 @@ const DataStorage = (() => {
 
     // v2.3 - ワークスペースを削除（データも削除）
     function deleteWorkspace(wsId) {
+        // 日程未定の置き場は誤操作で消さない(中の訪問先は月へ移して使う)。
+        if (isReservedWorkspaceId(wsId)) return false;
         let workspaces = getWorkspaces();
         workspaces = workspaces.filter(ws => ws.id !== wsId);
         saveWorkspaces(workspaces);
@@ -104,6 +118,7 @@ const DataStorage = (() => {
                 AppStorage.removeItem(WS_KEYS.currentWs);
             }
         }
+        return true;
     }
 
     // v2.3 - ワークスペース名を変更
@@ -185,6 +200,103 @@ const DataStorage = (() => {
 
     function saveCustomersForWorkspace(wsId, customers) {
         AppStorage.setItem('mm_customers_' + wsId, JSON.stringify(customers));
+    }
+
+    // --- 日程未定の置き場 ---
+
+    // 無ければ作る。あれば何も書かない。現在のワークスペースは変えない。
+    function ensureUnscheduledWorkspace() {
+        const existing = getWorkspaces().find(ws => ws.id === UNSCHEDULED_ID);
+        return existing || createWorkspace(UNSCHEDULED_ID, UNSCHEDULED_NAME);
+    }
+
+    // 画面表示用の名前。月は「N月」「YYYY年」、日程未定は固定名。
+    function workspaceLabel(ws) {
+        const id = String(ws && ws.id);
+        const match = id.match(/^(\d{4})-(\d{2})$/);
+        if (match) return { isMonth: true, short: parseInt(match[2], 10) + '月', year: match[1] + '年', month: parseInt(match[2], 10) + '月' };
+        if (isReservedWorkspaceId(id)) return { isMonth: false, short: UNSCHEDULED_NAME, year: '', month: UNSCHEDULED_NAME };
+        return { isMonth: false, short: (ws && ws.name) || id, year: '', month: id };
+    }
+
+    const normText = value => String(value == null ? '' : value).normalize('NFKC').replace(/\s+/g, '').toLowerCase();
+    // 移動前後で「同じ依頼」かを見る既定の判定。日付は片方が未定なら一致扱い(同じ依頼が先に月へ入っている場合を拾うため)。
+    function sameVisit(a, b) {
+        if (a.mailKey && b.mailKey && a.mailKey === b.mailKey) return true;
+        if (a.managementNo && b.managementNo && normText(a.managementNo) !== normText(b.managementNo)) return false;
+        if (a.equipType && b.equipType && normText(a.equipType) !== normText(b.equipType)) return false;
+        if (!normText(a.company) || !normText(a.address)) return false;
+        return normText(a.company) === normText(b.company) && normText(a.address) === normText(b.address)
+            && normText(a.purpose) === normText(b.purpose)
+            && (!a.appoDate || !b.appoDate || String(a.appoDate).slice(0, 10) === String(b.appoDate).slice(0, 10));
+    }
+    function validWorkDate(value, monthId) {
+        const match = typeof value === 'string' && value.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ]\d{2}:\d{2}(?::\d{2})?)?$/);
+        if (!match) return false;
+        const d = new Date(Date.UTC(+match[1], +match[2] - 1, +match[3]));
+        if (d.getUTCFullYear() !== +match[1] || d.getUTCMonth() !== +match[2] - 1 || d.getUTCDate() !== +match[3]) return false;
+        return match[1] + '-' + match[2] === monthId;
+    }
+
+    // 訪問先を別のワークスペースへ移す(日程未定→作業日の月 など)。
+    // 手順: 読む(壊れていれば何も書かない) → 重複確認 → 移動先へ書く → 元から消す。
+    // 元の削除に失敗したら移動先を元に戻す。戻せなくても元の訪問先は残す(二重登録の可能性は結果で知らせる)。
+    function moveCustomerToWorkspace(options) {
+        const { id, from, to, force, isDuplicate, updates } = options || {};
+        const fail = (reason, extra) => Object.assign({ ok: false, reason }, extra);
+        const validId = x => isMonthWorkspaceId(x) || isReservedWorkspaceId(x);
+        if (!validId(to)) return fail('invalid_destination');
+        if (!validId(from)) return fail('invalid_source');
+        if (from === to) return fail('same_workspace');
+        const appoDate = options.appoDate === undefined ? (updates && updates.appoDate) : options.appoDate;
+        if (isMonthWorkspaceId(to) ? !validWorkDate(appoDate, to) : Boolean(appoDate)) return fail('invalid_date');
+
+        let sourceList, destList;
+        try {
+            sourceList = getCustomersForWorkspace(from);
+            destList = getCustomersForWorkspace(to);
+        } catch (e) { return fail('read_failed'); }
+        const original = sourceList.find(c => c && c.id === id);
+        if (!original) return fail('not_found');
+        if (destList.some(c => c && c.id === id)) return fail('id_conflict');
+
+        const moved = Object.assign({}, original, updates || {}, { id: original.id, appoDate: appoDate || '', routeId: null });
+        // ルートの訪問順はワークスペースごとなので、移す時はルート指定を外す。
+        if (!force) {
+            const same = typeof isDuplicate === 'function' ? isDuplicate : sameVisit;
+            const hit = destList.find(c => c && same(moved, c));
+            if (hit) return fail('duplicate', { duplicateOf: hit.id });
+        }
+
+        const destKey = 'mm_customers_' + to, wsRaw = AppStorage.getItem(WS_KEYS.workspaces), routeKey = 'mm_routes_' + to;
+        const prevDest = AppStorage.getItem(destKey), prevRoutes = AppStorage.getItem(routeKey);
+        const createdWorkspace = !getWorkspaces().some(ws => ws.id === to);
+        const undoDestination = () => {
+            try {
+                if (prevDest === null) AppStorage.removeItem(destKey); else AppStorage.setItem(destKey, prevDest);
+                if (createdWorkspace) {
+                    if (wsRaw === null) AppStorage.removeItem(WS_KEYS.workspaces); else AppStorage.setItem(WS_KEYS.workspaces, wsRaw);
+                    if (prevRoutes === null) AppStorage.removeItem(routeKey);
+                }
+                return true;
+            } catch (e) { return false; }
+        };
+        try {
+            if (createdWorkspace && !createWorkspace(to)) throw new Error('workspace');
+            const written = JSON.stringify([...destList, moved]);
+            saveCustomersForWorkspace(to, [...destList, moved]);
+            if (AppStorage.getItem(destKey) !== written) throw new Error('verify');
+        } catch (e) {
+            undoDestination();
+            return fail('destination_write_failed');
+        }
+        try {
+            saveCustomersForWorkspace(from, sourceList.filter(c => !(c && c.id === id)));
+        } catch (e) {
+            const rolledBack = undoDestination();
+            return fail('source_write_failed', { rolledBack, maybeDuplicated: !rolledBack });
+        }
+        return { ok: true, id, from, to };
     }
 
     function addCustomer(customer) {
@@ -472,6 +584,8 @@ const DataStorage = (() => {
     return {
         getWorkspaces, createWorkspace, switchWorkspace, deleteWorkspace,
         renameWorkspace, getCurrentWorkspaceId, migrateIfNeeded,
+        UNSCHEDULED_ID, UNSCHEDULED_NAME, isMonthWorkspaceId, isReservedWorkspaceId,
+        ensureUnscheduledWorkspace, workspaceLabel, moveCustomerToWorkspace,
         getCustomers, saveCustomers, getCustomersForWorkspace, saveCustomersForWorkspace,
         addCustomer, updateCustomer, deleteCustomer,
         getRoutes, saveRoutes, DEFAULT_ROUTES, updateRouteOrder,
