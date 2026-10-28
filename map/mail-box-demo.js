@@ -31,6 +31,18 @@ const MailBoxDemo = (() => {
             { messageId: 'demo-7', subject: '【デモ】本日の連絡(本文のみ)', receivedDate: today, senderKind: 'registered', source: 'mock', attachments: [] }
         ];
     }
-    return { mails };
+    // 試験用の「偽のドライブ」アダプタ(?mailboxDev=1&mockSync=1 のときだけ使う。Googleには接続しない)。
+    // window.__mockLedgerDrive = { files: Map(id→{deviceId,savedAt,text}), connected, fail:'' } を画面確認用に外から操作できる。
+    function ledgerAdapter() {
+        const drive = window.__mockLedgerDrive = window.__mockLedgerDrive || { files: new Map(), connected: true, fail: '' };
+        const fail = () => { if (drive.fail) throw Object.assign(new Error(drive.fail), { code: drive.fail }); };
+        return {
+            available: () => ({ connected: !!drive.connected }),
+            list: async () => { fail(); return [...drive.files.entries()].map(([id, f]) => ({ id, deviceId: f.deviceId, savedAt: f.savedAt, size: f.text.length })); },
+            read: async file => { fail(); const f = drive.files.get(file.id); if (!f) throw Object.assign(new Error('bad_response'), { code: 'bad_response' }); return f.text; },
+            write: async a => { fail(); const id = a.fileId || ('mock-' + a.deviceId.slice(0, 8)); drive.files.set(id, { deviceId: a.deviceId, savedAt: a.savedAt, text: a.text }); return { id }; }
+        };
+    }
+    return { mails, ledgerAdapter };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = MailBoxDemo;

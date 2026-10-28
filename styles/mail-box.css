@@ -55,6 +55,10 @@ body.mailbox-open { overflow: hidden; }
 .mailbox-dev summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-size: 14px; }
 .mailbox-file { position: relative; overflow: hidden; cursor: pointer; }
 .mailbox-file input { position: absolute; inset: 0; opacity: 0; cursor: pointer; font-size: 16px; }
+.mailbox-sync { margin: 0 0 14px; padding: 12px 14px; border: 1px solid #c4d3df; border-radius: 10px; background: #f7fafc; }
+.mailbox-sync p { margin: 6px 0; font-size: 14px; line-height: 1.55; overflow-wrap: anywhere; }
+.mailbox-sync .mailbox-hint-s { margin: 4px 0; }
+.mailbox-conflict { margin-top: 10px; border: 1px solid #e0b84a; }
 @media (min-width: 700px) {
     .mailbox-overlay { padding: 24px; }
     .mailbox-sheet { height: auto; max-height: calc(100dvh - 48px); align-self: center; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 40px rgba(0,0,0,.3); }
@@ -66,3 +70,6 @@ body.mailbox-open { overflow: hidden; }
 }
 @media (prefers-reduced-motion: no-preference) { .mailbox-sheet { animation: mailbox-in .15s ease-out; } }
 @keyframes mailbox-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* BOXを開いている間は、上に出る一回きりのお知らせ(z-index最前面)が「閉じる」ボタンに被らないよう隠す */
+body.mailbox-open #migrationNotice { display: none; }

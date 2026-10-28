@@ -3,7 +3,7 @@
 const MailBoxUI = (() => {
     const TABS = [['request', '依頼書'], ['unreadable', '判別不可'], ['reference', '通達']];
     const LABEL = { company: '会社名', address: '住所', purpose: '作業内容' };
-    let box, overlay, statusEl, bodyEl, tabsEl, opener, tab = 'unreadable';
+    let box, syncer, overlay, statusEl, bodyEl, tabsEl, opener, tab = 'unreadable', syncing = false;
     const selected = new Set();       // 判別不可でチェックした行
     const choice = new Map();         // 行ごとの月の選択 {ws, newMonth}
     const confirming = new Set();     // 取り消しの確認待ちの行
@@ -32,7 +32,12 @@ const MailBoxUI = (() => {
             if (btn) btn.setAttribute('aria-label', c.unreadable ? `メールBOXを開く。確認が必要な依頼が${c.unreadable}件あります` : 'メールBOXを開く');
             const banner = document.getElementById('mailBoxBanner');
             if (banner) {
-                const text = c.unreadable ? `メールBOXに、確認が必要な依頼が${c.unreadable}件あります。` : '';
+                const parts = [];
+                if (c.unreadable) parts.push(`確認が必要な依頼が${c.unreadable}件あります`);
+                const ss = syncStatus();
+                if (ss && ss.conflicts) parts.push(`同じ依頼書が2台で登録された可能性が${ss.conflicts}件あります`);
+                else if (ss && ss.level === 'error') parts.push('端末間の同期に失敗しています');
+                const text = parts.length ? 'メールBOXに、' + parts.join('。') + '。' : '';
                 banner.hidden = !text; banner.querySelector('.mailbox-banner-text').textContent = text;
             }
         } catch (e) { console.error('mailbox: chrome_failed'); }
@@ -54,12 +59,18 @@ const MailBoxUI = (() => {
         if (r.duplicates) parts.push(`重複${r.duplicates}件は登録せず`);
         if (r.unreadable) parts.push(`確認が必要${r.unreadable}件`);
         if (r.reference) parts.push(`通達${r.reference}件`);
+        if (r.excluded) parts.push(`対象外${r.excluded}件`);
         if (r.skipped) parts.push(`取り込み済み${r.skipped}件`);
         return { text: parts.length ? '取り込みました: ' + parts.join('、') + '。' : '新しいメールはありませんでした。', kind: r.errors && r.errors.length ? 'warn' : 'ok' };
     }
-    function runIngest(mails) {
-        const r = box.ingest(mails);
+    async function runIngest(mails) {
+        let r;
+        if (syncer) r = await syncer.ingestMails(mails);   // 同期は補助。失敗しても取り込みは行われる
+        else r = box.ingest(mails);
         const s = summarize(r);
+        const sy = r.sync;
+        if (sy && !sy.ok && sy.code !== 'not_connected' && sy.code !== 'busy') { s.text += ' 端末間の同期には失敗しました(この端末の記録だけで重複を防いでいます)。'; s.kind = s.kind === 'error' ? 'error' : 'warn'; }
+        else if (sy && sy.conflicts) { s.text += ' 同じ依頼書が2台で登録された可能性があります。確認してください。'; s.kind = 'warn'; }
         sayAll(s.text, s.kind);
         if (r.registered) tab = 'request'; else if (r.unreadable) tab = 'unreadable';
         afterChange();
@@ -78,6 +89,53 @@ const MailBoxUI = (() => {
             if (!mails) { sayAll('メールの一覧(mails)が見つかりません。', 'error'); return; }
             runIngest(mails.slice(0, 200));
         }, () => sayAll('ファイルを読めませんでした。', 'error'));
+    }
+
+    // ---- 端末間の台帳(スマホ・タブレットで同じメールを二重に登録しない) ----
+    const syncStatus = () => { try { return syncer ? syncer.status() : null; } catch (e) { return null; } };
+    const SYNC_LEVEL = { off: ['未接続', ''], idle: ['未同期', ''], ok: ['同期済み', 'ok'], warn: ['要確認', 'warn'], error: ['失敗', 'warn'] };
+    const when = iso => { const t = Date.parse(iso); return Number.isFinite(t) ? new Date(t).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''; };
+    async function syncNow() {
+        if (!syncer || syncing) return;
+        syncing = true; render();
+        let r; try { r = await syncer.sync(); } catch (e) { r = { ok: false, code: 'unexpected' }; }
+        syncing = false;
+        const st = syncStatus();
+        if (r.ok && !(st && st.level === 'warn')) sayAll('同期しました。', 'ok');
+        else if (r.code === 'busy') sayAll('同期中です。少し待ってください。', '');
+        else sayAll(st ? st.message : '同期できませんでした。', r.ok ? 'warn' : 'error');
+        afterChange();
+    }
+    async function connectDrive() {
+        if (typeof DriveTransfer === 'undefined' || syncing) return;
+        syncing = true; render();
+        try { await DriveTransfer.connect(); }
+        catch (e) { syncing = false; sayAll(String((e && e.message) || '接続できませんでした。').slice(0, 120), 'warn'); render(); return; }
+        syncing = false;
+        await syncNow();
+    }
+    function syncCard() {
+        const st = syncStatus();
+        if (!st) return null;
+        const [label, kind] = SYNC_LEVEL[st.level] || ['', ''];
+        const card = h('section', { class: 'mailbox-sync', 'aria-label': '端末間の同期' },
+            h('div', { class: 'mailbox-card-head' }, h('strong', {}, '端末間の同期'), chip(syncing ? '同期中…' : label, syncing ? '' : kind)),
+            h('p', { class: 'mailbox-sync-msg', role: st.level === 'error' ? 'alert' : null }, st.message),
+            st.lastOkAt ? h('p', { class: 'mailbox-hint-s' }, `最後に同期できた時刻: ${when(st.lastOkAt)}`) : null,
+            st.remote.registeredNotHere ? h('p', { class: 'mailbox-hint-s' }, `他の端末で登録済みで、この端末にまだ訪問先が無いメール: ${st.remote.registeredNotHere}件(バックアップの受け渡しで届きます)`) : null,
+            st.remote.unreadableElsewhere ? h('p', { class: 'mailbox-hint-s' }, `他の端末で確認待ちのメール: ${st.remote.unreadableElsewhere}件(その端末のメールBOXで確認してください)`) : null,
+            h('div', { class: 'mailbox-actions' },
+                st.connected
+                    ? h('button', { type: 'button', class: 'btn btn-secondary mailbox-btn-s', disabled: syncing, onclick: syncNow }, '今すぐ同期')
+                    : (typeof DriveTransfer !== 'undefined' ? h('button', { type: 'button', class: 'btn btn-secondary mailbox-btn-s', disabled: syncing, onclick: connectDrive }, 'Googleドライブに接続') : null),
+                !st.connected ? h('span', { class: 'mailbox-hint-s' }, '接続はアプリを開くたびに必要です(許可の情報を端末に保存しないため)。') : null));
+        const conflicts = box.conflicts();
+        conflicts.slice(0, 20).forEach(c => card.append(h('div', { class: 'mailbox-note mailbox-conflict', role: 'alert' },
+            h('p', {}, '同じ依頼書が2台で登録された可能性があります。自動では消していません。'),
+            h('p', {}, c.keep ? 'この端末の分を残す側です。もう一方の端末で、重複した訪問先を確認して削除してください。' : 'もう一方の端末の分を残す側です。この端末で、重複した訪問先を確認して削除してください。'),
+            h('div', { class: 'mailbox-actions' }, h('button', { type: 'button', class: 'btn btn-secondary mailbox-btn-s', onclick: () => { const res = box.ackConflict(c.key, c.kind); sayAll(res.ok ? '確認済みにしました。' : '操作できませんでした。', res.ok ? 'ok' : 'warn'); afterChange(); } }, '確認した(この表示を消す)')))));
+        if (conflicts.length > 20) card.append(h('p', { class: 'mailbox-hint-s' }, `ほか${conflicts.length - 20}件`));
+        return card;
     }
 
     // ---- 行の部品 ----
@@ -191,8 +249,8 @@ const MailBoxUI = (() => {
             h('button', { type: 'button', class: 'btn btn-primary mailbox-btn-s', disabled: !selected.size, onclick: () => applyMany(list.filter(r => selected.has(r.id)), false) }, `選んだ${selected.size}件を反映`));
         return h('div', {}, h('p', { class: 'mailbox-hint' }, '自動で判別できなかった依頼です。月を選んで反映するか、日程未定に入れてください。反映した訪問先には「要確認」の印が付きます。'), applicable.length ? bar : null, list.map(row => {
             const card = h('article', { class: 'mailbox-card mailbox-attn' },
-                h('div', { class: 'mailbox-card-head' }, row.applicable ? h('label', { class: 'mailbox-check' }, h('input', { type: 'checkbox', 'aria-label': 'この依頼を選ぶ', checked: selected.has(row.id), onchange: ev => { ev.target.checked ? selected.add(row.id) : selected.delete(row.id); render(); } })) : null, h('strong', {}, '確認が必要'), chip('判別不可', 'warn')),
-                h('p', {}, row.reason), meta(row));
+                h('div', { class: 'mailbox-card-head' }, row.applicable ? h('label', { class: 'mailbox-check' }, h('input', { type: 'checkbox', 'aria-label': 'この依頼を選ぶ', checked: selected.has(row.id), onchange: ev => { ev.target.checked ? selected.add(row.id) : selected.delete(row.id); render(); } })) : null, h('strong', {}, '確認が必要'), chip('判別不可', 'warn'), row.elsewhere ? chip('他端末で登録済みの可能性', 'warn') : null),
+                h('p', {}, row.reason), row.elsewhere ? h('p', { class: 'mailbox-note' }, '他の端末でこの依頼書が登録された可能性があります。反映する前に、訪問先の一覧に同じものが無いか確認してください。') : null, meta(row));
             if (row.applicable) {
                 card.append(itemsView(row), h('div', { class: 'mailbox-actions' }, monthSelect(row),
                     h('button', { type: 'button', class: 'btn btn-primary mailbox-btn-s', onclick: () => applyMany([row], false) }, 'この月に反映'),
@@ -232,7 +290,7 @@ const MailBoxUI = (() => {
         const pane = !health.ok ? h('p', { class: 'mailbox-error', role: 'alert' }, 'メールBOXのデータを読み込めません(破損の可能性)。データは上書きしていません。アプリを再読込しても直らない場合は、このBOXのデータだけを消す操作が必要です。')
             : tab === 'request' ? requestPane(rows) : tab === 'unreadable' ? unreadablePane(rows) : referencePane(rows);
         const empty = !rows.length && health.ok ? h('p', { class: 'mailbox-hint' }, 'Gmailからの取り込みはまだ有効になっていません。取り込みが始まると、届いた依頼書がここに並びます。') : null;
-        bodyEl.replaceChildren(...[pane, empty, devTools()].filter(Boolean));
+        bodyEl.replaceChildren(...[syncCard(), pane, empty, devTools()].filter(Boolean));
         statusEl.textContent = note.text; statusEl.dataset.kind = note.kind;
     }
 
@@ -243,6 +301,8 @@ const MailBoxUI = (() => {
         tab = c.unreadable ? 'unreadable' : (c.request ? 'request' : tab);
         overlay.hidden = false; document.body.classList.add('mailbox-open');
         render();
+        const ss = syncStatus();
+        if (ss && ss.connected) syncNow();   // 接続済みなら開いたときに同期(待たせない)
         overlay.querySelector('#mailBoxTitle').focus();
     }
     function close() {
@@ -253,6 +313,12 @@ const MailBoxUI = (() => {
     }
     function init() {
         box = MailBox.create();
+        syncer = null;
+        try {
+            const adapter = dev() && /[?&]mockSync=1(&|$)/.test(location.search) && typeof MailBoxDemo !== 'undefined' && MailBoxDemo.ledgerAdapter ? MailBoxDemo.ledgerAdapter()
+                : (typeof DriveLedgerAdapter !== 'undefined' && typeof DriveTransfer !== 'undefined' && typeof BackupStore !== 'undefined' ? DriveLedgerAdapter.create({ transport: DriveTransfer, channel: BackupStore.channel }) : null);
+            if (adapter && typeof MailLedgerSync !== 'undefined') syncer = MailLedgerSync.create({ mailBox: box, adapter });
+        } catch (e) { syncer = null; console.error('mailbox: sync_init_failed'); }
         overlay = document.getElementById('mailBoxOverlay');
         if (!overlay) return;
         statusEl = document.getElementById('mailBoxStatus'); bodyEl = document.getElementById('mailBoxBody'); tabsEl = document.getElementById('mailBoxTabs');

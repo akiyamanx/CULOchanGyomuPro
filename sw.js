@@ -9,7 +9,7 @@
 //   - ASSETSは実在するファイルだけ(tests/sw-assets.test.cjs が検査する)
 // ==========================================
 
-const CACHE_NAME = 'gyomupro-v45';
+const CACHE_NAME = 'gyomupro-v46';
 const ASSETS = [
     './',
     './index.html',
@@ -55,6 +55,8 @@ const ASSETS = [
     './map/request-month.js',
     './map/request-classifier.js',
     './map/mail-box.js',
+    './map/mail-ledger-sync.js',
+    './map/mail-ledger-drive.js',
     './map/mail-box-demo.js',
     './map/mail-box-ui.js',
     './map/request-import.js',

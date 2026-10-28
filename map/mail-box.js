@@ -2,13 +2,23 @@
 // 流れ: 解析結果 → RequestClassifier(依頼書/判別不可/通達) → RequestMonth(登録先の月 or 日程未定) → 訪問先として登録。
 // 方針: 取りこぼしゼロ(例外・保存失敗は判別不可に倒す)/二重登録しない/個人情報をログに出さない。
 // 保存キー gyomupro_mailbox・gyomupro_mail_ledger はバックアップ許可リスト外(顧客名・件名がDriveに出ない)。
+// 端末間の処理済み台帳: 台帳の各記録は {r:結果, at:時刻} 。他の端末から知った記録には x:1 を付け、自分の記録だけを共有する
+// (ownLedger)。他の端末の記録の取り込みは mergeRemoteLedger(検証つき)。通信そのものは map/mail-ledger-sync.js が受け持つ。
 const MailBox = (() => {
     const KEY_BOX = 'gyomupro_mailbox';
     const KEY_LEDGER = 'gyomupro_mail_ledger';
     const CANCEL_WINDOW_MS = 24 * 60 * 60 * 1000;   // 自動登録の取り消し猶予(保守的に24時間)
     const ROW_KEEP_MS = 90 * 24 * 60 * 60 * 1000;   // 通達・処理済み行の保持
     const LEDGER_KEEP_MS = 180 * 24 * 60 * 60 * 1000;
-    const MAX_ROWS = 300, MAX_LOG = 40;
+    const MAX_ROWS = 300, MAX_LOG = 40, MAX_CONFLICTS = 50, MAX_LEDGER_ENTRIES = 5000;
+    const VALID_RESULTS = ['registered', 'applied', 'unreadable', 'reference', 'dismissed', 'cancelled', 'excluded'];
+    // 結果の種別(BOXの区分): 登録 / 判別不可 / 通達 / 対象外 / 取消
+    const RESULT_KIND = { registered: '登録', applied: '登録', unreadable: '判別不可', reference: '通達', dismissed: '対象外', excluded: '対象外', cancelled: '取消' };
+    const isReg = r => r === 'registered' || r === 'applied';
+    const BAD_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+    const KEY_RE = /^[^\s\u0000-\u001f\u007f<>"'\\]{1,200}$/u;
+    const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?(Z|[+-]\d{2}:\d{2})$/;
+    const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
     const MSG = {
         save: '登録の保存に失敗しました。判別不可BOXから反映し直してください。',
         broken: 'このメールの処理中に問題が起きました。Gmailで直接確認してください。',
@@ -28,6 +38,25 @@ const MailBox = (() => {
     const MONTH_ID = /^\d{4}-(0[1-9]|1[0-2])$/;
     const baseOf = key => String(key).replace(/\/\d+$/, '');
     const STRIP = ['selected', 'possibleDuplicate', 'warnings', 'previewUrl', 'originalText', 'kind', 'workDateText', 'titleText', 'receivedMonth', 'reviewReason', '_i', 'mailKey', 'mailNeedsReview'];
+
+    // 他の端末から届いた記録(信用しない入力)の検証。通るのは {キー: {r, at}} だけ。余計な項目は捨てる。
+    // 戻り値 {entries, dropped, expired, invalid, tooMany}。
+    function validateEntries(obj, nowMs) {
+        const out = { entries: {}, dropped: 0, expired: 0, invalid: false, tooMany: false };
+        if (!obj || typeof obj !== 'object' || Array.isArray(obj)) { out.invalid = true; return out; }
+        const keys = Object.keys(obj);
+        if (keys.length > MAX_LEDGER_ENTRIES) { out.tooMany = true; return out; }
+        for (const k of keys.sort()) {
+            const e = obj[k];
+            if (BAD_KEYS.has(k) || !KEY_RE.test(k) || !e || typeof e !== 'object' || Array.isArray(e)
+                || VALID_RESULTS.indexOf(e.r) < 0 || typeof e.at !== 'string' || !ISO_RE.test(e.at)) { out.dropped++; continue; }
+            const t = Date.parse(e.at);
+            if (!Number.isFinite(t) || t - nowMs > 24 * 3600 * 1000) { out.dropped++; continue; }
+            if (nowMs - t > LEDGER_KEEP_MS) { out.expired++; continue; }
+            out.entries[k] = { r: e.r, at: e.at };
+        }
+        return out;
+    }
 
     function create(overrides = {}) {
         const deps = () => ({
@@ -89,6 +118,7 @@ const MailBox = (() => {
                 const ids = new Set([...keep, ...rest].map(r => r.id));
                 st.box.rows = st.box.rows.filter(r => ids.has(r.id));
             }
+            if (Array.isArray(st.box.conflicts)) st.box.conflicts = st.box.conflicts.filter(c => now - Date.parse(c.at) <= LEDGER_KEEP_MS).slice(-MAX_CONFLICTS);
             const live = new Set(st.box.rows.map(r => baseOf(String(r.id).replace(/#partial$/, ''))));
             for (const [k, v] of Object.entries(st.ledger.entries)) {
                 if (now - Date.parse(v.at) > LEDGER_KEEP_MS && !live.has(k)) delete st.ledger.entries[k];
@@ -198,11 +228,20 @@ const MailBox = (() => {
         function processMail(st, known, mail, sum) {
             validateMail(mail);
             const { classifier, month } = deps();
+            if (mail.excluded === true) {   // 登録しないと分かっている通知など: 行は作らず、台帳にだけ「対象外」を残す
+                const key = `${mail.messageId}/excluded`;
+                if (st.ledger.entries[key]) { sum.skipped++; return; }
+                setLedger(st, key, 'excluded'); sum.excluded++; return;
+            }
             const atts = mail.attachments || [];
             const cls = classifier.classifyMail({ subject: mail.subject, senderKind: mail.senderKind, attachments: atts.map(toClassifierAtt) });
             const units = atts.length ? atts.map((a, i) => ({ att: a, base: `${mail.messageId}/${a.attachmentId}`, cls: cls.results[i] })) : [{ att: null, base: `${mail.messageId}/body`, cls: cls.results[0] }];
             for (const u of units) {
-                if (st.ledger.entries[u.base] || known.has(u.base) || st.box.rows.some(r => r.id === u.base || r.id === u.base + '#partial')) { sum.skipped++; continue; }
+                if (st.ledger.entries[u.base] || known.has(u.base) || st.box.rows.some(r => r.id === u.base || r.id === u.base + '#partial')) {
+                    // 訪問先のmailKeyだけが残っている(台帳が無い)場合は、台帳へ「他端末由来(x)」で補う。共有はしない。
+                    if (!st.ledger.entries[u.base] && known.has(u.base)) st.ledger.entries[u.base] = { r: 'registered', at: nowIso(), x: 1 };
+                    sum.skipped++; continue;
+                }
                 const parse = u.att && !u.att.parseError && u.att.parse ? u.att.parse : null;
                 const opened = !!(parse && parse.opened !== false);
                 const items = opened && Array.isArray(parse.items) ? parse.items.map(stripItem) : [];
@@ -243,7 +282,7 @@ const MailBox = (() => {
         }
 
         function ingest(mails) {
-            const sum = { ok: true, mails: 0, skipped: 0, registered: 0, duplicates: 0, unreadable: 0, reference: 0, errors: [] };
+            const sum = { ok: true, mails: 0, skipped: 0, registered: 0, duplicates: 0, unreadable: 0, reference: 0, excluded: 0, errors: [] };
             let st, known;
             try { st = loadAll(); known = knownBases(); }
             catch (e) { const code = safeCode(e) === 'unexpected' ? 'customers_unreadable' : safeCode(e); event(null, 'ingest_blocked', { code }); return { ...sum, ok: false, code }; }
@@ -385,8 +424,95 @@ const MailBox = (() => {
             setLedger(st, baseOf(String(row.id)), 'unreadable'); return { ok: true };
         });
 
-        return { ingest, rows, counts, health, log, ensureUnscheduled, monthOptions, suggestNewMonth, nextMonth, applyRows, cancelRegistration, registeredStatus, dismissRow, reclassify };
+        // ---------- 端末間の処理済み台帳 ----------
+        const stamp = (e, key) => Date.parse(e.at) || 0;
+        // 自分の記録だけ(x印なし・180日以内)。共有ファイルに書くのはこれだけ。
+        function ownLedger() {
+            let st; try { st = loadLedger(); } catch (e) { return { ok: false, code: safeCode(e) }; }
+            const v = validateEntries(Object.fromEntries(Object.entries(st.entries).filter(([, e]) => e && typeof e === 'object' && !e.x)), nowMs());
+            return { ok: true, entries: v.entries, count: Object.keys(v.entries).length };
+        }
+        function addConflict(st, key, kind, keep) {
+            const list = st.box.conflicts = Array.isArray(st.box.conflicts) ? st.box.conflicts : [];
+            if (list.some(c => c.key === key && c.kind === kind)) return false;
+            list.push({ key, kind, at: nowIso(), keep: !!keep, ack: false });
+            if (list.length > MAX_CONFLICTS) list.splice(0, list.length - MAX_CONFLICTS);
+            return true;
+        }
+        // devices: [{deviceId, entries}] (通信層で形式確認済みでも、ここで再検証する)。selfId: この端末のID。
+        function mergeRemoteLedger(devices, selfId) {
+            let st; try { st = loadAll(); } catch (e) { return { ok: false, code: safeCode(e) }; }
+            const stats = { ok: true, added: 0, updated: 0, recovered: 0, conflicts: 0, elsewhere: 0, expired: 0, dropped: 0 };
+            const now = nowMs();
+            const list = (Array.isArray(devices) ? devices : []).filter(d => d && typeof d.deviceId === 'string').sort((a, b) => a.deviceId < b.deviceId ? -1 : 1);
+            for (const dev of list) {
+                const v = validateEntries(dev.entries, now);
+                stats.expired += v.expired; stats.dropped += v.dropped;
+                for (const key of Object.keys(v.entries)) {
+                    const e = v.entries[key];
+                    const loc = has(st.ledger.entries, key) ? st.ledger.entries[key] : null;
+                    if (dev.deviceId === selfId) {   // 自分の過去の記録: 無ければ(または補った印だけなら)自分のものとして戻す
+                        if (!loc || loc.x) { st.ledger.entries[key] = { r: e.r, at: e.at }; stats.recovered++; }
+                        continue;
+                    }
+                    if (!loc) { st.ledger.entries[key] = { r: e.r, at: e.at, x: 1 }; stats.added++; continue; }
+                    if (loc.x) { if (e.r !== loc.r && stamp(e) > stamp(loc)) { st.ledger.entries[key] = { r: e.r, at: e.at, x: 1 }; stats.updated++; } continue; }
+                    // 自分の記録がある場合は自分を優先。ただし矛盾は見つけて知らせる。
+                    if (isReg(loc.r) && isReg(e.r)) { if (addConflict(st, key, 'double_registered', selfId < dev.deviceId)) stats.conflicts++; }
+                    else if (loc.r === 'unreadable' && isReg(e.r)) {
+                        for (const row of st.box.rows) {
+                            if (row.state === 'new' && row.bucket === 'unreadable' && (row.id === key || row.id === key + '#partial') && !row.elsewhere) { row.elsewhere = true; stats.elsewhere++; }
+                        }
+                    }
+                }
+            }
+            event(st, 'ledger_merged', { devices: list.length, added: stats.added, updated: stats.updated, recovered: stats.recovered, conflicts: stats.conflicts, elsewhere: stats.elsewhere });
+            try { saveAll(st); } catch (e) { return { ok: false, code: safeCode(e) }; }
+            return stats;
+        }
+        // mailKeyのある訪問先のうち、台帳に記録が無いものを「他端末由来(x)」で補う。台帳が壊れていれば何もしない。
+        function reconcile() {
+            let st, known;
+            try { st = loadAll(); known = knownBases(); } catch (e) { return { ok: false, code: safeCode(e) === 'unexpected' ? 'customers_unreadable' : safeCode(e) }; }
+            let backfilled = 0;
+            for (const base of known) {
+                if (!has(st.ledger.entries, base) && KEY_RE.test(base) && !BAD_KEYS.has(base)) { st.ledger.entries[base] = { r: 'registered', at: nowIso(), x: 1 }; backfilled++; }
+            }
+            if (backfilled) { event(st, 'ledger_reconciled', { backfilled }); try { saveAll(st); } catch (e) { return { ok: false, code: safeCode(e) }; } }
+            return { ok: true, backfilled };
+        }
+        // 他端末の記録のうち、この端末ではまだ反映されていない件数など(画面表示用)。
+        function syncInfo() {
+            const info = { ok: true, remoteRegisteredNotHere: 0, remoteUnreadable: 0, ownCount: 0, remoteCount: 0 };
+            let st, known; try { st = loadLedger(); known = knownBases(); } catch (e) { return { ...info, ok: false }; }
+            for (const [key, e] of Object.entries(st.entries)) {
+                if (!e || typeof e !== 'object') continue;
+                if (!e.x) { info.ownCount++; continue; }
+                info.remoteCount++;
+                if (isReg(e.r) && !known.has(key)) info.remoteRegisteredNotHere++;
+                else if (e.r === 'unreadable') info.remoteUnreadable++;
+            }
+            return info;
+        }
+        function conflicts() { try { return plain((loadBox().conflicts || []).filter(c => c && !c.ack)); } catch (e) { return []; } }
+        const ackConflict = (key, kind) => {
+            let st; try { st = loadAll(); } catch (e) { return { ok: false, code: safeCode(e) }; }
+            const c = (st.box.conflicts || []).find(x => x.key === key && x.kind === kind);
+            if (!c) return { ok: false, code: 'no_conflict' };
+            c.ack = true;
+            try { saveAll(st); } catch (e) { return { ok: false, code: safeCode(e) }; }
+            return { ok: true };
+        };
+        // 同期層から動作記録を残すための口(名前・数値・コードだけ。保存失敗でも例外にしない)。
+        function recordEvent(name, data) {
+            let st = null; try { st = loadAll(); } catch (e) { st = null; }
+            event(st, name, data);
+            if (st) { try { saveAll(st); } catch (e) { /* 記録のみ */ } }
+        }
+
+        return { ingest, rows, counts, health, log, ensureUnscheduled, monthOptions, suggestNewMonth, nextMonth, applyRows, cancelRegistration, registeredStatus, dismissRow, reclassify,
+            ownLedger, mergeRemoteLedger, reconcile, syncInfo, conflicts, ackConflict, recordEvent, validateEntries: o => validateEntries(o, nowMs()) };
     }
-    return { create, KEY_BOX, KEY_LEDGER, CANCEL_WINDOW_MS };
+    return { create, validateEntries, KEY_BOX, KEY_LEDGER, CANCEL_WINDOW_MS, LEDGER_KEEP_MS, MAX_LEDGER_ENTRIES, VALID_RESULTS, RESULT_KIND };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = MailBox;
