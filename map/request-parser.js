@@ -41,7 +41,7 @@ const RequestParser = (() => {
         return `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}T${t[1].padStart(2,'0')}:${t[2]}`;
     }
     function base(source, kind) {
-        return {company:'',address:'',phone:'',contact:'',managementNo:'',branch:'',equipType:'',filter:'',purpose:'',note:'',appoDate:'',unitCount:1,source,kind,warnings:[]};
+        return {company:'',address:'',phone:'',contact:'',managementNo:'',branch:'',equipType:'',filter:'',purpose:'',note:'',appoDate:'',workDateText:'',titleText:'',unitCount:1,source,kind,warnings:[]};
     }
     function parseTable(rows, source) {
         let headerIndex = -1, columns;
@@ -61,6 +61,10 @@ const RequestParser = (() => {
             if (!address || (!company && !/[都道府県市区町村]/.test(address))) return;
             if (field(company) === 'company' && field(address) === 'address') return;
             const item = base(`${source} · ${headerIndex + offset + 2}行`, '一覧表');
+            item.titleText = clean(title);
+            // 登録月の判定用: 日付の列が「工事予定日」等の別名でも原文だけは残す(表示・appoDateの扱いは変えない)。
+            const dateCol = (rows[headerIndex] || []).findIndex(label => /^(作業予定日|工事予定日(時)?|訪問予定日|作業希望日|アポ日時|工事日|訪問日)$/.test(norm(label).replace(/[.:：]+$/g,'')));
+            if (dateCol >= 0) item.workDateText = clean(row[dateCol]);
             Object.entries(columns).forEach(([key, col]) => { if (!['appointment','prefecture'].includes(key)) item[key] = clean(row[col]); });
             const pref = columns.prefecture !== undefined ? clean(row[columns.prefecture]) : '';
             item.address = pref && !address.startsWith(pref) ? pref + address : address;
@@ -122,6 +126,7 @@ const RequestParser = (() => {
         const preferred = get(['作業希望日']);
         const dateText = /\d/.test(workDate.value) ? workDate.value : preferred.value;
         item.appoDate = appointment(dateText, get(['時間指定']).value);
+        item.workDateText = /\d/.test(dateText) ? clean(dateText) : '';
         const notes = [];
         rows.forEach(row => row.forEach((value, col) => {
             if (/^(特記事項|備考)/.test(norm(value)) && text(row[col+1])) notes.push(clean(row[col+1]));
@@ -138,6 +143,22 @@ const RequestParser = (() => {
         const table = parseTable(rows, source);
         return table.length ? table : parseForm(rows, source);
     }
+    // 作業内容として扱う■の語彙。ここに無い■(ポンプ有無・住居形態・代金回収など)は読まない。
+    const WORK_ITEM = /設置工事|取外し?工事|クレーム|フィルター交換|移設|取付|修理|現地(?:調査|確認)|点検|メンテ|入替|交換/;
+    // 所在地の値は見出し行の隣の「〒」付きの行に来る。見出し(または顧客名)に最も近い行を使う。
+    function formAddress(joined) {
+        const lines = joined.split('\n');
+        const zip = /〒\s*\d{3}[-ー]?\d{4}/;
+        const anchorOf = re => lines.findIndex(line => re.test(line));
+        let anchor = anchorOf(/所\s*在\s*地/);
+        if (anchor < 0) anchor = anchorOf(/顧\s*客\s*名/);
+        let best = -1;
+        lines.forEach((line, index) => {
+            if (zip.test(line) && (best < 0 || Math.abs(index - anchor) < Math.abs(best - anchor))) best = index;
+        });
+        if (best < 0 || (anchor >= 0 && Math.abs(best - anchor) > 3)) return '';
+        return clean(lines[best].replace(/^.*?〒\s*\d{3}[-ー]?\d{4}\s*/, '').split(/TEL|電話|携帯/i)[0]);
+    }
     function parsePdfText(raw, source = '') {
         const lines = text(raw).normalize('NFKC').split(/\r?\n/).map(line => line.trim()).filter(Boolean);
         // OCRが日本語の間へ入れた空白だけ除去し、英語名の単語区切りは残す。
@@ -145,28 +166,50 @@ const RequestParser = (() => {
         const value = (labels, stop = '') => {
             for (const label of labels) {
                 const flexible = [...label].join('\\s*');
-                const match = joined.match(new RegExp(flexible + '[ :：.]*([^\\n]+)'));
+                // 「初回設置日」「最終訪問日」などの過去の日付を、予定日の見出しと取り違えない。
+                const match = joined.match(new RegExp('(?<!(?:初回|前回|最終)\\s*)' + flexible + '[ :：.]*([^\\n]+)'));
                 if (match) return clean(stop ? match[1].split(new RegExp(stop,'i'))[0] : match[1]);
             }
             return '';
         };
         const item = base(source, 'PDF依頼書');
-        item.company = value(['設置先名','客先名','会社名'], '設置先担当者|担当者');
+        // 「顧客名」「所在地」「■チェック欄」の業務依頼書(マーフィード書式)。設置先名などの別書式とは別に扱う。
+        const customerForm = /顧\s*客\s*名/.test(joined);
+        item.company = value(['設置先名','客先名','会社名'], '設置先担当者|担当者') || value(['顧客名'], '\\s*様(?:\\s.*)?$');
         item.address = value(['設置先住所','所在地','住所'], 'TEL|電話|携帯').replace(/^〒?\s*\d{3}[- ]?\d{4}\s*/, '');
+        if (!item.address && customerForm) item.address = formAddress(joined);
         item.contact = value(['設置先担当者','ご担当者']);
         item.phone = (value(['TEL','電話']).match(/0[\d() -]{8,18}\d/) || [''])[0];
-        item.equipType = value(['本体種類','機種','浄水器名'], '数量');
+        item.equipType = value(['本体種類','機種','浄水器名','型式'], '数量|台数');
+        if (customerForm) {
+            item.branch = value(['依頼SS名'], '\\s{2,}|受付');
+            item.unitCount = Number((value(['台数','数量']).match(/\d+/) || [1])[0]) || 1;
+        }
         item.managementNo = value(['管理No','管理NO','管理番号']).replace(/^[. :]+/,'');
         if (item.managementNo && !/^[A-Z0-9][A-Z0-9-]{0,30}$/i.test(item.managementNo)) {
             item.managementNo = '';
             item.warnings.push('管理番号を正しく読み取れませんでした。必要に応じて原本から入力してください。');
         }
-        item.purpose = purpose(value(['依頼内容','依頼業務内容']));
+        item.purpose = customerForm ? '' : purpose(value(['依頼内容','依頼業務内容']));
+        if (customerForm) {
+            // ■の付いた作業だけを読む。ポンプ有無・住居形態・代金回収など、同じ用紙の別の■は作業内容ではない。
+            const checkedWork = [...joined.matchAll(/■\s*([^□■\n]+)/g)].map(m => m[1].trim()).filter(v => WORK_ITEM.test(v));
+            if (checkedWork.length) item.purpose = purpose(checkedWork.join(' '));
+            else {
+                const hint = String(source).match(/[（(]([^）)]*(?:修理|設置|メンテ|フィルタ|点検|定期)[^）)]*)[）)]/);
+                if (hint) {
+                    item.purpose = purpose(hint[1]);
+                    item.warnings.push(`作業内容のチェック欄を読み取れなかったため、ファイル名の「${hint[1]}」から推定しました。原本で確認してください。`);
+                } else item.warnings.push('作業内容のチェック欄を読み取れませんでした。原本を見て作業内容を選んでください。');
+            }
+        }
         if (!item.purpose && /設置業務依頼書/.test(norm(joined))) item.purpose = '本体設置';
-        const dateText = value(['設置日','工事予定日時','作業希望日']);
+        const dateText = value(['設置日','工事予定日時','作業予定日','工事予定日','訪問予定日','作業希望日']);
         item.appoDate = appointment(dateText);
+        item.workDateText = dateText;
         const noteIndex = joined.search(/備\s*考|【\s*(?:物置|本体|電気)/);
-        item.note = unique([dateText && `設置・予定日（原文）: ${dateText}`, noteIndex >= 0 ? joined.slice(noteIndex).trim() : '']).join('\n');
+        const special = customerForm ? (joined.match(/特\s*記\s*事\s*項\s*([\s\S]*?)(?=受付年月日|受付者名|依頼SS名|備\s*考|$)/) || ['',''])[1].replace(/\n?（[^）\n]*）\s*$/,'').trim() : '';
+        item.note = unique([dateText && `設置・予定日（原文）: ${dateText}`, special, noteIndex >= 0 ? joined.slice(noteIndex).trim() : '']).join('\n');
         item.warnings.push('PDFの読取結果です。会社名・住所・電話・日程を原本と照合してください。');
         return [item]; // 読めない項目も空欄で表示し、確認画面で補える。
     }

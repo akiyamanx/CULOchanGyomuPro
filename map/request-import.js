@@ -115,7 +115,7 @@ const RequestImport = (() => {
         try {
             const known = existing();
             const added = selected.map((item,index) => {
-                const {selected,possibleDuplicate,warnings,previewUrl,originalText,kind,...customer} = item;
+                const {selected,possibleDuplicate,warnings,previewUrl,originalText,kind,workDateText,titleText,...customer} = item;
                 return {...customer,unitCount:Number(item.unitCount),id:'c_'+crypto.randomUUID(),routeId:null,status:'pending',createdAt:new Date().toISOString()};
             });
             if (!DataStorage.getWorkspaces().some(ws=>ws.id===month)) DataStorage.createWorkspace(month);

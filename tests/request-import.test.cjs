@@ -117,3 +117,12 @@ test('登録先の事前読取は月を変更せず、保存失敗と不正デ�
     storage.set('mm_customers_2026-09','broken');
     assert.throws(()=>run("DataStorage.getCustomersForWorkspace('2026-09')"));
 });
+test('登録月の判定用に、作業予定日の原文と一覧表のタイトルを項目へ残す(保存はしない)', () => {
+    const [table] = Parser.parseRows([['11月','DP-400定期メンテナンスリスト'],['設置先会社名','住所','工事予定日'],['架空会社A','千葉県架空市1','11月5日']]);
+    assert.equal(table.workDateText,'11月5日');
+    assert.match(table.titleText,/11月/);
+    const [form] = Parser.parsePdfText('設置業務依頼書\n設置先名 架空会社C\n設置先住所 東京都架空区9-9\n設置日 2026/11/05','設置.pdf · 1ページ');
+    assert.equal(form.workDateText,'2026/11/05');
+    const source = fs.readFileSync(require.resolve('../map/request-import.js'),'utf8');
+    assert.match(source,/workDateText,titleText/,'登録するデータにworkDateText/titleTextを含めない');
+});
