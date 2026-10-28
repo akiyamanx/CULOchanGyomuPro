@@ -159,7 +159,29 @@ const RequestParser = (() => {
         if (best < 0 || (anchor >= 0 && Math.abs(best - anchor) > 3)) return '';
         return clean(lines[best].replace(/^.*?〒\s*\d{3}[-ー]?\d{4}\s*/, '').split(/TEL|電話|携帯/i)[0]);
     }
+    // PDFのページが「業務依頼書」かを判定する。精算書・納品書・調査票・コスト試算などの参考資料は取り込まない。
+    // 通す条件(上から順に判定):
+    //   1. 先頭付近の見出しに「業務依頼書」がある。
+    //   2. 先頭付近の見出しが参考資料(精算書・納品書・請求書・見積書・調査票・コスト試算・報告書・領収書)なら通さない。
+    //   3. 本文に「業務依頼書」がある。
+    //   4. 「顧客名」と「所在地」、または「設置先名」と「設置先住所」の組がある(見出しが崩れた画像PDF向け)。
+    //   5. ファイル名に「業務依頼」があり、1ページ目(OCRで文字が崩れた依頼書を、空欄のまま手入力できるよう残す)。
+    const REFERENCE_DOCUMENT = /精算書|納品書|請求書|見積書|コスト試算|調査票|報告書|領収書/;
+    function requestDocumentCheck(raw, source = '') {
+        const compact = text(raw).normalize('NFKC').split(/\r?\n/).map(line => line.replace(/\s+/g,'')).filter(Boolean);
+        const head = compact.slice(0,6).join('\n');
+        const body = compact.join('\n');
+        const [fileName, page] = String(source).normalize('NFKC').split(' · ');
+        const firstPage = !page || /^1ページ/.test(page);
+        if (/業務依頼書/.test(head)) return {ok:true, reason:'見出しに業務依頼書があります。'};
+        if (REFERENCE_DOCUMENT.test(head) || REFERENCE_DOCUMENT.test(fileName)) return {ok:false, reason:'精算書・納品書・調査票などの参考資料のため、依頼書として取り込みません。'};
+        if (/業務依頼書/.test(body)) return {ok:true, reason:'本文に業務依頼書があります。'};
+        if ((/顧客名/.test(body) && /所在地/.test(body)) || (/設置先名/.test(body) && /設置先住所/.test(body))) return {ok:true, reason:'顧客名と所在地の項目があります。'};
+        if (/業務依頼/.test(fileName) && firstPage) return {ok:true, reason:'ファイル名が業務依頼書で、文字が読み取れなかった1ページ目です。'};
+        return {ok:false, reason:'業務依頼書の見出しも、顧客名と所在地の項目もないため、依頼書として取り込みません。'};
+    }
     function parsePdfText(raw, source = '') {
+        if (!requestDocumentCheck(raw, source).ok) return [];
         const lines = text(raw).normalize('NFKC').split(/\r?\n/).map(line => line.trim()).filter(Boolean);
         // OCRが日本語の間へ入れた空白だけ除去し、英語名の単語区切りは残す。
         const joined = lines.map(line => line.replace(/(?<=[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}ー])\s+(?=[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}ー])/gu,'')).join('\n');
@@ -223,6 +245,6 @@ const RequestParser = (() => {
             && norm(candidate.purpose) === norm(existing.purpose)
             && (candidate.appoDate || '') === (existing.appoDate || ''));
     }
-    return {parseRows, parsePdfText, appointment, duplicate, norm};
+    return {parseRows, parsePdfText, requestDocumentCheck, appointment, duplicate, norm};
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = RequestParser;

@@ -9,6 +9,28 @@ const RequestReader = (() => {
         const date = `${value.getFullYear()}-${pad(value.getMonth()+1)}-${pad(value.getDate())}`;
         return value.getHours() || value.getMinutes() ? `${date} ${pad(value.getHours())}:${pad(value.getMinutes())}` : date;
     }
+    // Excelのシリアル値(1900年系)を YYYY-MM-DD にする。2000〜2099年だけを日付とみなす。
+    function serialDate(serial) {
+        if (typeof serial !== 'number' || !Number.isFinite(serial) || serial < 36526 || serial >= 73051) return '';
+        const date = new Date(Math.floor(serial - 25569) * 86400000);
+        return date.toISOString().slice(0,10);
+    }
+    // 日付セルの表示文字(w)を、年つきの YYYY-MM-DD に揃える。
+    // 実サンプルの「作業希望日」は書式情報の無い数値で、表示だけが 10/15/26 のような月/日/2桁年になり、
+    // 日付として読めなかった。数値でも、表示が日付の形(区切りの数字3つ)でシリアル値が日付の範囲なら、値から直す。
+    function normalizeDateCells(sheet) {
+        for (const [ref,cell] of Object.entries(sheet)) {
+            if (ref.startsWith('!') || !cell) continue;
+            if (cell.t === 'd' && cell.v instanceof Date) {
+                // A time-only cell has no calendar date. Keep its displayed time.
+                const format = String(cell.z || '').replace(/"[^"]*"|\\./g,'');
+                if (!(/[hs]/i.test(format) && !/[dy]/i.test(format))) cell.w = excelDate(cell.v);
+            } else if (cell.t === 'n' && /^\d{1,4}[\/.-]\d{1,2}[\/.-]\d{1,4}$/.test(String(cell.w ?? ''))) {
+                const date = serialDate(cell.v);
+                if (date) cell.w = date;
+            }
+        }
+    }
     function loadOcr() {
         if (!ocrScript) ocrScript = new Promise((resolve, reject) => {
             const script = document.createElement('script');
@@ -71,6 +93,7 @@ const RequestReader = (() => {
                 canvas.width = canvas.height = 0;
                 page.cleanup();
             }
+            if (!result.length) throw new Error('業務依頼書として読めるページがありませんでした。精算書・納品書・調査票などの参考資料は取り込みません。');
             return result;
         } finally {
             signal.removeEventListener('abort',abort);
@@ -94,14 +117,7 @@ const RequestReader = (() => {
             for (const name of book.SheetNames) {
                 if (book.Workbook?.Sheets?.find(sheet=>sheet.name===name)?.Hidden) continue;
                 const sheet = book.Sheets[name];
-                // Date cells keep their year, rather than a display format that hides it.
-                for (const [ref,cell] of Object.entries(sheet)) {
-                    if (!ref.startsWith('!') && cell.t === 'd' && cell.v instanceof Date) {
-                        // A time-only cell has no calendar date. Keep its displayed time.
-                        const format = String(cell.z || '').replace(/"[^"]*"|\\./g,'');
-                        if (!(/[hs]/i.test(format) && !/[dy]/i.test(format))) cell.w = excelDate(cell.v);
-                    }
-                }
+                normalizeDateCells(sheet);
                 const rows = XLSX.utils.sheet_to_json(sheet,{header:1,raw:false,defval:''});
                 result.push(...RequestParser.parseRows(rows,`${file.name} · ${name}`));
             }
@@ -109,6 +125,6 @@ const RequestReader = (() => {
         if (!result.length) throw new Error('会社名と住所を含む一覧表、または対応する業務依頼書が見つかりません。');
         return result;
     }
-    return {read,excelDate};
+    return {read,excelDate,normalizeDateCells};
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = RequestReader;

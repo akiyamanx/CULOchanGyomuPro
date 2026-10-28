@@ -1,7 +1,13 @@
 // 依頼書の「登録先の月」を決める純関数。保存・画面・通信には触れない。
-// 優先順位: ①作業予定日 → ②件名・タイトルの月 → ③どちらも無ければ要確認(自動登録せず確認画面へ)。
+// 決め方(アキヤさんの運用: 依頼書は受信後に作業日を自分で決めるので、作業日入りはごく少数):
+//   ①作業予定日・作業希望日が読めれば、その日付の月(今月でも来月でも)。 scheduleUnset=false
+//   ②月次一覧の表題の月(titleText)。月次一覧は表題の月に紐づく。 scheduleUnset=false
+//   ③どちらも無ければ month=null・scheduleUnset=true(月に紐づけず「日程未定」リストへ。要確認にはしない)。
+//   作業日が複数の月にまたがる・食い違うときだけ needsReview=true(候補月を返す)。
+// 受信日(receivedDate)は参考情報として receivedMonth に返すだけで、月の決定には使わない。
 // 依頼日・受付日・最終訪問日など「作業予定ではない日付」は呼び出し側で渡さないこと。
-// タイトルにはファイル名(発行日が入りやすい)を渡さず、メール件名や一覧表の表題だけを渡す。
+// titleText は月次一覧(kind=一覧表)の表題・メール件名だけを渡す。ファイル名(発行日が入りやすい)や、
+// 単件の依頼書の件名は渡さない。
 const RequestMonth = (() => {
     const UNKNOWN = '[○〇◯●◎□■×xX*＊丸々〃]';
     const DAY = `(\\d{1,2}(?![\\d:])|${UNKNOWN}+)`;
@@ -85,19 +91,29 @@ const RequestMonth = (() => {
         return [...new Set(toList(values).flatMap(value => parseDates(value, options).map(date => date.month)))].sort();
     }
     const label = month => month.replace(/^(\d{4})-0?(\d+)$/, '$1年$2月');
+    function receivedInfo(receivedDate) {
+        if (receivedDate === undefined || receivedDate === null || receivedDate === '') return null;
+        const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(receivedDate));
+        if (!match) throw new Error('receivedDate は YYYY-MM-DD で指定してください。');
+        return {date:String(receivedDate), month:`${match[1]}-${match[2]}`};
+    }
 
-    // 作業予定日(文字列または文字列の配列)と件名・タイトルから登録月を決める。
-    function resolveRegistrationMonth({workDateText, titleText, today} = {}) {
-        const options = {today};
+    // 作業予定日(文字列または文字列の配列)・表題の月・受信日から、登録先の月を決める。
+    // 戻り値: {month, basis, scheduleUnset, needsReview, reason, candidates, receivedMonth}
+    function resolveRegistrationMonth({workDateText, titleText, receivedDate, today} = {}) {
         parseToday(today);
+        const received = receivedInfo(receivedDate);
+        // 年の無い日付は、受信日があれば受信日に、無ければ今日に最も近い年で読む。
+        const options = {today: received ? received.date : today};
+        const receivedMonth = received ? received.month : null;
         for (const [basis, values] of [['作業予定日', workDateText], ['件名・タイトル', titleText]]) {
             const candidates = monthsOf(values, options);
-            if (candidates.length === 1) return {month:candidates[0], basis, needsReview:false, reason:`${basis}の${label(candidates[0])}に登録します。`, candidates};
+            if (candidates.length === 1) return {month:candidates[0], basis, scheduleUnset:false, needsReview:false, reason:`${basis}の${label(candidates[0])}に登録します。`, candidates, receivedMonth};
             if (candidates.length > 1) {
-                return {month:null, basis, needsReview:true, reason:`${basis}が複数の月(${candidates.map(label).join('・')})にまたがります。登録先の月を選んでください。`, candidates};
+                return {month:null, basis, scheduleUnset:false, needsReview:true, reason:`${basis}が複数の月(${candidates.map(label).join('・')})にまたがります。登録先の月を選んでください。`, candidates, receivedMonth};
             }
         }
-        return {month:null, basis:null, needsReview:true, reason:'作業予定日も件名・タイトルの月も読み取れませんでした。登録先の月を選んでください。', candidates:[]};
+        return {month:null, basis:null, scheduleUnset:true, needsReview:false, reason:'作業日が決まっていないため、月に紐づけず「日程未定」に登録します。', candidates:[], receivedMonth};
     }
     return {parseDates, resolveRegistrationMonth};
 })();

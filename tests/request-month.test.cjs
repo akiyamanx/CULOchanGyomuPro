@@ -80,23 +80,51 @@ test('登録月: 作業予定日が無ければ件名・タイトルの月を使
     assert.equal(r.month,'2026-11');
     assert.equal(r.basis,'件名・タイトル');
     assert.equal(r.needsReview,false);
+    assert.equal(r.scheduleUnset,false); // 月次一覧は表題の月に紐づく
     // 作業予定日が「未定」など月を含まない場合も同じ。
     const undecided = Month.resolveRegistrationMonth({workDateText:'未定',titleText:'12月分リスト',today:TODAY});
     assert.equal(undecided.month,'2026-12');
     assert.equal(undecided.basis,'件名・タイトル');
 });
-test('登録月: どちらにも月が無ければ要確認(自動登録しない)', () => {
+test('登録月: 作業日も件名の月も無ければ月なしの「日程未定」(要確認にはしない。受信月に登録しない)', () => {
     for (const input of [{}, {workDateText:'',titleText:''}, {workDateText:'未定',titleText:'HW修理 業務依頼'}, {workDateText:null,titleText:undefined}]) {
-        const r = Month.resolveRegistrationMonth({...input,today:TODAY});
+        const r = Month.resolveRegistrationMonth({...input,receivedDate:'2026-10-20',today:TODAY});
         assert.equal(r.month,null);
-        assert.equal(r.needsReview,true);
+        assert.equal(r.scheduleUnset,true);
+        assert.equal(r.needsReview,false);
+        assert.equal(r.basis,null);
         assert.ok(r.reason);
+    }
+});
+test('登録月: 受信日は参考情報(receivedMonth)として返すだけで、月の決定には使わない', () => {
+    const unset = Month.resolveRegistrationMonth({workDateText:'',receivedDate:'2026-09-30',today:TODAY});
+    assert.equal(unset.receivedMonth,'2026-09');
+    assert.equal(unset.month,null);
+    const dated = Month.resolveRegistrationMonth({workDateText:'2026/11/05',receivedDate:'2026-09-30',today:TODAY});
+    assert.equal(dated.month,'2026-11');
+    assert.equal(dated.receivedMonth,'2026-09');
+    assert.equal(Month.resolveRegistrationMonth({workDateText:'',today:TODAY}).receivedMonth,null);
+    assert.throws(() => Month.resolveRegistrationMonth({workDateText:'',receivedDate:'2026/09/30',today:TODAY}));
+});
+test('登録月: 受信日があれば、年の無い日付(11/5)はその受信日に最も近い年で読む', () => {
+    const r = Month.resolveRegistrationMonth({workDateText:'1/10',receivedDate:'2026-12-20'});
+    assert.equal(r.month,'2027-01');
+    const past = Month.resolveRegistrationMonth({workDateText:'12/20',receivedDate:'2026-01-05'});
+    assert.equal(past.month,'2025-12');
+});
+test('登録月: 作業日が決まっていれば今月でも来月でもその日付の月。scheduleUnsetはfalse', () => {
+    for (const [text, month] of [['2026/10/30','2026-10'],['2026/11/05(木) 09:00～12:00','2026-11'],['11月○○日','2026-11']]) {
+        const r = Month.resolveRegistrationMonth({workDateText:text,receivedDate:'2026-10-20',today:TODAY});
+        assert.equal(r.month,month,text);
+        assert.equal(r.scheduleUnset,false,text);
+        assert.equal(r.needsReview,false,text);
     }
 });
 test('登録月: 作業予定日が複数の月にまたがる・複数の項目が食い違うときは要確認で、候補月を示す', () => {
     const r = Month.resolveRegistrationMonth({workDateText:'10/31〜11/2',titleText:'10月分',today:TODAY});
     assert.equal(r.month,null);
     assert.equal(r.needsReview,true);
+    assert.equal(r.scheduleUnset,false); // 作業日は決まっているが月が割れる: 日程未定ではなく要確認
     assert.deepEqual(r.candidates,['2026-10','2026-11']);
     const multi = Month.resolveRegistrationMonth({workDateText:['11/5','12/3'],today:TODAY});
     assert.equal(multi.needsReview,true);
@@ -113,7 +141,8 @@ test('登録月: 依頼日・受付日・設置日などの過去日はこの関
     const [item] = Parser.parsePdfText(fx.embedded(fx.work.repair),'依頼書.pdf · 1ページ');
     const r = Month.resolveRegistrationMonth({workDateText:item.workDateText,titleText:'',today:TODAY});
     assert.equal(r.month,null);
-    assert.equal(r.needsReview,true);
+    assert.equal(r.scheduleUnset,true);   // 依頼日だけでは月を決めない。月なしの日程未定へ。
+    assert.equal(r.needsReview,false);
 });
 test('登録月: today省略時は日本時間の現在日を使い、不正なtodayは拒否する', () => {
     assert.match(Month.resolveRegistrationMonth({workDateText:'11/5'}).month,/^\d{4}-11$/);
