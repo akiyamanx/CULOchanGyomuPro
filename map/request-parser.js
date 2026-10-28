@@ -51,7 +51,8 @@ const RequestParser = (() => {
             if (c.company !== undefined && c.address !== undefined) { headerIndex = i; columns = c; break; }
         }
         if (headerIndex < 0) return [];
-        const title = rows.slice(0, headerIndex).flat().join(' ');
+        // 作成日・発行日だけのセルは表題に含めない(その月を、一覧の対象月と取り違えないため)。
+        const title = rows.slice(0, headerIndex).flat().filter(value => !/^\s*\d{4}[-/.]\d{1,2}[-/.]\d{1,2}(\s+\d{1,2}:\d{2})?\s*$/.test(String(value ?? ''))).join(' ');
         const fallback = /メンテ|フィルター交換/.test(title) ? 'メンテナンス' : '';
         const result = [];
         rows.slice(headerIndex + 1).forEach((row, offset) => {

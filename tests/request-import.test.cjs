@@ -126,3 +126,17 @@ test('登録月の判定用に、作業予定日の原文と一覧表のタイ�
     const source = fs.readFileSync(require.resolve('../map/request-import.js'),'utf8');
     assert.match(source,/workDateText,titleText/,'登録するデータにworkDateText/titleTextを含めない');
 });
+
+// 実サンプルの月次一覧は、表題行に「作成日(日付だけのセル)」が並ぶ。作成日の月を表題の月と取り違えない。
+test('月次一覧の表題に作成日だけのセルがあっても、表題の月だけを titleText にする', () => {
+    const Month = require('../map/request-month');
+    const items = Parser.parseRows([['2026年11月 フィルター交換リスト','','2026-10-26'],[],
+        ['営業所','型式','設置先会社名','住所','交換フィルター'],
+        ['試験営業所','タ','架空会社A','千葉県架空市1','試験フィルター']]);
+    assert.equal(items.length,1);
+    assert.doesNotMatch(items[0].titleText,/2026-10-26/);
+    assert.match(items[0].titleText,/2026年11月/);
+    const r = Month.resolveRegistrationMonth({workDateText:items[0].workDateText,titleText:items[0].titleText,today:'2026-10-28'});
+    assert.equal(r.month,'2026-11');
+    assert.equal(r.needsReview,false);
+});
