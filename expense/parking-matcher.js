@@ -20,7 +20,7 @@ const ParkingMatcher = (() => {
     // receipt: { date, store, address, enterTime, total, type }
     // 戻り: [{ customer, score, distanceKm, timeDiffMin }]
     // ==========================================
-    async function findCandidates(receipt) {
+    async function findCandidates(receipt, providedCustomers) {
         console.log('[Matcher] マッチング開始:', receipt.store, receipt.date);
 
         // 1. 駐車場の座標を取得
@@ -32,7 +32,7 @@ const ParkingMatcher = (() => {
         console.log('[Matcher] 駐車場座標:', parkingCoord.lat, parkingCoord.lng);
 
         // 2. 同日付のアポ顧客を抽出
-        var candidates = _filterByDate(receipt.date);
+        var candidates = providedCustomers ? _getAllCustomersWithCoords(providedCustomers) : _filterByDate(receipt.date);
         if (candidates.length === 0) {
             console.log('[Matcher] 同日付のアポ顧客なし');
             return [];
@@ -138,7 +138,7 @@ const ParkingMatcher = (() => {
     // ==========================================
     // 全顧客データ＋ジオキャッシュ座標を結合して返す
     // ==========================================
-    function _getAllCustomersWithCoords() {
+    function _getAllCustomersWithCoords(providedCustomers) {
         var customers = [];
         try {
             // DataStorageが利用可能か確認
@@ -146,7 +146,7 @@ const ParkingMatcher = (() => {
                 console.warn('[Matcher] DataStorageが未定義');
                 return [];
             }
-            customers = DataStorage.getCustomers();
+            customers = providedCustomers || DataStorage.getCustomers();
         } catch (e) {
             console.warn('[Matcher] 顧客データ取得エラー:', e);
             return [];
@@ -405,12 +405,13 @@ const ParkingMatcher = (() => {
             var rankIcon = idx === 0 ? '🥇' : (idx === 1 ? '🥈' : '🥉');
             var company = (c.customer.company || '').replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            var safeId = id.replace(/'/g, '&#39;');
-            var safeName = (c.customer.company || '').replace(/'/g, '&#39;');
+            // onclickの引数はJSON文字列にしてからHTMLエスケープする(会社名に ' や " があっても属性から抜けない)
+            var safeId = ExpenseImport.escapeHtml(JSON.stringify(String(id)));
+            var safeName = ExpenseImport.escapeHtml(JSON.stringify(String(c.customer.company || '')));
 
             html += '<button class="parking-match-item" '
-                + 'onclick="ParkingMatcher.applyMatchResult(\''
-                + safeId + '\',\'' + safeName + '\')">'
+                + 'onclick="ParkingMatcher.applyMatchResult('
+                + safeId + ',' + safeName + ')">'
                 + '<span class="match-rank">' + rankIcon + '</span>'
                 + '<span class="match-company">' + company + '</span>'
                 + '<span class="match-info">'
@@ -455,3 +456,4 @@ const ParkingMatcher = (() => {
         closeMatchModal: closeMatchModal
     };
 })();
+

@@ -53,7 +53,7 @@ const SegmentDialog = (() => {
                 const label = isHw ? '高速' : '下道';
 
                 listHtml += `
-                    <div id="seg_${idx}" data-key="${seg.key}" data-type="${seg.type}"
+                    <div id="seg_${idx}" data-key="${ExpenseImport.escapeHtml(seg.key)}" data-type="${ExpenseImport.escapeHtml(seg.type)}"
                          onclick="SegmentDialog.toggleType(${idx})"
                          style="display:flex;align-items:center;padding:10px 12px;margin-bottom:6px;
                                 border:2px solid ${border};border-radius:8px;background:${bg};
@@ -61,11 +61,11 @@ const SegmentDialog = (() => {
                         <span style="font-size:20px;margin-right:10px;" id="segIcon_${idx}">${icon}</span>
                         <div style="flex:1;min-width:0;">
                             <div style="font-size:13px;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                                ${seg.fromLabel}
+                                ${ExpenseImport.escapeHtml(seg.fromLabel)}
                             </div>
                             <div style="font-size:11px;color:#8fa3b8;">↓</div>
                             <div style="font-size:13px;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                                ${seg.toLabel}
+                                ${ExpenseImport.escapeHtml(seg.toLabel)}
                             </div>
                         </div>
                         <span style="font-size:14px;font-weight:bold;margin-left:8px;" id="segLabel_${idx}">${label}</span>
@@ -128,3 +128,4 @@ const SegmentDialog = (() => {
 
     return { show, toggleType };
 })();
+

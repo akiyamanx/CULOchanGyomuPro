@@ -11,6 +11,10 @@
 
 const RouteManager = (() => {
     let polylines = [];
+    // 画面に出す文字列は必ずエスケープする(会社名・ルート名は取込データ由来)
+    const esc = value => ExpenseImport.escapeHtml(value);
+    const jsArg = value => esc(JSON.stringify(String(value)));
+    const safeColor = color => /^#[0-9a-fA-F]{3,8}$/.test(String(color || '')) ? color : '#9e9e9e';
 
     function updateRoutePanel() {
         const routes = DataStorage.getRoutes();
@@ -29,19 +33,19 @@ const RouteManager = (() => {
             }
             html += `<div class="route-section">`;
             html += `<div class="route-header" onclick="RouteManager.toggleRouteSection(this)">`;
-            html += `<span class="route-color-dot" style="background:${route.color}"></span>`;
-            html += `<span>${route.name}</span>`;
+            html += `<span class="route-color-dot" style="background:${safeColor(route.color)}"></span>`;
+            html += `<span>${esc(route.name)}</span>`;
             html += `<span class="route-count">${members.length}件</span>`;
-            if (members.length >= 2 && route.order && route.order.length >= 2) {
-                html += `<button class="route-dist-btn" onclick="event.stopPropagation();RouteManager.calcDistance('${route.id}')">📏</button>`;
+            if (members.length >= 1) {
+                html += `<button class="route-dist-btn" onclick="event.stopPropagation();RouteManager.calcDistance(${jsArg(route.id)})">距離計算</button>`;
             }
             html += `</div>`;
             if (members.length > 0) {
                 html += `<div class="route-stops">`;
                 members.forEach((m, idx) => {
-                    html += `<div class="route-stop" onclick="MapCore.focusMarker('${m.id}')">`;
+                    html += `<div class="route-stop" onclick="MapCore.focusMarker(${jsArg(m.id)})">`;
                     html += `<span class="stop-number">${idx + 1}</span>`;
-                    html += `<span>${m.company || '不明'}`;
+                    html += `<span>${esc(m.company || '不明')}`;
                     if (m.unitCount > 1) html += ` (${m.unitCount}台)`;
                     html += `</span></div>`;
                 });
@@ -60,9 +64,9 @@ const RouteManager = (() => {
             html += `</div>`;
             html += `<div class="route-stops">`;
             unassigned.forEach((m, idx) => {
-                html += `<div class="route-stop" onclick="MapCore.focusMarker('${m.id}')">`;
+                html += `<div class="route-stop" onclick="MapCore.focusMarker(${jsArg(m.id)})">`;
                 html += `<span class="stop-number">-</span>`;
-                html += `<span>${m.company || '不明'}</span>`;
+                html += `<span>${esc(m.company || '不明')}</span>`;
                 html += `</div>`;
             });
             html += `</div></div>`;
@@ -87,14 +91,14 @@ const RouteManager = (() => {
         activeRoutes.forEach(r => {
             const count = customers.filter(c => c.routeId === r.id).length;
             html += `<div class="legend-item">`;
-            html += `<span class="legend-color" style="background:${r.color}"></span>`;
-            html += `<span>${r.name}（${count}件）</span>`;
+            html += `<span class="legend-color" style="background:${safeColor(r.color)}"></span>`;
+            html += `<span>${esc(r.name)}（${count}件）</span>`;
             html += `</div>`;
         });
         html += `<div style="border-top:1px solid #e2e8f0;margin:6px 0;"></div>`;
-        html += `<div class="legend-item"><span class="legend-color" style="background:#ea4335"></span><span>未アポ</span></div>`;
-        html += `<div class="legend-item"><span class="legend-color" style="background:#34a853"></span><span>アポ済み</span></div>`;
-        html += `<div class="legend-item"><span class="legend-color" style="background:#9e9e9e"></span><span>完了</span></div>`;
+        html += `<div class="legend-item"><span class="legend-color" style="background:#b57b17"></span><span>未アポ</span></div>`;
+        html += `<div class="legend-item"><span class="legend-color" style="background:#1765aa"></span><span>アポ済み</span></div>`;
+        html += `<div class="legend-item"><span class="legend-color" style="background:#177050"></span><span>訪問完了</span></div>`;
         itemsEl.innerHTML = html;
     }
 
@@ -126,63 +130,7 @@ const RouteManager = (() => {
         }
     }
 
-    function exportPDF() {
-        const customers = DataStorage.getCustomers();
-        if (customers.length === 0) { alert('出力するデータがありません。'); return; }
-        const routes = DataStorage.getRoutes();
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF('p', 'mm', 'a4');
-        const today = new Date().toLocaleDateString('ja-JP');
-        doc.setFontSize(16);
-        doc.text('メンテナンスマップ - 一覧表', 14, 20);
-        doc.setFontSize(10);
-        doc.text(`出力日: ${today}`, 14, 28);
-        let startY = 35;
-
-        for (const route of routes) {
-            const members = customers.filter(c => c.routeId === route.id);
-            if (members.length === 0) continue;
-            doc.setFontSize(12); doc.setTextColor(0, 0, 0);
-            doc.text(`${route.name}（${members.length}件）`, 14, startY);
-            startY += 3;
-            const tableData = members.map((m, idx) => [
-                idx + 1, m.company || '', m.address || '',
-                m.phone || '', m.contact || '',
-                m.unitCount > 1 ? `${m.unitCount}台` : '',
-                m.status === 'appointed' ? 'アポ済' : m.status === 'completed' ? '完了' : '未アポ'
-            ]);
-            doc.autoTable({
-                startY: startY,
-                head: [['#', '会社名', '住所', '電話番号', '担当者', '台数', 'ステータス']],
-                body: tableData,
-                styles: { fontSize: 7, cellPadding: 2 },
-                headStyles: { fillColor: hexToRgb(route.color) },
-                margin: { left: 14, right: 14 }, theme: 'grid'
-            });
-            startY = doc.lastAutoTable.finalY + 10;
-            if (startY > 260) { doc.addPage(); startY = 20; }
-        }
-
-        const unassigned = customers.filter(c => !c.routeId);
-        if (unassigned.length > 0) {
-            doc.setFontSize(12);
-            doc.text(`未割当（${unassigned.length}件）`, 14, startY);
-            startY += 3;
-            const tableData = unassigned.map((m, idx) => [
-                idx + 1, m.company || '', m.address || '',
-                m.phone || '', m.contact || '', m.unitCount > 1 ? `${m.unitCount}台` : '', '未アポ'
-            ]);
-            doc.autoTable({
-                startY: startY,
-                head: [['#', '会社名', '住所', '電話番号', '担当者', '台数', 'ステータス']],
-                body: tableData,
-                styles: { fontSize: 7, cellPadding: 2 },
-                headStyles: { fillColor: [158, 158, 158] },
-                margin: { left: 14, right: 14 }, theme: 'grid'
-            });
-        }
-        doc.save(`maintenance_map_${today.replace(/\//g, '-')}.pdf`);
-    }
+    function exportPDF() { return RouteListPdf.generate(); }
 
     function hexToRgb(hex) {
         const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -210,7 +158,7 @@ const RouteManager = (() => {
             if (members.length === 0) continue;
             const rAppointed = members.filter(c => c.status === 'appointed').length;
             const rCompleted = members.filter(c => c.status === 'completed').length;
-            html += `<div class="summary-card"><h3><span style="color:${route.color}">●</span> ${route.name}</h3>`;
+            html += `<div class="summary-card"><h3><span style="color:${safeColor(route.color)}">●</span> ${esc(route.name)}</h3>`;
             html += `<div class="summary-row"><span>件数</span><span class="summary-value">${members.length}件</span></div>`;
             html += `<div class="summary-row"><span>アポ済み</span><span class="summary-value">${rAppointed}件</span></div>`;
             html += `<div class="summary-row"><span>完了</span><span class="summary-value">${rCompleted}件</span></div></div>`;
@@ -252,12 +200,24 @@ const RouteManager = (() => {
         return { company: companies.join(' → '), address: areas.join(' → ') };
     }
 
-    async function calcDistance(routeId) {
+    async function calcDistance(routeId, selectedDate) {
         const routes = DataStorage.getRoutes();
         const route = routes.find(r => r.id === routeId);
         if (!route) { alert('ルートが見つかりません'); return; }
         const customers = DataStorage.getCustomers();
-        const members = customers.filter(c => c.routeId === routeId);
+        const allMembers = customers.filter(c => c.routeId === routeId);
+        const dates = [...new Set(allMembers.map(c => ExpenseImport.normalizeDate(c.appoDate)).filter(Boolean))];
+        const date = ExpenseImport.normalizeDate(selectedDate) || (dates.length === 1 ? dates[0] : '');
+        if (!date) {
+            mapSwitchTab('expense');
+            const select = document.getElementById('mapExpenseRoute');
+            if (select) select.value = routeId;
+            MapExpenseForm.updateSummary();
+            alert('精算する利用日を選び、走行距離を計算してください');
+            return;
+        }
+        const members = allMembers.filter(c => ExpenseImport.normalizeDate(c.appoDate) === date);
+        if (!members.length) { alert('この日の訪問先がありません'); return; }
         const ordered = [];
         if (route.order && route.order.length > 0) {
             for (const cid of route.order) {
@@ -268,26 +228,49 @@ const RouteManager = (() => {
         } else { ordered.push(...members); }
 
         const settings = DataStorage.getSettings();
-        if (!settings.homeAddress) { alert('設定で自宅住所（出発点）を登録してください'); return; }
+        if (!settings.homeAddress) { alert('設定で会社住所（出発・帰着）を登録してください'); return; }
 
         const points = [];
-        points.push({ id: 'home_start', address: settings.homeAddress, label: '🏠 自宅（出発）' });
+        points.push({ id: 'home_start', address: settings.homeAddress, label: '🏢 会社（出発）' });
         ordered.forEach(m => { points.push({ id: m.id, address: m.address, label: (m.company || '不明').substring(0, 15) }); });
-        points.push({ id: 'home_end', address: settings.homeAddress, label: '🏠 自宅（帰着）' });
+        points.push({ id: 'home_end', address: settings.homeAddress, label: '🏢 会社（帰着）' });
 
+        const workspace = DataStorage.getCurrentWorkspaceId();
+        const signature = distanceSignature(routeId, date);
         const allSegments = DataStorage.getSegments();
         const savedSegments = allSegments[routeId] || {};
         const segmentChoices = await SegmentDialog.show(points, savedSegments);
         if (!segmentChoices) return;
+        if (DataStorage.getCurrentWorkspaceId() !== workspace || distanceSignature(routeId, date) !== signature) {
+            alert('月または訪問先が変更されました。計算し直してください'); return;
+        }
         allSegments[routeId] = segmentChoices;
         DataStorage.saveSegments(allSegments);
+
+        // 道路設定を選び直した再計算が失敗しても、以前の距離を使わない。
+        const recalculatingRoutes = DataStorage.getRoutes();
+        const recalculatingRoute = recalculatingRoutes.find(item => item.id === routeId);
+        if (!recalculatingRoute) { alert('ルートが変更されました。選び直してください'); return; }
+        if (recalculatingRoute.distanceResults) delete recalculatingRoute.distanceResults[date];
+        DataStorage.saveRoutes(recalculatingRoutes);
+        MapExpenseForm.updateSummary();
 
         const loading = document.getElementById('mapLoading');
         loading.style.display = 'flex';
         document.getElementById('mapLoadingProgress').textContent = '走行距離計算中...';
 
         try {
-            const result = await DistanceCalc.calcRouteDistance(routeId, segmentChoices);
+            const result = await DistanceCalc.calcRouteDistance(routeId, segmentChoices, date);
+            if (DataStorage.getCurrentWorkspaceId() !== workspace) throw new Error('月が切り替わりました。選択中の月で計算し直してください');
+            if (distanceSignature(routeId, date) !== signature) throw new Error('訪問先が変更されました。計算し直してください');
+            route.distanceResults = route.distanceResults || {};
+            route.distanceResults[date] = { ...result, signature };
+            // 計算待ちの間に行われた他ルートの編集を上書きしない。
+            const currentRoutes = DataStorage.getRoutes();
+            const currentRoute = currentRoutes.find(item => item.id === routeId);
+            currentRoute.distanceResults = { ...(currentRoute.distanceResults || {}), [date]: route.distanceResults[date] };
+            DataStorage.saveRoutes(currentRoutes);
+            MapExpenseForm.updateSummary();
             loading.style.display = 'none';
             let msg = `📏 ${route.name} の走行距離\n\n`;
             msg += `総距離: ${result.totalKm}km\n  🚗 下道: ${result.generalKm}km\n  🛣️ 高速: ${result.highwayKm}km\n\n--- 区間詳細 ---\n`;
@@ -298,7 +281,9 @@ const RouteManager = (() => {
             msg += `\n精算書に反映しますか？`;
             if (confirm(msg)) {
                 const dest = buildDestinationText(ordered);
-                applyDistanceToExpense(result.totalKm, dest);
+                ExpenseManager.applyRoute(date, result.totalKm, dest);
+                ExpenseManager.syncParking(date);
+                AppCore.switchTab('expense');
             }
         } catch (err) {
             loading.style.display = 'none';
@@ -306,32 +291,28 @@ const RouteManager = (() => {
         }
     }
 
-    // v1.8修正 - 先にフィールドへデータを書き込んでから最後にswitchTab
-    function applyDistanceToExpense(totalKm, dest) {
-        const destC = document.getElementById('expDestCompany');
-        if (destC && dest && dest.company) destC.value = dest.company;
-        const destA = document.getElementById('expDestAddress');
-        if (destA && dest && dest.address) destA.value = dest.address;
-        const firstRow = document.querySelector('#tab-expense .exp-row');
-        if (firstRow) {
-            const distInput = firstRow.querySelector('.exp-distance');
-            if (distInput) {
-                distInput.value = totalKm;
-                if (typeof ExpenseManager !== 'undefined') {
-                    ExpenseManager.onDistanceChange(distInput);
-                }
-            }
-            const transport = firstRow.querySelector('.exp-transport');
-            if (transport && !transport.value) transport.value = '高速道路';
-        }
-        if (typeof AppCore !== 'undefined' && AppCore.switchTab) {
-            AppCore.switchTab('expense');
-        }
+    function distanceSignature(routeId, date) {
+        const route = DataStorage.getRoutes().find(item => item.id === routeId);
+        const order = route && route.order || [];
+        const members = DataStorage.getCustomers().filter(item => item.routeId === routeId && ExpenseImport.normalizeDate(item.appoDate) === date);
+        members.sort((a, b) => {
+            const ai = order.indexOf(a.id), bi = order.indexOf(b.id);
+            return (ai < 0 ? order.length : ai) - (bi < 0 ? order.length : bi);
+        });
+        return JSON.stringify([DataStorage.getSettings().homeAddress, members.map(item => [item.id, item.address])]);
+    }
+
+    function getDistance(routeId, date) {
+        const route = DataStorage.getRoutes().find(item => item.id === routeId);
+        const result = route && route.distanceResults && route.distanceResults[date];
+        return result && result.signature === distanceSignature(routeId, date) ? result : null;
     }
 
     return {
         updateRoutePanel, toggleRouteSection,
         drawRouteLines, exportPDF, updateSummary,
-        calcDistance
+        calcDistance, getDistance, distanceSignature, buildDestinationText
     };
 })();
+
+

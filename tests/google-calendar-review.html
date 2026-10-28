@@ -1,0 +1,73 @@
+<!doctype html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Google予定の表示確認（架空データ）</title>
+<link rel="stylesheet" href="../styles/common.css"><link rel="stylesheet" href="../styles/map/map-styles.css"><link rel="stylesheet" href="../styles/workflow.css"><link rel="stylesheet" href="../styles/map-workspace.css?v=20261019-13">
+<style>body{padding:0;margin:0}.review-banner{padding:12px;background:#fff4d7;color:#17324a;font:14px/1.5 system-ui}.review-banner select{font:inherit;padding:6px}#editModal{position:relative;display:flex;inset:auto;padding:12px;background:#e6eef5;min-height:850px;align-items:flex-start}#editModal .visit-editor{max-height:none}.modal-buttons{position:static!important}</style><link rel="stylesheet" href="../styles/settings.css?v=20261019-14"></head><body>
+<div class="review-banner"><strong>架空データでの画面確認 — 実際のGoogle接続はしません</strong><br><label>読み込みのテスト <select id="reviewResponse"><option value="ok">正常</option><option value="error">通信失敗</option><option value="expired">期限切れ</option><option value="denied">閲覧拒否</option></select></label> 切替後に「更新」、閲覧拒否は再接続。保存操作もこのページ内だけです。</div><div id="tab-map">            <div class="modal-overlay" id="editModal" style="display:flex;"><div class="modal visit-editor">
+                <header class="visit-editor-header"><div><h2>電話・訪問予定を登録</h2><strong id="visitEditorName"></strong><p id="visitEditorAddress" class="visit-help"></p></div><button type="button" class="modal-cancel" onclick="hideEditModal()" aria-label="訪問先の編集を閉じる">閉じる</button></header>
+                <div class="visit-editor-actions"><div id="visitPhoneActions"></div><a class="btn btn-secondary" href="https://calendar.google.com" target="_blank" rel="noopener">Googleカレンダーを開く ↗</a></div>
+                <div class="visit-editor-grid"><section aria-label="訪問先の編集">
+                    <div class="visit-date-fields"><div class="modal-row"><label for="visitScheduleDay">訪問日</label><input type="date" id="visitScheduleDay"></div><div class="modal-row"><label for="visitScheduleTime">訪問時刻</label><input type="time" id="visitScheduleTime"></div></div><input type="hidden" id="editAppoDate">
+                    <p id="visitScheduleHint" class="visit-help" role="status"></p>
+                    <div class="visit-date-fields"><div class="modal-row"><label for="editStatus">アポの状態</label><select id="editStatus"><option value="pending">未アポ</option><option value="appointed">アポ済み</option><option value="completed">完了</option></select></div><div class="modal-row"><label for="editRoute">ルート</label><select id="editRoute"></select></div></div>
+                    <div class="modal-row"><label for="editNote">備考・電話で確認したこと</label><textarea id="editNote" rows="4"></textarea></div>
+                    <div class="modal-row"><label for="editPurpose">作業内容</label><select id="editPurpose"><option value="">未設定</option><option value="メンテナンス">メンテナンス</option><option value="修理">修理</option><option value="本体設置">本体設置</option><option value="その他">その他</option></select></div>
+                    <details class="visit-contact-details"><summary>会社名・住所・連絡先を編集</summary><div class="modal-row"><label for="editCompany">会社名</label><input type="text" id="editCompany"></div><div class="modal-row"><label for="editAddress">住所</label><input type="text" id="editAddress"></div><div class="modal-row"><label for="editPhone">電話番号</label><input type="tel" id="editPhone"></div><div class="modal-row"><label for="editContact">担当者</label><input type="text" id="editContact"></div></details>
+                </section><section class="visit-calendar" aria-label="Googleカレンダーと訪問予定">
+                    <h3>予定を見ながら日時を決める</h3>
+                    <div class="google-calendar-actions"><button type="button" class="btn btn-secondary" id="googleCalendarRefresh" hidden>更新</button><button type="button" class="text-link" id="googleCalendarSettings" onclick="AppCore.openSettings('google')">連携設定</button></div>
+                    <p id="googleCalendarStatus" class="visit-help" role="status">Googleカレンダーは未接続です。</p>
+                    <div class="visit-calendar-nav visit-day-nav"><button type="button" data-visit-shift="-1" aria-label="前日の予定">‹</button><strong id="visitSelectedDay"></strong><button type="button" data-visit-shift="1" aria-label="翌日の予定">›</button></div>
+                    <details class="visit-month-picker"><summary>月カレンダーから日を選ぶ</summary>
+                    <div class="visit-calendar-nav"><button type="button" data-visit-month="-1" aria-label="前の月の予定">‹</button><strong id="visitCalendarMonth" aria-live="polite"></strong><button type="button" data-visit-month="1" aria-label="次の月の予定">›</button></div>
+                    <div class="visit-weekdays" aria-hidden="true"><span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span></div><div id="visitCalendarDays" class="visit-calendar-days"></div>
+                    <p class="visit-help">G：Googleの予定 ／ 訪：アプリの訪問予定。日付を押すと訪問日に入ります。</p></details>
+                    <h4>Googleカレンダーの予定</h4><div id="googleVisitAgenda" aria-live="polite"></div>
+                    <details class="visit-local-agenda" open><summary id="visitAgendaTitle">このアプリに保存した訪問予定</summary><div id="visitAgenda" aria-live="polite"></div></details>
+                    <p class="visit-help">表示は日本時間。Googleの予定は閲覧のみです。変更後は「更新」。訪問予定の保存とGoogleへの追加は別々に行います。</p>
+                </section></div>
+                <p id="visitEditError" role="alert" tabindex="-1"></p><div class="modal-buttons"><button class="modal-cancel" onclick="hideEditModal()">キャンセル</button><button class="modal-delete" onclick="deleteLocation()">削除</button><button class="modal-submit" onclick="saveEdit()">予定・備考を保存</button></div>
+            </div></div>
+</div>    <div class="modal-overlay" id="settingsModal" style="display:none;" onclick="AppCore.closeSettings(event)">
+        <div class="modal-content settings-content" onclick="event.stopPropagation()">
+            <div class="modal-header"><h2 class="modal-title">設定</h2><button class="btn-small btn-clear" onclick="AppCore.closeSettings()" aria-label="設定を閉じる">✕</button></div>
+            <div class="modal-body">
+                <p class="settings-intro">変更したい項目を開いてください。</p>
+                <p id="settingsStatus" class="setting-hint" role="status"></p>
+                <details class="settings-category" data-settings-category="google">
+                    <summary>Googleカレンダー<span>接続・アカウント・表示するカレンダー</span></summary>
+                    <div class="settings-category-body">
+                        <p id="googleCalendarSettingsStatus" class="visit-help" role="status"></p>
+                        <div class="google-calendar-actions"><button type="button" class="btn btn-primary" id="googleCalendarConnect">Googleカレンダーに接続</button><button type="button" class="btn btn-secondary settings-danger" id="googleCalendarDisconnect" hidden>接続解除</button></div>
+                    <details id="googleCalendarSelection" class="google-calendar-details" hidden><summary id="googleCalendarSelectionCount">表示するカレンダー</summary><div id="googleCalendarChoices"></div><p class="visit-help">確認したいカレンダーを選んでください。閲覧権限のない予定は表示できません。</p></details>
+                    <details id="googleCalendarSetup" class="google-calendar-details"><summary>初回の連携設定</summary><p class="visit-help">初回だけ、Google側でこのアプリの連携用IDを作ります。地図のAPIキーとは別です。</p><a href="../docs/google-calendar-setup.html" target="_blank" rel="noopener">設定手順を開く ↗</a><div class="modal-row"><label for="googleCalendarClientId">OAuthクライアントID</label><input type="text" id="googleCalendarClientId" autocomplete="off" spellcheck="false" placeholder="…apps.googleusercontent.com"></div><button type="button" class="btn btn-secondary" id="googleCalendarSaveClient">連携用IDを保存</button><p class="visit-help">IDだけをこのブラウザに保存します。パスワードやシークレットは入力しません。</p><a href="https://myaccount.google.com/connections" target="_blank" rel="noopener">Googleアカウントの接続管理 ↗</a></details>
+                    </div>
+                </details>
+                <details class="settings-category" data-settings-category="maps">
+                    <summary>地図・会社住所<span>地図表示・会社からの距離計算</span></summary>
+                    <div class="settings-category-body">
+                        <div class="setting-group"><label class="setting-label" for="settingMapsKey">Google Maps APIキー</label><input type="password" id="settingMapsKey" class="setting-input" autocomplete="off" placeholder="AIza..."><p class="setting-hint"><a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Google Cloud Console を開く ↗</a></p></div>
+                        <div class="setting-group"><label class="setting-label" for="settingHomeAddr">会社住所（出発・帰着）</label><p class="setting-hint">会社から出発し、最後に会社へ戻る距離を計算します。</p><input type="text" id="settingHomeAddr" class="setting-input" placeholder="例：千葉県袖ケ浦市..."></div>
+                        <button class="btn btn-primary" onclick="AppCore.saveSettings('Maps')">地図・住所の設定を保存</button>
+                        <p id="settingsMapsStatus" class="setting-hint" role="status"></p>
+                        <button class="btn btn-secondary" id="settingsReload" data-requires-idle hidden onclick="SettingsPanel.dataAction('reload')">保存済みの設定で再読み込み</button>
+                    </div>
+                </details>
+                <details class="settings-category" data-settings-category="ai">
+                    <summary>レシートのAI読取<span>Gemini APIキー</span></summary>
+                    <div class="settings-category-body">
+                        <div class="setting-group"><label class="setting-label" for="settingGeminiKey">Gemini APIキー</label><p class="setting-hint">レシートのAI読み取りに使用します。</p><input type="password" id="settingGeminiKey" class="setting-input" autocomplete="off" placeholder="AIza..."><p class="setting-hint"><a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio でAPIキーを取得 ↗</a></p></div>
+                        <button class="btn btn-primary" onclick="AppCore.saveSettings('AI')">AI読取の設定を保存</button><p id="settingsAIStatus" class="setting-hint" role="status"></p>
+                    </div>
+                </details>
+                <details class="settings-category" data-settings-category="data">
+                    <summary>バックアップ・データ管理<span>訪問先・ルートの保存、復元、削除</span></summary>
+                    <div class="settings-category-body">
+                        <p id="settingsDataHint" class="setting-hint"></p>
+                        <p class="setting-hint">バックアップは全対象月の訪問先・ルート・区間・地図側の経費と地図設定です。レシート画像や精算書は含みません。</p>
+                        <div class="settings-data-actions"><button class="btn btn-secondary" onclick="exportBackup()">バックアップを保存</button><button class="btn btn-secondary" data-requires-idle onclick="SettingsPanel.dataAction('restore')">バックアップから復元</button><button class="btn btn-secondary settings-danger" data-requires-idle onclick="SettingsPanel.dataAction('reset')">現在の対象月のデータを削除</button></div>
+                    </div>
+                </details>
+            </div>
+            <div class="modal-footer"><button class="btn btn-secondary" id="settingsReturn" onclick="AppCore.closeSettings()">設定を閉じる</button></div>
+        </div>
+    </div>
+<script src="../expense/expense-import.js"></script><script src="google-calendar-review.js"></script><script src="../map/google-calendar-data.js?v=20261019-13"></script><script src="../map/google-visit-calendar.js?v=20261019-14"></script><script src="../map/visit-planner.js?v=20261019-13"></script><script src="../shared/settings-panel.js?v=20261019-14"></script><script>VisitPlanner.init();openReviewVisit();</script></body></html>

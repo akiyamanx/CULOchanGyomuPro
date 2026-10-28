@@ -1,0 +1,41 @@
+/* 現場で追加し、必要な写真だけ確認して提出する。 */
+.parking-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:12px 0}
+.parking-caption{font-size:13px;line-height:1.6;color:#4b5c6b;white-space:pre-line;margin:8px 0}
+.parking-field-grid,.parking-filter-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.parking-filter-grid{margin:16px 0}
+.parking-record{display:grid;grid-template-columns:150px minmax(0,1fr);gap:18px;padding:18px 0;border-top:1px solid #d4dde5}
+.parking-record label,.parking-filter-grid label,.parking-submit-card label,.parking-dialog label{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600;min-width:0}
+.parking-record input,.parking-filter-grid input,.parking-submit-card select,.parking-dialog input:not([type=checkbox]),.parking-dialog select{min-height:44px;width:100%;border:1px solid #aabac9;border-radius:8px;padding:8px;box-sizing:border-box;background:white;color:#152d40;font:inherit}
+.parking-record input[type=checkbox]{min-height:24px;width:24px}
+.parking-record .parking-pdf-check{flex-direction:row;align-items:center;margin-bottom:10px;min-height:44px}
+.parking-photo-button{width:100%;height:170px;background:#eef2f5;border:1px solid #c6d1db;border-radius:10px;overflow:hidden;padding:8px;cursor:pointer}
+.parking-photo-button img{width:100%;height:100%;object-fit:contain}
+.parking-photo-col>.btn{margin-top:8px;width:100%}
+.parking-record-fields{display:grid;gap:12px;align-content:start;min-width:0}
+.parking-record-fields>.btn{justify-self:start}
+.parking-submit-card{background:#edf5ff;padding:16px;border:1px solid #bacfe8;border-radius:12px;margin:18px 0}
+.parking-dialog{font-family:'Noto Sans JP',sans-serif;border:0;border-radius:16px;padding:24px;width:min(920px,94vw);max-width:94vw;max-height:90dvh;overflow:auto;box-sizing:border-box;color:#142d41}
+.parking-dialog::backdrop{background:rgba(12,29,47,.65)}
+.parking-dialog h2{font-size:21px;margin:0 0 12px}
+.parking-dialog p{line-height:1.6}
+.parking-dialog .btn{min-height:44px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
+.parking-dialog-footer{position:sticky;bottom:-24px;background:#fff;padding:14px 0;display:flex;flex-wrap:wrap;gap:10px;border-top:1px solid #d4dde5;z-index:2}
+.parking-visit-choice{display:grid;gap:6px;text-align:left;width:100%;padding:14px;margin:12px 0;background:#f4f8fc;border:1px solid #bdcddd;border-radius:10px;cursor:pointer;color:#16324a;min-height:60px}
+.parking-visit-choice span,.parking-visit-choice small{overflow-wrap:anywhere}
+.photo-editor-grid{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:20px;align-items:start}
+.photo-editor-controls{display:grid;gap:14px}
+.photo-editor-controls input[type=range]{padding:0;accent-color:#1765aa}
+#receiptEditCanvas{width:100%;height:auto;touch-action:none;display:block;background:#e9eef4}
+#receiptResultImage{max-width:100%;max-height:65vh;display:block;margin:12px auto;object-fit:contain}
+#receiptEditStatus{color:#734908}
+#parkingPdfPages{display:grid;gap:20px;background:#e8edf2;padding:12px}
+#parkingPdfPages img{display:block;width:100%;box-shadow:0 3px 12px #0002}
+.pdf-preview-dialog{width:min(1150px,96vw);max-width:96vw}
+.parking-dialog :focus-visible{outline:3px solid #e09a22;outline-offset:3px}
+@media(max-width:650px){.parking-record{grid-template-columns:100px minmax(0,1fr);gap:12px}.parking-field-grid,.parking-filter-grid{grid-template-columns:1fr}.parking-photo-button{height:140px}.parking-record .btn{font-size:13px;padding:9px}.photo-editor-grid{grid-template-columns:1fr}.parking-dialog{padding:16px}.parking-dialog-footer{bottom:-16px}#receiptEditCanvas{max-height:none}.photo-editor-controls .parking-field-grid{grid-template-columns:1fr 1fr}}
+
+.parking-dialog{margin:auto}
+.parking-dialog-footer .btn{width:auto;flex:1 1 150px}
+
+#parkingPdfPages img{width:auto;max-width:100%;max-height:60dvh;object-fit:contain;margin:auto}
+.pdf-large #parkingPdfPages img{width:100%;max-height:none}

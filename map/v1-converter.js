@@ -66,3 +66,4 @@ function convertV1toV2(v1Data) {
 
     return { customers };
 }
+

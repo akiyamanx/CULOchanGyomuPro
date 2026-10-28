@@ -22,6 +22,8 @@ function toggleMapToolbar() {
     const toggleBtn = document.getElementById('compactToggleBtn');
     if (!dropdown || !toggleBtn) return;
     const isExpanded = dropdown.classList.contains('expanded');
+    dropdown.hidden = isExpanded;
+    toggleBtn.setAttribute('aria-expanded', String(!isExpanded));
     if (isExpanded) {
         dropdown.classList.remove('expanded');
         toggleBtn.classList.remove('expanded');
@@ -46,6 +48,8 @@ document.addEventListener('click', function(e) {
     if (compactBar && compactBar.contains(e.target)) return;
     dropdown.classList.remove('expanded');
     toggleBtn.classList.remove('expanded');
+    dropdown.hidden = true;
+    toggleBtn.setAttribute('aria-expanded', 'false');
 });
 
 // =============================================
@@ -99,19 +103,19 @@ function showWorkspaceMenu() {
             var displayYear = match ? ws.id.substring(0, 4) + '年' : '';
             var customers = 0;
             try {
-                var data = localStorage.getItem('mm_customers_' + ws.id);
+                var data = AppStorage.getItem('mm_customers_' + ws.id);
                 customers = data ? JSON.parse(data).length : 0;
             } catch (e) {}
 
-            html += '<div class="ws-menu-item ' + (isActive ? 'ws-active' : '') + '" onclick="selectWorkspace(\'' + ws.id + '\')">';
+            html += '<div class="ws-menu-item ' + (isActive ? 'ws-active' : '') + '" onclick="selectWorkspace(' + ExpenseImport.escapeHtml(JSON.stringify(String(ws.id))) + ')">';
             html += '<div class="ws-menu-item-main">';
             html += '<span class="ws-menu-check">' + (isActive ? '✅' : '　') + '</span>';
-            html += '<span class="ws-menu-name">' + displayYear + displayMonth + '</span>';
-            html += '<span class="ws-menu-sub">' + ws.name + '</span>';
+            html += '<span class="ws-menu-name">' + ExpenseImport.escapeHtml(displayYear + displayMonth) + '</span>';
+            html += '<span class="ws-menu-sub">' + ExpenseImport.escapeHtml(ws.name) + '</span>';
             html += '</div>';
             html += '<span class="ws-menu-count">' + customers + '件</span>';
             if (!isActive) {
-                html += '<button class="ws-menu-delete" onclick="event.stopPropagation(); confirmDeleteWorkspace(\'' + ws.id + '\', \'' + ws.name + '\')">🗑️</button>';
+                html += '<button class="ws-menu-delete" onclick="event.stopPropagation(); confirmDeleteWorkspace(' + ExpenseImport.escapeHtml(JSON.stringify(String(ws.id))) + ', ' + ExpenseImport.escapeHtml(JSON.stringify(String(ws.name))) + ')">🗑️</button>';
             }
             html += '</div>';
         });
@@ -124,6 +128,8 @@ function showWorkspaceMenu() {
     var toggleBtn = document.getElementById('compactToggleBtn');
     if (dropdown && dropdown.classList.contains('expanded')) {
         dropdown.classList.remove('expanded');
+        dropdown.hidden = true;
+        if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'false');
         if (toggleBtn) toggleBtn.classList.remove('expanded');
     }
 }
@@ -259,8 +265,9 @@ function addNewLocation() {
 function saveEdit() {
     var id = MapCore.getCurrentEditId();
     if (!id) return;
+    if (typeof VisitPlanner !== 'undefined' && !VisitPlanner.validate()) return;
     var appoDate = document.getElementById('editAppoDate').value || null;
-    DataStorage.updateCustomer(id, {
+    var updated = DataStorage.updateCustomer(id, {
         company: document.getElementById('editCompany').value.trim(),
         address: document.getElementById('editAddress').value.trim(),
         phone: document.getElementById('editPhone').value.trim(),
@@ -271,6 +278,11 @@ function saveEdit() {
         appoDate: appoDate,
         purpose: document.getElementById('editPurpose').value
     });
+    if (!updated) {
+        document.getElementById('visitEditError').textContent = '保存できませんでした。入力を残しています。保存容量と訪問先を確認してください。';
+        return;
+    }
+    if (typeof VisitPlanner !== 'undefined') VisitPlanner.saved();
     // v1.8追加: アポ日時があればGCalボタン表示
     if (appoDate) {
         var company = document.getElementById('editCompany').value.trim();
@@ -291,31 +303,10 @@ function deleteLocation() {
     if (!id) return;
     if (!confirm('この場所を削除しますか？')) return;
     DataStorage.deleteCustomer(id);
-    hideEditModal();
+    hideEditModal(true);
     MapCore.refreshAllMarkers();
     RouteManager.updateRoutePanel();
     updateCompactCount();
-}
-
-function showMapSettingsModal_old() {
-    var settings = DataStorage.getSettings();
-    document.getElementById('settingHomeAddress').value = settings.homeAddress || '';
-    document.getElementById('settingApiKey').value = settings.apiKey || '';
-    document.getElementById('mapSettingsModal').style.display = 'flex';
-    if (document.getElementById('menuPanel').style.display === 'block') toggleMenu();
-}
-function hideMapSettingsModal_old() {
-    document.getElementById('mapSettingsModal').style.display = 'none';
-}
-function saveMapSettings_old() {
-    var apiKey = document.getElementById('settingApiKey').value.trim();
-    var homeAddress = document.getElementById('settingHomeAddress').value.trim();
-    DataStorage.saveSettings({ apiKey: apiKey, homeAddress: homeAddress });
-    hideSettingsModal();
-    if (apiKey) {
-        alert('設定を保存しました。ページをリロードします。');
-        location.reload();
-    }
 }
 
 function showResetConfirm() {
@@ -340,11 +331,11 @@ function resetAllData() {
 
 function exportBackup() {
     DataStorage.exportBackup();
-    toggleMenu();
+    if (document.getElementById('menuPanel').style.display === 'block') toggleMenu();
 }
 function importBackup() {
     document.getElementById('backupInput').click();
-    toggleMenu();
+    if (document.getElementById('menuPanel').style.display === 'block') toggleMenu();
 }
 
 function exportPDF() {
@@ -358,13 +349,14 @@ function togglePanel() {
 
 // v1.7修正: デバッグログ強化＋nullガード
 function mapSwitchTab(tabName) {
+    if (tabName === 'expense') { WorkflowUI.openRouteImport(); return; }
     console.log('[mapSwitchTab] 呼ばれた tabName=' + tabName);
     // v1.7 デバッグ強化: 各ステップの結果を確認
     var allTabs = document.querySelectorAll('#bottomPanel .tab');
     var allContents = document.querySelectorAll('#bottomPanel .tab-content');
     console.log('[mapSwitchTab] tabs=' + allTabs.length + ' contents=' + allContents.length);
     
-    allTabs.forEach(function(t) { t.classList.remove('active'); });
+    allTabs.forEach(function(t) { t.classList.remove('active'); t.setAttribute('aria-pressed', String(t.dataset.tab === tabName)); });
     allContents.forEach(function(t) { t.classList.remove('active'); });
     
     var targetTab = document.querySelector('#bottomPanel .tab[data-tab="' + tabName + '"]');
@@ -468,7 +460,7 @@ function showGcalConfirm(company, address, appoDate, contact, purpose, note) {
         '<div style="text-align:center;width:100%;">'
         + '<p style="margin:0 0 8px;font-size:14px;">✅ 保存しました</p>'
         + '<p style="margin:0 0 12px;font-size:13px;color:#888;">'
-        + company + ' ' + dateStr + '</p>'
+        + ExpenseImport.escapeHtml(company) + ' ' + dateStr + '</p>'
         + '<a href="' + url + '" target="_blank" rel="noopener" '
         + 'class="gcal-add-btn" '
         + 'onclick="setTimeout(function(){restoreEditButtons();hideEditModal();},300)">'
@@ -489,7 +481,9 @@ function restoreEditButtons() {
 }
 
 // v1.8 editModal閉じる時にボタンも復元
-function hideEditModal() {
+function hideEditModal(force) {
+    if (!force && typeof VisitPlanner !== 'undefined' && !VisitPlanner.allowClose()) return;
     restoreEditButtons();
     document.getElementById('editModal').style.display = 'none';
 }
+
