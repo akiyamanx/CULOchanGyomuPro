@@ -42,15 +42,15 @@ const RouteOrder = (() => {
         // v2.2.2 - モーダルHTML生成
         let html = '<div class="ro-modal-overlay" id="routeOrderModal">';
         html += '<div class="ro-modal">';
-        html += `<h3>🔢 ${route.name} の訪問順</h3>`;
+        html += `<h3>🔢 ${ExpenseImport.escapeHtml(route.name)} の訪問順</h3>`;
         html += '<p class="ro-hint">長押しでドラッグして順番を変更</p>';
         html += '<div class="ro-list" id="roSortList">';
 
         ordered.forEach((m, idx) => {
-            html += `<div class="ro-item" data-id="${m.id}" draggable="true">`;
+            html += `<div class="ro-item" data-id="${ExpenseImport.escapeHtml(m.id)}" draggable="true">`;
             html += `<span class="ro-num">${idx + 1}</span>`;
             html += `<span class="ro-grip">☰</span>`;
-            html += `<span class="ro-name">${m.company || '不明'}`;
+            html += `<span class="ro-name">${ExpenseImport.escapeHtml(m.company || '不明')}`;
             if (m.unitCount > 1) html += ` (${m.unitCount}台)`;
             html += `</span>`;
             html += '</div>';
@@ -190,12 +190,12 @@ const RouteOrder = (() => {
             const toName = (toC.company || '不明').substring(0, 10);
 
             html += `<div class="seg-item">`;
-            html += `<div class="seg-label">${i + 1}. ${fromName} → ${toName}</div>`;
+            html += `<div class="seg-label">${i + 1}. ${ExpenseImport.escapeHtml(fromName)} → ${ExpenseImport.escapeHtml(toName)}</div>`;
             html += `<div class="seg-toggle">`;
             html += `<button class="seg-btn ${currentType === 'general' ? 'seg-btn-active' : ''}" `;
-            html += `onclick="RouteOrder.setSegType('${segKey}','general',this)">🚗 下道</button>`;
+            html += `onclick="RouteOrder.setSegType(${ExpenseImport.escapeHtml(JSON.stringify(segKey))},'general',this)">🚗 下道</button>`;
             html += `<button class="seg-btn ${currentType === 'highway' ? 'seg-btn-active' : ''}" `;
-            html += `onclick="RouteOrder.setSegType('${segKey}','highway',this)">🛣️ 高速</button>`;
+            html += `onclick="RouteOrder.setSegType(${ExpenseImport.escapeHtml(JSON.stringify(segKey))},'highway',this)">🛣️ 高速</button>`;
             html += `</div></div>`;
         }
 

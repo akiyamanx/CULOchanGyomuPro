@@ -527,16 +527,16 @@ const ExpenseManager = (() => {
         });
         const sortedDates = Object.keys(byDate).sort();
         let html = '<div class="exp-picker-header">'
-            + '<h3>📍 ' + yearMonth + ' のアポ済みお客様</h3>'
+            + '<h3>📍 ' + _escHtml(yearMonth) + ' のアポ済みお客様</h3>'
             + '<p>チェックしたお客様を行先に反映します</p>'
             + '<button class="exp-picker-select-all" onclick="ExpenseManager.togglePickerAll()">全選択/解除</button>'
             + '</div><div class="exp-picker-list">';
         sortedDates.forEach(date => {
             html += '<div class="exp-picker-date-group">'
-                + '<div class="exp-picker-date-label">📅 ' + date + '</div>';
+                + '<div class="exp-picker-date-label">📅 ' + _escHtml(date) + '</div>';
             byDate[date].forEach(c => {
                 const label = (c.company || '') + ' ' + (c.address || '');
-                const purpose = c.purpose ? '（' + c.purpose + '）' : '';
+                const purpose = c.purpose ? '（' + _escHtml(c.purpose) + '）' : '';
                 html += '<label class="exp-picker-item">'
                     + '<input type="checkbox" class="exp-picker-cb" '
                     + 'data-company="' + _escAttr(c.company || '') + '" '
@@ -603,8 +603,8 @@ const ExpenseManager = (() => {
         if (modal) modal.style.display = 'none';
     }
 
-    function _escHtml(str) { return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
-    function _escAttr(str) { return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+    function _escHtml(str) { return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+    function _escAttr(str) { return String(str ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
 
     function _setVal(id, val) {
         const el = document.getElementById(id);

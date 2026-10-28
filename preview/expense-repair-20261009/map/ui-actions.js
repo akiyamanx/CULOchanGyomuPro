@@ -107,15 +107,15 @@ function showWorkspaceMenu() {
                 customers = data ? JSON.parse(data).length : 0;
             } catch (e) {}
 
-            html += '<div class="ws-menu-item ' + (isActive ? 'ws-active' : '') + '" onclick="selectWorkspace(\'' + ws.id + '\')">';
+            html += '<div class="ws-menu-item ' + (isActive ? 'ws-active' : '') + '" onclick="selectWorkspace(' + ExpenseImport.escapeHtml(JSON.stringify(String(ws.id))) + ')">';
             html += '<div class="ws-menu-item-main">';
             html += '<span class="ws-menu-check">' + (isActive ? '✅' : '　') + '</span>';
-            html += '<span class="ws-menu-name">' + displayYear + displayMonth + '</span>';
-            html += '<span class="ws-menu-sub">' + ws.name + '</span>';
+            html += '<span class="ws-menu-name">' + ExpenseImport.escapeHtml(displayYear + displayMonth) + '</span>';
+            html += '<span class="ws-menu-sub">' + ExpenseImport.escapeHtml(ws.name) + '</span>';
             html += '</div>';
             html += '<span class="ws-menu-count">' + customers + '件</span>';
             if (!isActive) {
-                html += '<button class="ws-menu-delete" onclick="event.stopPropagation(); confirmDeleteWorkspace(\'' + ws.id + '\', \'' + ws.name + '\')">🗑️</button>';
+                html += '<button class="ws-menu-delete" onclick="event.stopPropagation(); confirmDeleteWorkspace(' + ExpenseImport.escapeHtml(JSON.stringify(String(ws.id))) + ', ' + ExpenseImport.escapeHtml(JSON.stringify(String(ws.name))) + ')">🗑️</button>';
             }
             html += '</div>';
         });
@@ -307,27 +307,6 @@ function deleteLocation() {
     MapCore.refreshAllMarkers();
     RouteManager.updateRoutePanel();
     updateCompactCount();
-}
-
-function showMapSettingsModal_old() {
-    var settings = DataStorage.getSettings();
-    document.getElementById('settingHomeAddress').value = settings.homeAddress || '';
-    document.getElementById('settingApiKey').value = settings.apiKey || '';
-    document.getElementById('mapSettingsModal').style.display = 'flex';
-    if (document.getElementById('menuPanel').style.display === 'block') toggleMenu();
-}
-function hideMapSettingsModal_old() {
-    document.getElementById('mapSettingsModal').style.display = 'none';
-}
-function saveMapSettings_old() {
-    var apiKey = document.getElementById('settingApiKey').value.trim();
-    var homeAddress = document.getElementById('settingHomeAddress').value.trim();
-    DataStorage.saveSettings({ apiKey: apiKey, homeAddress: homeAddress });
-    hideSettingsModal();
-    if (apiKey) {
-        alert('設定を保存しました。ページをリロードします。');
-        location.reload();
-    }
 }
 
 function showResetConfirm() {
