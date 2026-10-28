@@ -223,7 +223,7 @@ const MailBox = (() => {
             if (mail.attachments !== undefined && !Array.isArray(mail.attachments)) throw fail('bad_mail');
             for (const a of mail.attachments || []) if (!a || typeof a !== 'object' || typeof a.attachmentId !== 'string' || !a.attachmentId) throw fail('bad_mail');
         }
-        const toClassifierAtt = a => ({ fileName: a.fileName, kind: a.kind, opened: !a.parseError && !!a.parse && a.parse.opened !== false, items: a.parse && Array.isArray(a.parse.items) ? a.parse.items : [], warnings: a.parse && a.parse.warnings, headingText: a.parse && a.parse.headingText });
+        const toClassifierAtt = a => ({ fileName: a.fileName, kind: a.kind, failure: typeof a.parseError === 'string' ? a.parseError : '', opened: !a.parseError && !!a.parse && a.parse.opened !== false, items: a.parse && Array.isArray(a.parse.items) ? a.parse.items : [], warnings: a.parse && a.parse.warnings, headingText: a.parse && a.parse.headingText });
 
         function processMail(st, known, mail, sum) {
             validateMail(mail);
@@ -510,7 +510,13 @@ const MailBox = (() => {
             if (st) { try { saveAll(st); } catch (e) { /* 記録のみ */ } }
         }
 
-        return { ingest, rows, counts, health, log, ensureUnscheduled, monthOptions, suggestNewMonth, nextMonth, applyRows, cancelRegistration, registeredStatus, dismissRow, reclassify,
+        // 取り込み済みのキー(台帳・登録済み訪問先・BOXの行)だけを返す。Gmail取り込みが「再ダウンロードしない」判断に使う。読み取りのみ。
+        function processedBases(list) {
+            if (!Array.isArray(list)) return [];
+            let st, known; try { st = loadAll(); known = knownBases(); } catch (e) { return []; }
+            return list.filter(b => typeof b === 'string' && b.length < 200 && (Object.prototype.hasOwnProperty.call(st.ledger.entries, b) || known.has(b) || st.box.rows.some(r => r.id === b || String(r.id).startsWith(b + '/') || r.id === b + '#partial')));
+        }
+        return { processedBases, ingest, rows, counts, health, log, ensureUnscheduled, monthOptions, suggestNewMonth, nextMonth, applyRows, cancelRegistration, registeredStatus, dismissRow, reclassify,
             ownLedger, mergeRemoteLedger, reconcile, syncInfo, conflicts, ackConflict, recordEvent, validateEntries: o => validateEntries(o, nowMs()) };
     }
     return { create, validateEntries, KEY_BOX, KEY_LEDGER, CANCEL_WINDOW_MS, LEDGER_KEEP_MS, MAX_LEDGER_ENTRIES, VALID_RESULTS, RESULT_KIND };

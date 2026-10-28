@@ -42,6 +42,14 @@ const RequestClassifier = (() => {
     }
     const result = (bucket, reason, extra = {}) => ({bucket, reason, needsAttention: bucket === 'unreadable' || !!extra.attention, missing: extra.missing || [], ...(extra.cues ? {cues: extra.cues} : {})});
 
+    const FAILURE_REASON = {
+        too_large: 'ファイルが大きすぎるため、開いていません。',
+        type_blocked: '対応していない種類のファイルです(PDF・Excel・CSV・画像以外)。',
+        content_mismatch: '拡張子と中身が一致しないため、開いていません。',
+        no_body: 'メールから添付の中身を取り出せませんでした。',
+        over_limit: '添付が多すぎる(または構造が複雑な)ため、一部を確認していません。元のメールで確認してください。',
+        read_failed: 'ファイルを読み取れませんでした。'
+    };
     function classifyAttachment(input) {
         const a = input && typeof input === 'object' ? input : {};
         const subject = norm(a.subject);
@@ -54,6 +62,9 @@ const RequestClassifier = (() => {
             if (REQUEST_SUBJECT.test(subject)) return result('unreadable', '件名は依頼のようですが、添付がありません。確認してください。');
             return result('reference', '添付のない連絡メールです。通達BOXに入れます。');
         }
+        // Gmail取り込みで「開く前に分かった」理由。どれも判別不可(登録しない)。
+        if (kind === 'tnef' || a.failure === 'tnef_unsupported') return result('unreadable', 'Outlook形式(winmail.dat)の添付です。中身を開けません。元のメールで確認してください。');
+        if (a.opened === false && Object.prototype.hasOwnProperty.call(FAILURE_REASON, a.failure)) return result('unreadable', FAILURE_REASON[a.failure]);
         if (!KNOWN_KINDS.includes(kind)) return result('unreadable', '形式が分からないか、対応していないファイルです。');
         if (a.opened === false) return result('unreadable', 'ファイルを開けませんでした。');
 

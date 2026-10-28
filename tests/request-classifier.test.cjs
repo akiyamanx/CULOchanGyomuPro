@@ -238,3 +238,21 @@ test('PDF共通の「原本と照合してください」警告だけでは、�
     assert.equal(r.bucket, 'request');
     assert.equal(r.needsAttention, false);
 });
+
+// ---- Gmail取り込み: 開けなかった理由を、具体的に画面へ出す(すべて判別不可。登録はしない) ----
+test('(Gmail) TNEF(winmail.dat)は、開けない理由を具体的に言って unreadable', () => {
+    for (const a of [{ kind: 'tnef', fileName: 'winmail.dat' }, { kind: 'other', fileName: 'winmail.dat', failure: 'tnef_unsupported' }]) {
+        const r = C.classifyAttachment({ ...a, subject: '業務依頼', senderKind: 'registered', opened: false, items: [] });
+        assert.equal(r.bucket, 'unreadable'); assert.match(r.reason, /winmail|Outlook/);
+    }
+});
+test('(Gmail) 開けなかった理由コードごとに、別々の説明が付く。未知のコードは汎用の説明', () => {
+    const reasons = new Set();
+    for (const f of ['too_large', 'type_blocked', 'content_mismatch', 'no_body', 'over_limit', 'read_failed']) {
+        const r = C.classifyAttachment({ kind: 'pdf', fileName: 'a.pdf', subject: '業務依頼', senderKind: 'registered', opened: false, items: [], failure: f });
+        assert.equal(r.bucket, 'unreadable', f); assert.ok(r.reason.length > 8, f); reasons.add(r.reason);
+    }
+    assert.equal(reasons.size, 6);
+    const g = C.classifyAttachment({ kind: 'pdf', fileName: 'a.pdf', opened: false, items: [], failure: 'zzz' });
+    assert.equal(g.bucket, 'unreadable'); assert.equal(g.reason, 'ファイルを開けませんでした。');
+});
