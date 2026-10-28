@@ -28,6 +28,7 @@
     <link rel="stylesheet" href="styles/map-workspace.css?v=20261019-13">
     <link rel="stylesheet" href="styles/settings.css?v=20261019-15">
     <link rel="stylesheet" href="styles/request-import.css">
+    <link rel="stylesheet" href="styles/mail-box.css?v=20261028-2">
     <link rel="stylesheet" href="styles/etc-workflow.css?v=20261019-8">
 </head>
 <body inert>
@@ -37,8 +38,10 @@
     <header class="app-header">
         <div class="brand-mark" aria-hidden="true">C</div>
         <div><h1 class="app-title">CULOchan<span class="accent">業務</span>Pro</h1><p class="app-tagline">訪問から精算まで、ひとつの流れに。</p></div>
+        <button class="settings-btn mailbox-btn" id="mailBoxBtn" type="button" aria-label="メールBOXを開く">📬 <span>メールBOX</span><b class="mailbox-badge" id="mailBoxBadge" hidden></b></button>
         <button class="settings-btn" onclick="AppCore.openSettings()" aria-label="アプリの設定">⚙ <span>設定</span></button>
     </header>
+    <div class="mailbox-banner" id="mailBoxBanner" role="status" hidden><span class="mailbox-banner-text"></span><button type="button" class="btn btn-secondary" id="mailBoxBannerOpen">メールBOXを開く</button></div>
     <nav class="tab-nav" aria-label="仕事の流れ">
         <p class="nav-caption">WORK FLOW <span>仕事の流れ</span></p>
         <button class="tab-btn active" data-tab="map" aria-current="page" aria-controls="tab-map" onclick="AppCore.switchTab('map')"><span class="tab-icon">01</span><span class="nav-copy"><span class="tab-label">訪問・ルート</span><span class="nav-hint">予定と回る順番を整える</span></span></button>
@@ -343,6 +346,14 @@
             <div class="modal-footer"><button class="btn btn-secondary" id="settingsReturn" onclick="AppCore.closeSettings()">設定を閉じる</button></div>
         </div>
     </div>
+    <div class="mailbox-overlay" id="mailBoxOverlay" hidden>
+        <div class="mailbox-sheet" role="dialog" aria-modal="true" aria-labelledby="mailBoxTitle">
+            <div class="mailbox-head"><h2 id="mailBoxTitle" tabindex="-1">📬 メールBOX</h2><button type="button" class="btn btn-secondary" id="mailBoxClose">閉じる</button></div>
+            <p class="mailbox-status" id="mailBoxStatus" role="status" aria-live="polite"></p>
+            <div class="mailbox-tabs" id="mailBoxTabs" role="tablist" aria-label="メールBOXの分類"></div>
+            <div class="mailbox-body" id="mailBoxBody" role="tabpanel"></div>
+        </div>
+    </div>
     <div class="loading-overlay" id="loading" style="display:none;"><div class="loading-spinner"></div><div class="loading-text" id="loadingText">処理中...</div></div>
     <dialog id="transferBusy" aria-labelledby="transferBusyText"><p id="transferBusyText" role="status"></p><p>画面を閉じずにお待ちください。</p></dialog>
     <script src="shared/settings-panel.js?v=20261019-15"></script>
@@ -366,7 +377,12 @@
     <script src="map/map-data-storage.js?v=20261019-10"></script>
     <script src="map/v1-converter.js"></script>
     <script src="map/request-parser.js?v=20261019-9"></script>
-    <script src="map/request-reader.js?v=20261019-9"></script>
+    <script src="map/request-reader.js?v=20261028-2"></script>
+    <script src="map/request-month.js?v=20261028-1"></script>
+    <script src="map/request-classifier.js?v=20261028-1"></script>
+    <script src="map/mail-box.js?v=20261028-1"></script>
+    <script src="map/mail-box-demo.js?v=20261028-1"></script>
+    <script src="map/mail-box-ui.js?v=20261028-2"></script>
     <script src="map/request-import.js"></script>
     <script src="map/map-core.js?v=20261019-10"></script>
     <script src="map/google-calendar-data.js?v=20261019-13"></script>
@@ -429,6 +445,7 @@
             document.getElementById('storageStartup').hidden = true;
             var fi = document.getElementById('fileInput');
             RequestImport.init();
+            try { MailBoxUI.init(); } catch (error) { console.error('mailbox: init_failed'); }
             if (fi) fi.addEventListener('change', RequestImport.handleFile);
             var bi = document.getElementById('backupInput');
             if (bi) bi.addEventListener('change', function(e) { DataStorage.importBackup(e); });

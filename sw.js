@@ -9,7 +9,7 @@
 //   - ASSETSは実在するファイルだけ(tests/sw-assets.test.cjs が検査する)
 // ==========================================
 
-const CACHE_NAME = 'gyomupro-v44';
+const CACHE_NAME = 'gyomupro-v45';
 const ASSETS = [
     './',
     './index.html',
@@ -29,6 +29,7 @@ const ASSETS = [
     './styles/map-workspace.css',
     './styles/settings.css',
     './styles/request-import.css',
+    './styles/mail-box.css',
     './styles/etc-workflow.css',
     './shared/settings-panel.js',
     './shared/app-core.js',
@@ -51,6 +52,11 @@ const ASSETS = [
     './map/v1-converter.js',
     './map/request-parser.js',
     './map/request-reader.js',
+    './map/request-month.js',
+    './map/request-classifier.js',
+    './map/mail-box.js',
+    './map/mail-box-demo.js',
+    './map/mail-box-ui.js',
     './map/request-import.js',
     './map/map-core.js',
     './map/google-calendar-data.js',

@@ -93,7 +93,7 @@ const RequestReader = (() => {
                 canvas.width = canvas.height = 0;
                 page.cleanup();
             }
-            if (!result.length) throw new Error('業務依頼書として読めるページがありませんでした。精算書・納品書・調査票などの参考資料は取り込みません。');
+            if (!result.length) throw Object.assign(new Error('業務依頼書として読めるページがありませんでした。精算書・納品書・調査票などの参考資料は取り込みません。'),{code:'no_items'});
             return result;
         } finally {
             signal.removeEventListener('abort',abort);
@@ -122,9 +122,34 @@ const RequestReader = (() => {
                 result.push(...RequestParser.parseRows(rows,`${file.name} · ${name}`));
             }
         } else throw new Error('CSV・Excel（xlsx/xls）・PDFを選択してください。');
-        if (!result.length) throw new Error('会社名と住所を含む一覧表、または対応する業務依頼書が見つかりません。');
+        if (!result.length) throw Object.assign(new Error('会社名と住所を含む一覧表、または対応する業務依頼書が見つかりません。'),{code:'no_items'});
         return result;
     }
-    return {read,excelDate,normalizeDateCells};
+    // --- メール取り込み用(メールBOX) ---
+    // read は「0件」を例外にするが、メールBOXは「開けた・0件」と「開けなかった」を区別して仕分けに渡す。
+    // 戻り値に個人情報は含めない(errorCode は固定の英小文字コードだけ)。
+    function kindOf(fileName) {
+        const ext = String(fileName || '').split('.').pop().toLowerCase();
+        if (ext === 'pdf') return 'pdf';
+        if (ext === 'xls' || ext === 'xlsx' || ext === 'csv') return ext;
+        if (['jpg','jpeg','png','heic','gif','webp'].includes(ext)) return 'image';
+        return 'other';
+    }
+    async function readForMail(file, progress, signal) {
+        const kind = kindOf(file && file.name);
+        const out = {kind, opened:false, items:[], errorCode:''};
+        if (kind === 'other') { out.errorCode = 'unsupported_kind'; return out; }
+        if (kind === 'image') { out.opened = true; return out; } // 画像は読まず、判別不可で本人に確認してもらう。
+        if (file.size > 20*1024*1024) { out.errorCode = 'too_large'; return out; }
+        try {
+            out.items = await read(file,progress,signal);
+            out.opened = true;
+        } catch (error) {
+            if (error && error.code === 'no_items') out.opened = true;
+            else out.errorCode = signal && signal.aborted ? 'aborted' : 'read_failed';
+        }
+        return out;
+    }
+    return {read,readForMail,kindOf,excelDate,normalizeDateCells};
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = RequestReader;
