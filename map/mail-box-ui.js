@@ -132,7 +132,7 @@ const MailBoxUI = (() => {
         else if (!r.found) lines.push('条件に合う新しいメールはありませんでした。');
         else {
             const parts = [];
-            if (S.registered) parts.push(`${S.registered}件を自動登録`); if (S.unreadable) parts.push(`確認が必要${S.unreadable}件`); if (S.reference) parts.push(`通達${S.reference}件`); if (S.duplicates) parts.push(`重複${S.duplicates}件は登録せず`);
+            if (S.registered) parts.push(`${S.registered}件を自動登録`); if (S.unreadable) parts.push(`確認が必要${S.unreadable}件`); if (S.reference) parts.push(`通達${S.reference}件`); if (S.duplicates) parts.push(`重複${S.duplicates}件は登録せず`); if (S.moved) parts.push(`日程未定から${S.moved}件を作業日の月へ移動`);
             // 1行目だけが画面上部の通知に出るため、1行目だけで「新しく何通か」が分かるように書く。
             const known = r.knownMails || 0;
             if (r.mails) lines.push(`${r.found}通を確認し、新しく${r.mails}通を取り込みました` + (parts.length ? '(' + parts.join('、') + ')' : '') + '。' + (known ? `${known}通は前回までに取り込み済みです。` : ''));

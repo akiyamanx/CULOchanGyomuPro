@@ -64,7 +64,8 @@ const MailBox = (() => {
             data: overrides.data || DataStorage,
             month: overrides.month || RequestMonth,
             classifier: overrides.classifier || RequestClassifier,
-            parser: overrides.parser || RequestParser
+            parser: overrides.parser || RequestParser,
+            dedupe: overrides.dedupe || (typeof MfDedupe !== 'undefined' ? MfDedupe : null)
         });
         const nowDate = () => (overrides.now ? overrides.now() : new Date());
         const nowMs = () => nowDate().getTime();
@@ -164,10 +165,14 @@ const MailBox = (() => {
             if (review) { c.mailNeedsReview = true; c.note = (noteLead + (c.note ? '\n' + c.note : '')).slice(0, 2000); }
             return c;
         }
-        // groups: { wsId: [item...] } → 重複を除いて登録。戻り値 {added:[{ws,id,h}], duplicates}
+        // groups: { wsId: [item...] } → 重複を除いて登録。戻り値 {added:[{ws,id,h}], duplicates, moved}
+        // 本体番号(MF)がある項目は、どの月・日程未定にも同じ番号が無いときだけ足す(会社名・住所が同じでも別の機械はあり得る)。
+        // 日程未定にあって今回作業日が決まっていれば、その訪問先を月へ移す(利用者の入力は残し、空欄だけ埋める)。
         function registerGroups(groups, base, opts = {}) {
-            const { data, parser } = deps();
-            const writes = [], added = []; let duplicates = 0;
+            const { data, parser, dedupe } = deps();
+            const writes = [], added = [], moves = []; let duplicates = 0;
+            const lists = () => [...new Set(monthWorkspaceIds())].map(ws => ({ ws, customers: data.getCustomersForWorkspace(ws) }));
+            const idx = dedupe ? dedupe.index(lists()) : null;
             for (const [ws, items] of Object.entries(groups)) {
                 if (!items.length) continue;
                 ensureWorkspace(ws, opts.allowCreateMonth || ws === 'unscheduled' || MONTH_ID.test(ws) && opts.autoCreate);
@@ -176,14 +181,25 @@ const MailBox = (() => {
                 for (const item of items) {
                     const key = `${base}/${item._i}`;
                     const probe = { ...item, appoDate: (typeof item.appoDate === 'string' && item.appoDate.slice(0, 7) === ws) ? item.appoDate : '' };
-                    if (next.some(c => c && (c.mailKey === key || parser.duplicate(probe, c)))) { duplicates++; continue; }
+                    if (next.some(c => c && c.mailKey === key)) { duplicates++; continue; }
+                    const d = idx ? dedupe.decide(probe, ws, idx) : { action: 'add', mf: '' };
+                    if (d.action === 'skip' || (d.action === 'move' && moves.some(m => m.id === d.hit.c.id))) { duplicates++; continue; }
+                    if (d.action === 'move') { moves.push({ id: d.hit.c.id, to: ws, appoDate: probe.appoDate, updates: dedupe.fillBlanks(d.hit.c, item) }); continue; }
+                    if (!d.mf && next.some(c => c && parser.duplicate(probe, c))) { duplicates++; continue; }
                     const c = buildCustomer(item, ws, base, opts.review, opts.noteLead || '');
                     next.push(c); added.push({ ws, id: c.id, h: hash(JSON.stringify(c)) });
+                    if (d.mf) idx.set(d.mf, { ws, c });
                 }
                 if (next.length !== prev.length) writes.push({ ws, prev, next });
             }
             writeLists(writes);
-            return { added, duplicates };
+            let moved = 0;
+            for (const m of moves) {
+                ensureWorkspace(m.to, true);
+                const r = data.moveCustomerToWorkspace({ id: m.id, from: 'unscheduled', to: m.to, appoDate: m.appoDate, updates: m.updates, force: true });
+                if (r && r.ok) moved++; else duplicates++;
+            }
+            return { added, duplicates, moved };
         }
 
         // ---------- 行 ----------
@@ -276,8 +292,8 @@ const MailBox = (() => {
                     plan = month.routeItems(complete, { today: todayTokyo(), receivedDate: received });
                     const reg = registerGroups(plan.workspaces, u.base, { autoCreate: true });
                     const left = [...incomplete, ...plan.review];
-                    if (reg.added.length || reg.duplicates) {
-                        const result = { workspaces: {}, duplicates: reg.duplicates, customers: reg.added, at: nowIso() };
+                    if (reg.added.length || reg.duplicates || reg.moved) {
+                        const result = { workspaces: {}, duplicates: reg.duplicates, moved: reg.moved, customers: reg.added, at: nowIso() };
                         reg.added.forEach(a => { result.workspaces[a.ws] = (result.workspaces[a.ws] || 0) + 1; });
                         addRow(st, makeRow(u.base, mail, u.att, 'request', u.cls.reason, { attention: u.cls.needsAttention, itemCount: items.length, result }));
                         setLedger(st, u.base, 'registered');
@@ -287,7 +303,7 @@ const MailBox = (() => {
                         addRow(st, makeRow(u.base + '#partial', mail, u.att, 'unreadable', why, { items: left, opened: true }));
                         sum.unreadable++;
                     }
-                    sum.registered += reg.added.length; sum.duplicates += reg.duplicates;
+                    sum.registered += reg.added.length; sum.duplicates += reg.duplicates; sum.moved = (sum.moved || 0) + reg.moved;
                 } catch (e) {
                     // 登録に失敗: 何も登録されていない(ロールバック済み)ので、全項目を判別不可へ回して反映できるようにする。
                     event(st, 'register_failed', { code: safeCode(e) });

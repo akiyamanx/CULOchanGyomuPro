@@ -74,7 +74,7 @@ function device(opts = {}) {
     const storage = { getItem: k => store.has(k) ? store.get(k) : null, setItem: (k, v) => { store.set(k, String(v)); }, removeItem: k => { store.delete(k); } };
     const logs = [];
     const ctx = vm.createContext({ console: { error: (...a) => logs.push(a.join(' ')), warn: (...a) => logs.push(a.join(' ')), log: () => {} }, alert() {}, setTimeout, clearTimeout, AppStorage: storage, localStorage: storage, crypto: require('node:crypto').webcrypto, TextDecoder, Uint8Array });
-    for (const f of ['../map/map-data-storage.js', '../map/request-month.js', '../map/request-parser.js', '../map/request-classifier.js', '../map/mail-box.js', '../map/gmail-import.js']) vm.runInContext(fs.readFileSync(require.resolve(f), 'utf8'), ctx);
+    for (const f of ['../map/map-data-storage.js', '../map/request-month.js', '../map/request-parser.js', '../map/request-classifier.js', '../map/mf-dedupe.js', '../map/mail-box.js', '../map/gmail-import.js']) vm.runInContext(fs.readFileSync(require.resolve(f), 'utf8'), ctx);
     ctx.__now = T0;
     vm.runInContext('globalThis.__mb = MailBox.create({ now: () => new Date(__now) })', ctx);
     const run = code => vm.runInContext(code, ctx);

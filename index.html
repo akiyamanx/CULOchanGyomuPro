@@ -381,7 +381,8 @@
     <script src="map/request-reader.js?v=20261030-3"></script>
     <script src="map/request-month.js?v=20261028-1"></script>
     <script src="map/request-classifier.js?v=20261030-3"></script>
-    <script src="map/mail-box.js?v=20261030-3"></script>
+    <script src="map/mf-dedupe.js?v=20261030-5"></script>
+    <script src="map/mail-box.js?v=20261030-5"></script>
     <script src="map/mail-ledger-sync.js?v=20261029-1"></script>
     <script src="map/mail-ledger-drive.js?v=20261029-1"></script>
     <script src="map/gmail-transport.js?v=20261030-3"></script>
@@ -389,8 +390,8 @@
     <script src="map/gmail-import.js?v=20261030-3"></script>
     <script src="map/mail-box-demo.js?v=20261029-2"></script>
     <script src="map/mail-gmail-links.js?v=20261030-3"></script>
-    <script src="map/mail-box-ui.js?v=20261030-3"></script>
-    <script src="map/request-import.js"></script>
+    <script src="map/mail-box-ui.js?v=20261030-5"></script>
+    <script src="map/request-import.js?v=20261030-5"></script>
     <script src="map/geocode-guard.js?v=20261030-4"></script>
     <script src="map/map-core.js?v=20261030-4"></script>
     <script src="map/google-calendar-data.js?v=20261019-13"></script>
@@ -453,6 +454,20 @@
             document.getElementById('storageStartup').hidden = true;
             var fi = document.getElementById('fileInput');
             RequestImport.init();
+            // お試し版だけ: すでにできた本体番号(MF)の重複を一度だけまとめる(利用者が入れた情報がある方は消さない。消した分は控えに残す)。
+            if (AppProfile.staging) {
+                try {
+                    var dd = MfDedupe.runOnce(DataStorage, AppStorage);
+                    if (dd.ran && (dd.removed || dd.kept)) {
+                        var note = document.createElement('div');
+                        note.setAttribute('role', 'status');
+                        note.style.cssText = 'background:#ecfdf5;color:#065f46;font:14px/1.5 sans-serif;padding:8px 12px;border-bottom:1px solid #a7f3d0;';
+                        note.textContent = '同じ本体番号(MF)の重複を' + dd.removed + '件まとめました。' + (dd.kept ? 'ルートや日時が入っている' + dd.kept + '件は消さずに残しています(一覧で確認してください)。' : '');
+                        note.addEventListener('click', function() { note.remove(); });
+                        document.body.insertBefore(note, document.body.children[1] || null);
+                    }
+                } catch (error) { console.error('mf-dedupe: failed'); }
+            }
             try { MailBoxUI.init(); } catch (error) { console.error('mailbox: init_failed'); }
             if (fi) fi.addEventListener('change', RequestImport.handleFile);
             var bi = document.getElementById('backupInput');

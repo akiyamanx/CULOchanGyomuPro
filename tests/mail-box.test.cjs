@@ -24,7 +24,7 @@ function setup(initial = {}, nowIso = NOW) {
     };
     const logs = [];
     const context = vm.createContext({ console: { error: (...a) => logs.push(a.join(' ')), warn: (...a) => logs.push(a.join(' ')) }, alert() {}, AppStorage: storage, localStorage: storage, crypto: require('node:crypto').webcrypto });
-    for (const f of ['../map/map-data-storage.js', '../map/request-month.js', '../map/request-parser.js', '../map/request-classifier.js', '../map/mail-box.js']) {
+    for (const f of ['../map/map-data-storage.js', '../map/request-month.js', '../map/request-parser.js', '../map/request-classifier.js', '../map/mf-dedupe.js', '../map/mail-box.js']) {
         vm.runInContext(fs.readFileSync(require.resolve(f), 'utf8'), context);
     }
     context.__nowMs = Date.parse(nowIso);
@@ -424,4 +424,29 @@ test('readForMail は開けないとき例外を投げず opened:false を返す
     assert.equal(r2.opened, false); assert.equal(r2.kind, 'other');
     const r3 = await Reader.readForMail({ name: 'photo.jpg', size: 10 }, () => {}, new AbortController().signal);
     assert.equal(r3.opened, true); assert.equal(r3.kind, 'image'); assert.deepEqual(r3.items, []);
+});
+
+// --- 本体番号(MF)で二重登録しない ---
+test('同じMF番号は、別のメール・住所の書き方違い(階数あり/なし)・別の月でも二重に登録しない', () => {
+    const { mb, store } = setup(legacy());
+    mb.ingest([mail('f1', [att('a1', '業務依頼書.xlsx', 'xlsx', [full({ managementNo: 'MF900001', workDateText: '2026-10-29', appoDate: '2026-10-29T10:00' })])])]);
+    const r = mb.ingest([mail('f2', [att('a1', '業務依頼書.pdf', 'pdf', [full({ managementNo: 'MF900001', address: '東京都架空区1-2-3 3F', purpose: '点検', workDateText: '2026-11-04', appoDate: '2026-11-04T10:00' })])])]);
+    assert.equal(r.registered, 0); assert.equal(r.duplicates, 1);
+    assert.equal(allCustomers(store).filter(c => c.managementNo === 'MF900001').length, 1);
+});
+test('同じ会社・同じ住所でもMF番号が違えば別の機械として両方登録する', () => {
+    const { mb, store } = setup(legacy());
+    mb.ingest([mail('f3', [att('a1', '業務依頼書.xlsx', 'xlsx', [full({ managementNo: 'MF900002', workDateText: '2026-10-29' }), full({ managementNo: 'MF900003', workDateText: '2026-10-29' })])])]);
+    assert.equal(allCustomers(store).filter(c => /^MF90000[23]$/.test(c.managementNo)).length, 2);
+});
+test('日程未定にある機械に作業日つきの依頼が来たら、その月へ移す。利用者のメモ・電話は残る', () => {
+    const { mb, store } = setup(legacy());
+    mb.ingest([mail('f4', [att('a1', '業務依頼書.xlsx', 'xlsx', [full({ managementNo: 'MF900004' })])])]);
+    const u = customersOf(store, 'unscheduled'); assert.equal(u.length, 1);
+    u[0].note = '利用者メモ'; u[0].phone = '03-0000-0000'; store.set('mm_customers_unscheduled', JSON.stringify(u));
+    const r = mb.ingest([mail('f5', [att('a1', '業務依頼書.xlsx', 'xlsx', [full({ managementNo: 'MF900004', phone: '03-9999-9999', workDateText: '2026年11月5日', appoDate: '2026-11-05T10:00' })])])]);
+    assert.equal(r.registered, 0);
+    assert.equal(customersOf(store, 'unscheduled').length, 0);
+    const m = customersOf(store, '2026-11'); assert.equal(m.length, 1);
+    assert.equal(m[0].id, u[0].id); assert.equal(m[0].appoDate, '2026-11-05T10:00'); assert.equal(m[0].note, '利用者メモ'); assert.equal(m[0].phone, '03-0000-0000');
 });
