@@ -137,7 +137,15 @@ const GmailSource = (() => {
                 return bytes;
             });
         }
-        return { buildQuery, listMessageIds, getMessage, downloadAttachment, stats: () => ({ requests, retries: retriesUsed }) };
+        // 接続中アカウントのアドレス(「Gmailで開く」の authuser 用)。保存・記録はしない。取れなければ ''。
+        async function getProfile({ signal } = {}) {
+            try {
+                const data = await call(API.replace(/\/messages$/, '/profile'), signal, r => r.json());
+                const e = data && typeof data.emailAddress === 'string' ? data.emailAddress : '';
+                return /^[^\s@"<>()\\,;:]{1,64}@[A-Za-z0-9.-]{1,190}\.[A-Za-z]{2,24}$/.test(e) ? e : '';
+            } catch (e) { return ''; }
+        }
+        return { buildQuery, listMessageIds, getMessage, getProfile, downloadAttachment, stats: () => ({ requests, retries: retriesUsed }) };
     }
     return { create, DEFAULTS, decodeWords };
 })();

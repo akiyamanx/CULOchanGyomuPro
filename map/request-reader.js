@@ -36,7 +36,7 @@ const RequestReader = (() => {
             const script = document.createElement('script');
             script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tesseract.min.js';
             script.onload = resolve;
-            script.onerror = () => { script.remove(); ocrScript = null; reject(new Error('文字読取ツールを読み込めません。通信状態を確認してください。')); };
+            script.onerror = () => { script.remove(); ocrScript = null; reject(Object.assign(new Error('文字読取ツールを読み込めません。通信状態を確認してください。'),{code:'ocr_tool_failed'})); };
             document.head.appendChild(script);
         });
         return ocrScript;
@@ -44,7 +44,8 @@ const RequestReader = (() => {
     async function pdf(file, progress, signal) {
         // PDF.js documented display API: https://mozilla.github.io/pdf.js/examples/
         pdfLibrary ||= import(PDF_BASE + 'build/pdf.min.mjs').catch(error => { pdfLibrary = null; throw error; });
-        const lib = await pdfLibrary;
+        let lib;
+        try { lib = await pdfLibrary; } catch (error) { throw Object.assign(new Error('PDF読取ツールを読み込めません。通信状態を確認してください。'),{code:'pdf_tool_failed'}); }
         lib.GlobalWorkerOptions.workerSrc = PDF_BASE + 'build/pdf.worker.min.mjs';
         const task = lib.getDocument({data:new Uint8Array(await file.arrayBuffer()),isEvalSupported:false});
         const abort = () => { task.destroy().catch(()=>{}); if (worker) worker.terminate().catch(()=>{}); };
@@ -54,7 +55,7 @@ const RequestReader = (() => {
         try {
             if (signal.aborted) throw new Error('読取を中止しました。');
             doc = await task.promise;
-            if (doc.numPages > 10) throw new Error('PDFは1ファイル10ページまでです。分割して取り込んでください。');
+            if (doc.numPages > 10) throw Object.assign(new Error('PDFは1ファイル10ページまでです。分割して取り込んでください。'),{code:'too_many_pages'});
             for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber++) {
                 if (signal.aborted) throw new Error('読取を中止しました。');
                 progress(`PDF ${pageNumber}/${doc.numPages}ページを読取中…`);
@@ -135,7 +136,11 @@ const RequestReader = (() => {
         if (['jpg','jpeg','png','heic','gif','webp'].includes(ext)) return 'image';
         return 'other';
     }
+    const MAIL_CODES = ['pdf_tool_failed','ocr_tool_failed','too_many_pages'];
     async function readForMail(file, progress, signal) {
+        // メール取り込みは進み具合を表示しない呼び方(progress=null)をする。PDFの読取は progress() を呼ぶため、必ず関数にする。
+        if (typeof progress !== 'function') progress = () => {};
+        if (!signal || typeof signal.addEventListener !== 'function') signal = new AbortController().signal;
         const kind = kindOf(file && file.name);
         const out = {kind, opened:false, items:[], errorCode:''};
         if (kind === 'other') { out.errorCode = 'unsupported_kind'; return out; }
@@ -146,7 +151,7 @@ const RequestReader = (() => {
             out.opened = true;
         } catch (error) {
             if (error && error.code === 'no_items') out.opened = true;
-            else out.errorCode = signal && signal.aborted ? 'aborted' : 'read_failed';
+            else out.errorCode = signal.aborted ? 'aborted' : error && MAIL_CODES.includes(error.code) ? error.code : 'read_failed';
         }
         return out;
     }

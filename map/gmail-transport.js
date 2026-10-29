@@ -1,7 +1,7 @@
 // [Gmail 通信層] Google への接続(gmail.readonly のみ)と、Gmail API v1 への「読み取りだけ」の通信。仕様書 §20。
 //   ・トークンはこの関数の中(メモリ)にだけ置く。保存しない・ログに出さない・外へ渡さない。ページを離れる/切断/期限で消える。
 //   ・Drive の接続とは別のトークン(include_granted_scopes:false)。クライアントIDは Drive/カレンダーと同じ設定を使う。
-//   ・通信先は gmail.googleapis.com/gmail/v1/users/me/messages 系の GET だけ(送信・削除・ラベル変更などは通信前に拒否)。
+//   ・通信先は gmail.googleapis.com/gmail/v1/users/me/messages 系と users/me/profile(接続中アドレスを「Gmailで開く」に使う・メモリだけ)の GET だけ(送信・削除・ラベル変更などは通信前に拒否)。
 //   ・失敗は Error に .code(と .status/.retryAfterMs)だけを付ける。Googleの文言・URL・トークンは持ち越さない。
 //   ※ 実際のGoogleに対する動作は未確認(テストは偽のGoogle/fetchで、形だけ確認)。
 const GmailTransport = (() => {
@@ -9,7 +9,7 @@ const GmailTransport = (() => {
     const CLIENT_KEY = 'culo_google_calendar_client_id';
     const CLIENT_RE = /^\d+-[\w-]+\.apps\.googleusercontent\.com$/;
     // GET だけ・自分(me)のメール一覧/1通/添付だけ。パス中の「.」「..」や余計な区切りは通らない文字集合にしてある。
-    const URL_RE = /^https:\/\/gmail\.googleapis\.com\/gmail\/v1\/users\/me\/messages(\/[0-9a-f]{6,32}(\/attachments\/[A-Za-z0-9_-]{1,4096})?)?(\?[^#\s]*)?$/;
+    const URL_RE = /^https:\/\/gmail\.googleapis\.com\/gmail\/v1\/users\/me\/(?:messages(\/[0-9a-f]{6,32}(\/attachments\/[A-Za-z0-9_-]{1,4096})?)?(\?[^#\s]*)?|profile)$/;
     const RATE = ['rateLimitExceeded', 'userRateLimitExceeded', 'dailyLimitExceeded', 'quotaExceeded'];
     const DISABLED = ['accessNotConfigured', 'SERVICE_DISABLED'];
     const SCOPE_LACK = ['insufficientPermissions', 'ACCESS_TOKEN_SCOPE_INSUFFICIENT'];

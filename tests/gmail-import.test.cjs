@@ -349,3 +349,66 @@ test('同時に2回は走らない(busy)。ソースにトークン保存・コ�
     const src = fs.readFileSync(require.resolve('../map/gmail-import.js'), 'utf8');
     assert.equal(/localStorage|AppStorage|setItem|console\.|token|access_token/i.test(src.replace(/\/\/.*$/gm, '')), false);
 });
+
+// ---------- 2026-10-30 お試し版の実接続で見つかった不具合 ----------
+test('リーダーには必ず関数の progress と signal を渡す(PDFの読取が progress() を呼ぶため。null だと全PDFが「読み取れない」になっていた)', async () => {
+    const g = makeGmail(), dev = device(), seen = [];
+    const reader = { async readForMail(file, progress, signal) { seen.push([typeof progress, !!signal && typeof signal.addEventListener]); progress('x'); return { kind: 'pdf', opened: true, items: [full()] }; } };
+    M(g, IDS(1), '依頼.pdf', 'application/pdf', 3000, 'pdf');
+    const r = await plainRun(dev.make(g, reader), { signal: new AbortController().signal });
+    assert.deepEqual(seen, [['function', 'function']]);
+    assert.equal(r.ingest.registered, 1);
+});
+test('2回目で新しいメールが無いときは、取り込み済みの通数(knownMails)を返す', async () => {
+    const g = makeGmail(), dev = device();
+    M(g, IDS(1), '業務依頼書.xlsx', XLSX_MIME, 3000, 'xlsx'); M(g, IDS(2), '業務依頼書2.xlsx', XLSX_MIME, 3000, 'xlsx');
+    const imp = dev.make(g, makeReader());
+    const r1 = await plainRun(imp); assert.equal(r1.mails, 2); assert.equal(r1.knownMails, 0);
+    const r2 = await plainRun(imp); assert.equal(r2.found, 2); assert.equal(r2.mails, 0); assert.equal(r2.knownMails, 2);
+});
+test('読取ツールの失敗(read_failed/pdf_tool_failed)で判別不可になった添付は、次の取り込みで読み直して登録できる。二重にはならない', async () => {
+    const g = makeGmail(), dev = device();
+    M(g, IDS(1), '依頼.pdf', 'application/pdf', 3000, 'pdf'); M(g, IDS(2), '依頼2.pdf', 'application/pdf', 3000, 'pdf');
+    const bad = makeReader({ '依頼.pdf': { kind: 'pdf', opened: false, items: [], errorCode: 'read_failed' }, '依頼2.pdf': { kind: 'pdf', opened: false, items: [], errorCode: 'pdf_tool_failed' } });
+    const r1 = await plainRun(dev.make(g, bad));
+    assert.equal(r1.ingest.unreadable, 2);
+    const rows1 = dev.rows();
+    assert.deepEqual(rows1.map(x => x.failure).sort(), ['pdf_tool_failed', 'read_failed']);
+    assert.match(rows1.find(x => x.failure === 'pdf_tool_failed').reason, /PDFを読む道具/);
+    const good = makeReader();
+    const r2 = await plainRun(dev.make(g, good));
+    assert.equal(r2.mails, 2); assert.equal(r2.ingest.registered, 2); assert.equal(r2.ingest.retried, 2);
+    assert.equal(dev.rows().filter(x => x.bucket === 'unreadable').length, 0);
+    assert.equal(dev.customers().length, 2);
+    const r3 = await plainRun(dev.make(g, good));
+    assert.equal(r3.mails, 0); assert.equal(r3.knownMails, 2); assert.equal(dev.customers().length, 2);
+});
+test('読み直すのは本人が触っていない行だけ。確認済みにした行・種類で弾いた行・古い版の別理由は読み直さない', async () => {
+    const g = makeGmail(), dev = device();
+    M(g, IDS(1), '依頼.pdf', 'application/pdf', 3000, 'pdf'); M(g, IDS(2), 'a.exe', 'application/octet-stream', 3000, 'pdf');
+    await plainRun(dev.make(g, makeReader({ '依頼.pdf': { kind: 'pdf', opened: false, items: [], errorCode: 'read_failed' } })));
+    const row = dev.rows().find(x => x.failure === 'read_failed');
+    dev.mb('dismissRow', row.id);
+    const r2 = await plainRun(dev.make(g, makeReader()));
+    assert.equal(r2.mails, 0); assert.equal(r2.knownMails, 2);
+    assert.equal(dev.customers().length, 0);
+});
+test('古い版で保存された「ファイルを読み取れませんでした。」の行(失敗コードなし)も読み直す', async () => {
+    const g = makeGmail(), dev = device();
+    M(g, IDS(1), '依頼.pdf', 'application/pdf', 3000, 'pdf');
+    await plainRun(dev.make(g, makeReader({ '依頼.pdf': { kind: 'pdf', opened: false, items: [], errorCode: 'read_failed' } })));
+    const box = JSON.parse(dev.store.get('gyomupro_mailbox'));
+    box.rows.forEach(x => { delete x.failure; x.reason = 'ファイルを読み取れませんでした。'; });
+    dev.store.set('gyomupro_mailbox', JSON.stringify(box));
+    const r2 = await plainRun(dev.make(g, makeReader()));
+    assert.equal(r2.ingest.registered, 1); assert.equal(dev.customers().length, 1);
+});
+test('読み直しても読めないファイルは、2回目で止める(毎回読み直さない)', async () => {
+    const g = makeGmail(), dev = device();
+    M(g, IDS(1), '依頼.pdf', 'application/pdf', 3000, 'pdf');
+    const bad = makeReader({ '依頼.pdf': { kind: 'pdf', opened: false, items: [], errorCode: 'read_failed' } });
+    await plainRun(dev.make(g, bad));
+    const r2 = await plainRun(dev.make(g, bad)); assert.equal(r2.ingest.retried, 1);
+    const r3 = await plainRun(dev.make(g, bad)); assert.equal(r3.mails, 0); assert.equal(r3.knownMails, 1);
+    assert.equal(dev.rows().length, 1);
+});

@@ -208,8 +208,23 @@ const MailBox = (() => {
                 items: bucket === 'unreadable' && items.length ? items : undefined,
                 applicable: bucket === 'unreadable' && items.length > 0 && extra.opened !== false,
                 suggested: bucket === 'unreadable' && items.length ? suggest(items) : undefined,
+                tries: extra.tries > 1 ? 2 : undefined,
+                failure: bucket === 'unreadable' && att && typeof att.parseError === 'string' && /^[a-z_]{1,30}$/.test(att.parseError) ? att.parseError : undefined,
                 result: extra.result, createdAt: nowIso()
             };
+        }
+        // 読み取りツールの不具合・通信などで「読めなかった」行は、次の取り込みで読み直す(本人が触っていない行だけ)。
+        const RETRY_FAILURES = ['read_failed', 'pdf_tool_failed', 'ocr_tool_failed'];
+        const LEGACY_READ_FAILED = 'ファイルを読み取れませんでした。';
+        function retryable(st, base) {
+            const e = st.ledger.entries[base];
+            if (e && (e.r !== 'unreadable' || e.x)) return false;
+            const row = st.box.rows.find(r => r.id === base);
+            return !!row && row.bucket === 'unreadable' && row.state === 'new' && (row.tries || 1) < 2 && (RETRY_FAILURES.includes(row.failure) || (!row.failure && row.reason === LEGACY_READ_FAILED));
+        }
+        function dropForRetry(st, base) {
+            st.box.rows = st.box.rows.filter(r => r.id !== base);
+            delete st.ledger.entries[base];
         }
         const setLedger = (st, base, r) => { st.ledger.entries[base] = { r, at: nowIso() }; };
         function addRow(st, row) {
@@ -237,6 +252,8 @@ const MailBox = (() => {
             const cls = classifier.classifyMail({ subject: mail.subject, senderKind: mail.senderKind, attachments: atts.map(toClassifierAtt) });
             const units = atts.length ? atts.map((a, i) => ({ att: a, base: `${mail.messageId}/${a.attachmentId}`, cls: cls.results[i] })) : [{ att: null, base: `${mail.messageId}/body`, cls: cls.results[0] }];
             for (const u of units) {
+                let tries = 1;   // 読み直しは1回だけ(壊れたファイルを毎回読み直さない)
+                if (retryable(st, u.base)) { tries = 2; dropForRetry(st, u.base); sum.retried = (sum.retried || 0) + 1; }
                 if (st.ledger.entries[u.base] || known.has(u.base) || st.box.rows.some(r => r.id === u.base || r.id === u.base + '#partial')) {
                     // 訪問先のmailKeyだけが残っている(台帳が無い)場合は、台帳へ「他端末由来(x)」で補う。共有はしない。
                     if (!st.ledger.entries[u.base] && known.has(u.base)) st.ledger.entries[u.base] = { r: 'registered', at: nowIso(), x: 1 };
@@ -247,7 +264,7 @@ const MailBox = (() => {
                 const items = opened && Array.isArray(parse.items) ? parse.items.map(stripItem) : [];
                 if (u.cls.bucket === 'reference') { addRow(st, makeRow(u.base, mail, u.att, 'reference', u.cls.reason)); setLedger(st, u.base, 'reference'); sum.reference++; continue; }
                 if (u.cls.bucket === 'unreadable') {
-                    addRow(st, makeRow(u.base, mail, u.att, 'unreadable', u.cls.reason, { items, opened }));
+                    addRow(st, makeRow(u.base, mail, u.att, 'unreadable', u.cls.reason, { items, opened, tries }));
                     setLedger(st, u.base, 'unreadable'); sum.unreadable++; continue;
                 }
                 // 依頼書: 揃った項目を登録。欠け・月が決まらない項目は判別不可の行へ。
@@ -514,7 +531,7 @@ const MailBox = (() => {
         function processedBases(list) {
             if (!Array.isArray(list)) return [];
             let st, known; try { st = loadAll(); known = knownBases(); } catch (e) { return []; }
-            return list.filter(b => typeof b === 'string' && b.length < 200 && (Object.prototype.hasOwnProperty.call(st.ledger.entries, b) || known.has(b) || st.box.rows.some(r => r.id === b || String(r.id).startsWith(b + '/') || r.id === b + '#partial')));
+            return list.filter(b => typeof b === 'string' && b.length < 200 && !retryable(st, b) && (Object.prototype.hasOwnProperty.call(st.ledger.entries, b) || known.has(b) || st.box.rows.some(r => r.id === b || String(r.id).startsWith(b + '/') || r.id === b + '#partial')));
         }
         return { processedBases, ingest, rows, counts, health, log, ensureUnscheduled, monthOptions, suggestNewMonth, nextMonth, applyRows, cancelRegistration, registeredStatus, dismissRow, reclassify,
             ownLedger, mergeRemoteLedger, reconcile, syncInfo, conflicts, ackConflict, recordEvent, validateEntries: o => validateEntries(o, nowMs()) };

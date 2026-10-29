@@ -27,7 +27,7 @@ const GmailImport = (() => {
     const tokyoDate = ms => new Date(ms + 9 * 3600 * 1000).toISOString().slice(0, 10);
     const TERM_RE = /^[\p{L}\p{N}@._+-]{1,80}$/u;
     const rep = () => ({
-        ok: true, code: '', stage: '', found: 0, truncated: false, stoppedBy: '', mails: 0, failedMails: 0, skippedSender: 0, skippedOld: 0, senderUnverified: 0, bytes: 0,
+        ok: true, code: '', stage: '', found: 0, truncated: false, stoppedBy: '', mails: 0, knownMails: 0, failedMails: 0, skippedSender: 0, skippedOld: 0, senderUnverified: 0, bytes: 0,
         attachments: { downloaded: 0, parsedOk: 0, parseFailed: 0, tnef: 0, tooLarge: 0, blocked: 0, noBody: 0, imageSkipped: 0, skippedKnown: 0 }, ingest: null
     });
 
@@ -143,7 +143,7 @@ const GmailImport = (() => {
             // 全部が取り込み済みなら何も渡さない。新しい添付があれば(取り込み済みの兄弟は省いて)渡す。
             for (const k of Object.keys(local.counts)) A[k] += local.counts[k];
             out.bytes += local.bytes;
-            if (!anyNew) { return { mail: null }; }
+            if (!anyNew) { out.knownMails++; return { mail: null }; }
             return { mail: { messageId: msg.id, subject: msg.subject, receivedDate: msg.internalDateMs ? tokyoDate(msg.internalDateMs) : '', senderKind: 'registered', source: 'gmail', attachments: atts } };
         }
 
@@ -176,7 +176,7 @@ const GmailImport = (() => {
             if (!MAGIC[kind](bytes)) return unread(kind, 'content_mismatch', 'blocked');
             // 5) 解析
             let res;
-            try { res = await reader.readForMail(makeFile(bytes, name, mime), null, signal); }
+            try { res = await reader.readForMail(makeFile(bytes, name, mime), () => {}, signal); }
             catch (e) { res = null; }
             bytes = null;
             if (!res || res.opened === false) { C.parseFailed++; return { att: { attachmentId: key, fileName: name, kind, parseError: res && typeof res.errorCode === 'string' && /^[a-z_]{1,30}$/.test(res.errorCode) ? res.errorCode : 'read_failed' } }; }

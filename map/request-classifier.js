@@ -48,7 +48,10 @@ const RequestClassifier = (() => {
         content_mismatch: '拡張子と中身が一致しないため、開いていません。',
         no_body: 'メールから添付の中身を取り出せませんでした。',
         over_limit: '添付が多すぎる(または構造が複雑な)ため、一部を確認していません。元のメールで確認してください。',
-        read_failed: 'ファイルを読み取れませんでした。'
+        read_failed: 'ファイルを読み取れませんでした(壊れている・パスワード付き・対応していない作りのいずれか)。元のメールで確認してください。',
+        pdf_tool_failed: 'PDFを読む道具を読み込めませんでした(通信が不安定な可能性)。次の取り込みで自動で読み直します。',
+        ocr_tool_failed: '画像だけのPDFの文字読取ツールを読み込めませんでした(通信が不安定な可能性)。次の取り込みで自動で読み直します。',
+        too_many_pages: 'PDFが10ページを超えるため読んでいません。元のメールで確認してください。'
     };
     function classifyAttachment(input) {
         const a = input && typeof input === 'object' ? input : {};
