@@ -113,7 +113,7 @@ const GmailSource = (() => {
             };
             walk(data.payload, 0);
             const ms = Number(data.internalDate);
-            return { id, internalDateMs: Number.isFinite(ms) ? ms : 0, from: cleanName(decodeWords(headerOf(data.payload.headers, 'from')), 300), subject: cleanName(decodeWords(headerOf(data.payload.headers, 'subject')), 300), attachments, partsTruncated: truncated };
+            return { id, threadId: typeof data.threadId === 'string' && ID_RE.test(data.threadId) ? data.threadId : '', internalDateMs: Number.isFinite(ms) ? ms : 0, from: cleanName(decodeWords(headerOf(data.payload.headers, 'from')), 300), subject: cleanName(decodeWords(headerOf(data.payload.headers, 'subject')), 300), attachments, partsTruncated: truncated };
         }
 
         function decode(b64) {

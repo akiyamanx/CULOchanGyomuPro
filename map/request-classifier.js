@@ -103,6 +103,7 @@ const RequestClassifier = (() => {
         if (referenceFile) return result('reference', '配置図・精算書・納品書などの参考資料です。通達BOXに入れます。');
         if (referenceSubject) return result('reference', '件名から参考資料・連絡と判断しました。通達BOXに入れます。');
         if (sibling) return result('reference', '同じメールの依頼書に添えられた資料です。通達BOXに入れます。');
+        if (REQUEST_SUBJECT.test(subject) && !items.length) return result('unreadable', '件名は業務依頼ですが、添付の中身を依頼書の様式として読めませんでした(いつもと違う様式か、画像の文字読取が崩れた可能性)。確認してください。', {missing});
         return result('unreadable', '依頼書か参考資料か判別できませんでした。確認してください。', {missing});
     }
 

@@ -20,7 +20,7 @@ function makeGmail(hooks = {}) {
     const api = {
         calls, hooks, msgs,
         add(id, attachments, extra = {}) {
-            msgs.set(id, { id, internalDateMs: extra.internalDateMs ?? T0 - DAY, from: extra.from ?? '"架空 甲野" <kouno@example.invalid>', subject: extra.subject ?? '業務依頼のお願い', attachments, partsTruncated: !!extra.partsTruncated });
+            msgs.set(id, { id, internalDateMs: extra.internalDateMs ?? T0 - DAY, from: extra.from ?? '"架空 甲野" <kouno@example.invalid>', subject: extra.subject ?? '業務依頼のお願い', attachments, partsTruncated: !!extra.partsTruncated, ...(extra.threadId ? { threadId: extra.threadId } : {}) });
         },
         att(partId, fileName, mimeType, size, bytes) { return { partKey: 'p' + partId, partId, fileName, mimeType, size, attachmentId: 'ATT-' + (++seq) + '-' + partId, bytes: bytes || [] }; },
         source: {
@@ -411,4 +411,13 @@ test('読み直しても読めないファイルは、2回目で止める(毎回
     const r2 = await plainRun(dev.make(g, bad)); assert.equal(r2.ingest.retried, 1);
     const r3 = await plainRun(dev.make(g, bad)); assert.equal(r3.mails, 0); assert.equal(r3.knownMails, 1);
     assert.equal(dev.rows().length, 1);
+});
+test('スレッドIDをBOXの行に残す(16進だけ)', async () => {
+    const g = makeGmail(), dev = device();
+    M(g, IDS(1), '業務依頼書.xlsx', XLSX_MIME, 3000, 'xlsx', { threadId: 'bbbbbb01' });
+    M(g, IDS(2), '業務依頼書2.xlsx', XLSX_MIME, 3000, 'xlsx', { threadId: 'zz<script>' });
+    await plainRun(dev.make(g, makeReader()));
+    const rows = dev.rows();
+    assert.equal(rows.find(r => r.messageId === IDS(1)).threadId, 'bbbbbb01');
+    assert.equal(rows.find(r => r.messageId === IDS(2)).threadId, undefined);
 });

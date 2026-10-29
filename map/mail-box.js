@@ -203,7 +203,7 @@ const MailBox = (() => {
                 state: extra.state || (bucket === 'request' ? 'registered' : 'new'),
                 receivedDate: /^\d{4}-\d{2}-\d{2}$/.test(String(mail.receivedDate)) ? mail.receivedDate : '',
                 subject: clip(mail.subject, 80), fileName: att ? clip(att.fileName, 80) : '', kind: att ? clip(att.kind, 10) : 'none',
-                source: mail.source === 'gmail' ? 'gmail' : 'mock', messageId: clip(mail.messageId, 80),
+                source: mail.source === 'gmail' ? 'gmail' : 'mock', messageId: clip(mail.messageId, 80), threadId: /^[0-9a-f]{6,32}$/.test(String(mail.threadId || '')) ? mail.threadId : undefined,
                 itemCount: extra.itemCount != null ? extra.itemCount : items.length,
                 items: bucket === 'unreadable' && items.length ? items : undefined,
                 applicable: bucket === 'unreadable' && items.length > 0 && extra.opened !== false,
