@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="shared/app-profile.js?v=20261029-1"></script>
-    <script src="shared/app-storage.js?v=20261029-1"></script>
+    <script src="shared/app-storage.js?v=20261030-4"></script>
     <title>CULOchan業務Pro</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#16324a">
@@ -391,7 +391,8 @@
     <script src="map/mail-gmail-links.js?v=20261030-3"></script>
     <script src="map/mail-box-ui.js?v=20261030-3"></script>
     <script src="map/request-import.js"></script>
-    <script src="map/map-core.js?v=20261019-10"></script>
+    <script src="map/geocode-guard.js?v=20261030-4"></script>
+    <script src="map/map-core.js?v=20261030-4"></script>
     <script src="map/google-calendar-data.js?v=20261019-13"></script>
     <script src="map/google-visit-calendar.js?v=20261019-14"></script>
     <script src="map/visit-planner.js?v=20261019-13"></script>
@@ -457,12 +458,14 @@
             var bi = document.getElementById('backupInput');
             if (bi) bi.addEventListener('change', function(e) { DataStorage.importBackup(e); });
             var mapSettings = DataStorage.getSettings();
-            if (mapSettings.apiKey) {
+            // お試し版で地図キーが未設定なら、本番のキーを読むだけ借りる(連携用IDと同じ考え方。書き込みはしない)。
+            var mapKey = mapSettings.apiKey || GeocodeGuard.borrowedMapsKey(AppProfile, { getItem: AppStorage.readProduction });
+            if (mapKey) {
                 document.getElementById('mapSetupMessage').textContent = '地図を読み込み中です。訪問先の一覧はそのまま使えます。';
                 var s = document.createElement('script');
-                s.src = 'https://maps.googleapis.com/maps/api/js?key=' + mapSettings.apiKey + '&libraries=places,geometry&callback=initMap';
+                s.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(mapKey) + '&libraries=places,geometry&callback=initMap';
                 s.async = true; s.defer = true;
-                s.onerror = function() { document.getElementById('mapSetupMessage').textContent = '地図を読み込めませんでした。通信状態と地図の設定を確認してください。'; };
+                s.onerror = function() { try { MapCore.mapFailed('load'); } catch (e) {} document.getElementById('mapSetupMessage').textContent = '地図を読み込めませんでした。通信状態と地図の設定を確認してください。'; };
                 document.body.appendChild(s);
             }
         });

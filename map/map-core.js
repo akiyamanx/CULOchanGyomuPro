@@ -14,6 +14,17 @@ const MapCore = (() => {
     let infoWindow = null;
     let geocoder = null;
     let currentEditId = null;
+    // 地図のキーが無効・未設定だと geocode の返事が来ず「処理中」が回り続けたため、見張り役を通す。
+    const guard = GeocodeGuard.create({ timeoutMs: 8000 });
+    function showMapNotice() {
+        const setup = document.getElementById('mapSetup');
+        const msg = document.getElementById('mapSetupMessage');
+        if (msg) { msg.textContent = GeocodeGuard.NOTICE; msg.setAttribute('role', 'status'); }
+        if (setup) setup.hidden = false;
+        const loading = document.getElementById('mapLoading');
+        if (loading) loading.style.display = 'none';
+    }
+    function mapFailed(why) { guard.markFailed(why); showMapNotice(); }
 
     const PIN_COLORS = {
         pending: '#b57b17',
@@ -103,9 +114,11 @@ const MapCore = (() => {
             RouteManager.updateRoutePanel();
             return;
         }
+        if (guard.failed()) { showMapNotice(); updateCountBadge(); updateCustomerList(); RouteManager.updateRoutePanel(); return; }
         const loading = document.getElementById('mapLoading');
         const progress = document.getElementById('mapLoadingProgress');
         loading.style.display = 'flex';
+        try {
 
         const bounds = new google.maps.LatLngBounds();
         markers.forEach(m => bounds.extend(m.getPosition()));
@@ -127,7 +140,7 @@ const MapCore = (() => {
             }
 
             try {
-                const latLng = await geocodeAddressAsync(customer.address);
+                const latLng = await guard.run(() => geocodeAddressAsync(customer.address));
                 if (latLng) {
                     DataStorage.setGeoCache(customer.address, { lat: latLng.lat(), lng: latLng.lng() });
                     createMarker(customer, latLng);
@@ -138,11 +151,14 @@ const MapCore = (() => {
                 console.warn(`ジオコーディング失敗: ${customer.company} (${customer.address})`, err);
             }
             completed++;
+            if (guard.failed()) break;
             await sleep(200);
         }
-
-        loading.style.display = 'none';
-        if (markers.length > 0) { map.fitBounds(bounds, { padding: 50 }); }
+        } finally {
+            loading.style.display = 'none';
+        }
+        if (guard.failed()) showMapNotice();
+        else if (markers.length > 0) { map.fitBounds(bounds, { padding: 50 }); }
         updateCountBadge();
         updateCustomerList();
         RouteManager.updateRoutePanel();
@@ -152,7 +168,10 @@ const MapCore = (() => {
         return new Promise((resolve, reject) => {
             geocoder.geocode({ address: address }, (results, status) => {
                 if (status === 'OK' && results[0]) { resolve(results[0].geometry.location); }
-                else { reject(status); }
+                else {
+                    if (status === 'REQUEST_DENIED' || status === 'OVER_QUERY_LIMIT') mapFailed(status);
+                    reject(status);
+                }
             });
         });
     }
@@ -163,12 +182,10 @@ const MapCore = (() => {
             callback(new google.maps.LatLng(cache[address].lat, cache[address].lng));
             return;
         }
-        geocoder.geocode({ address: address }, (results, status) => {
-            if (status === 'OK' && results[0]) {
-                const latLng = results[0].geometry.location;
-                DataStorage.setGeoCache(address, { lat: latLng.lat(), lng: latLng.lng() });
-                callback(latLng);
-            } else { callback(null); }
+        if (!geocoder) { callback(null); return; }
+        guard.run(() => geocodeAddressAsync(address)).then(latLng => {
+            if (latLng) DataStorage.setGeoCache(address, { lat: latLng.lat(), lng: latLng.lng() });
+            callback(latLng || null);
         });
     }
 
@@ -359,7 +376,7 @@ const MapCore = (() => {
     function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
     return {
-        initMap, geocodeAndPlot, plotAllMarkers, clearMarkers,
+        initMap, mapFailed, geocodeAndPlot, plotAllMarkers, clearMarkers,
         createMarker, updateMarkerColor, focusMarker,
         openEdit, refreshAllMarkers,
         updateCountBadge, updateCustomerList,
@@ -368,6 +385,8 @@ const MapCore = (() => {
     };
 })();
 
+// Google Maps はキーが無効なとき window.gm_authFailure を呼ぶ。
+if (typeof window !== 'undefined') window.gm_authFailure = function () { MapCore.mapFailed('auth'); };
 function initMap() {
     MapCore.initMap();
 }

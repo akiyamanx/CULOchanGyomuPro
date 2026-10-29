@@ -10,7 +10,8 @@ const AppStorage = (() => {
         keys() { return Object.keys(ls()); },
         getItem(key) { return ls().getItem(key); },
         setItem(key, value) { ls().setItem(key, value); },
-        removeItem(key) { ls().removeItem(key); }
+        removeItem(key) { ls().removeItem(key); },
+        readProduction() { return null; }
     });
     return Object.freeze({
         keys() { return Object.keys(ls()).filter(k => k.startsWith(P)).map(k => k.slice(P.length)); },
@@ -20,6 +21,8 @@ const AppStorage = (() => {
             return profile.readThroughKeys.includes(key) ? ls().getItem(key) : null;
         },
         setItem(key, value) { ls().setItem(P + key, value); },
-        removeItem(key) { ls().removeItem(P + key); }
+        removeItem(key) { ls().removeItem(P + key); },
+        // 本番の値を読むだけ(お試し版で地図キーを借りるため。中身の取り出しは呼び出し側で apiKey だけに絞る)。書く口は無い。
+        readProduction(key) { return key === 'mm_settings' ? ls().getItem(key) : null; }
     });
 })();
