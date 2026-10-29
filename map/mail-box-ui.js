@@ -265,8 +265,9 @@ const MailBoxUI = (() => {
         if (!links) return null;
         const copyBtn = links.subject ? h('button', { type: 'button', class: 'btn btn-secondary mailbox-btn-s', onclick: e => copySubject(links.subject, e.currentTarget) }, '件名をコピー') : null;
         return h('span', { class: 'mailbox-gmail-links' }, [
-            h('a', { class: 'btn btn-secondary mailbox-btn-s', href: links.open, target: '_blank', rel: 'noopener noreferrer' }, 'Gmailで開く'),
-            links.search ? h('a', { class: 'btn btn-secondary mailbox-btn-s', href: links.search, target: '_blank', rel: 'noopener noreferrer' }, '開かないとき: 件名で探す') : null,
+            // スマホは直接開く形が白画面になるため、件名検索だけを主ボタンにする(実機確認 2026-10-30)。
+            links.open ? h('a', { class: 'btn btn-secondary mailbox-btn-s', href: links.open, target: '_blank', rel: 'noopener noreferrer' }, 'Gmailで開く') : null,
+            links.search ? h('a', { class: 'btn btn-secondary mailbox-btn-s', href: links.search, target: '_blank', rel: 'noopener noreferrer' }, links.mobile ? 'Gmailで探す' : '開かないとき: 件名で探す') : null,
             copyBtn
         ]);
     }

@@ -26,7 +26,7 @@ const MailGmailLinks = (() => {
         const q = encodeURIComponent(terms);
         if (isMobile(opts.userAgent)) {
             const p = `${BASE}mu/mp/`;   // ?付きは転送で#が消えるおそれがあるため付けない(既定のアカウントで開く)
-            return { mobile: true, open: `${p}#cv/All%20Mail/${thread}`, search: terms ? `${p}#tl/search/${q}` : '', subject };
+            return { mobile: true, open: "", search: terms ? `${p}#tl/search/${q}` : '', subject };
         }
         const p = acct ? `${BASE}?authuser=${encodeURIComponent(acct)}` : `${BASE}u/0/`;
         return { mobile: false, open: `${p}#all/${id}`, search: terms ? `${p}#search/${q}` : '', subject };
