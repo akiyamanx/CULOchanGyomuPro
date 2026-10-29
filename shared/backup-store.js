@@ -1,7 +1,7 @@
 // A write-ahead recovery copy spans the existing stores; no success before all writes finish.
 const BackupStore = (() => {
-    const DB_NAME = 'CULOchanTransfers';
-    const channel = 'gyomupro-main';
+    const DB_NAME = (typeof AppProfile !== 'undefined' ? AppProfile.dbName('CULOchanTransfers') : 'CULOchanTransfers');
+    const channel = (typeof AppProfile !== 'undefined' ? AppProfile.channel : 'gyomupro-main');
     const sessionName = 'culo-transfer-session-' + channel;
     let opening, releaseSession, sessionTask, running = false, initialized = false;
     function open() {

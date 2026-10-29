@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="shared/app-storage.js?v=20261028-1"></script>
+    <script src="shared/app-profile.js?v=20261029-1"></script>
+    <script src="shared/app-storage.js?v=20261029-1"></script>
     <title>CULOchan業務Pro</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#16324a">
@@ -421,11 +422,11 @@
             document.addEventListener('DOMContentLoaded', function() {
                 var box = document.getElementById('migrationNotice');
                 var close = document.getElementById('migrationNoticeClose');
-                try { if (!box || window.localStorage.getItem(KEY)) return; } catch (e) { return; }
+                try { if (!box || AppStorage.getItem(KEY)) return; } catch (e) { return; }
                 box.hidden = false;
                 close.addEventListener('click', function() {
                     box.hidden = true;
-                    try { window.localStorage.setItem(KEY, '1'); } catch (e) {}
+                    try { AppStorage.setItem(KEY, '1'); } catch (e) {}
                 });
             });
         })();

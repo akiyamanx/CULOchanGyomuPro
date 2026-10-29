@@ -9,11 +9,20 @@
 //   - ASSETSは実在するファイルだけ(tests/sw-assets.test.cjs が検査する)
 // ==========================================
 
-const CACHE_NAME = 'gyomupro-v47';
+// 本番とお試し版(/CULOchanGyomuPro-staging/)は同じオリジンでCache Storageを共有するため、名前で分ける
+const IS_STAGING = /^\/CULOchanGyomuPro-staging\//.test((self.location && self.location.pathname) || '');
+const CACHE_PREFIX = IS_STAGING ? 'gyomupro-stg-' : 'gyomupro-';
+const CACHE_NAME = CACHE_PREFIX + 'v48';
+// 自分(本番/お試し版)のキャッシュだけを古い版の掃除対象にする。相手側のキャッシュは消さない
+function ownCache(name) {
+    if (IS_STAGING) return name.startsWith('gyomupro-stg-');
+    return name.startsWith('gyomupro-') && !name.startsWith('gyomupro-stg-');
+}
 const ASSETS = [
     './',
     './index.html',
     './manifest.json',
+    './shared/app-profile.js',
     './shared/app-storage.js',
     './icons/icon-192.png',
     './styles/common.css',
@@ -130,7 +139,7 @@ self.addEventListener('activate', event => {
     event.waitUntil(
         caches.keys().then(keys => {
             return Promise.all(
-                keys.filter(k => k !== CACHE_NAME)
+                keys.filter(k => ownCache(k) && k !== CACHE_NAME)
                     .map(k => caches.delete(k))
             );
         }).then(() => self.clients.claim())
@@ -154,10 +163,10 @@ self.addEventListener('fetch', event => {
             })
             .catch(async () => {
                 // オフライン時: 同じURL、?v=の違いは無視、画面の移動は index.html
-                const cached = await caches.match(request, { ignoreSearch: true });
+                const cached = await caches.open(CACHE_NAME).then(c => c.match(request, { ignoreSearch: true }));
                 if (cached) return cached;
                 if (request.mode === 'navigate') {
-                    const page = await caches.match('./index.html');
+                    const page = await caches.open(CACHE_NAME).then(c => c.match('./index.html'));
                     if (page) return page;
                 }
                 return Response.error();
