@@ -46,6 +46,8 @@ const TransferUI = (() => {
         if(!confirm(describe(bundle)+'\n\nこの内容で、この端末の保存済み記録をすべて置き換えます。未保存の入力は再読み込みで失われます。続けますか？')) {message('取り込みを取り消しました。');return;}
         reloadRequired=true;
         await BackupStore.restore(bundle);
+        // 自動同期: 入れ替えで消えた分を「削除」として他の端末へ伝えない(次の同期は初回扱いで合わせる)
+        if(typeof DataSyncUI!=='undefined')DataSyncUI.afterRestore();
         if(revision) {
             try {DriveTransfer.acknowledge(revision);} catch(_) {message('取り込みは完了しました。共有先への送信前には再接続して版を確認してください。');return;}
         }

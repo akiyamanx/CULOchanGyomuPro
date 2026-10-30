@@ -20,6 +20,10 @@ const DriveLedgerAdapter = (() => {
     function create(opts) {
         const transport = opts && opts.transport;
         const channel = String((opts && opts.channel) || '');
+        // 訪問先データの自動同期(map/data-sync.js)も同じ仕組みを使う。app名・ファイル名・上限だけ差し替える。
+        const app = (opts && opts.app) || APP, prefix = (opts && opts.prefix) || 'CULOchan-mail-ledger-';
+        const maxBytes = (opts && opts.maxBytes) || MAX_BYTES;
+        if (!/^CULOchan\w{1,40}$/.test(app) || !/^CULOchan-[\w-]{1,40}$/.test(prefix)) throw new Error('app invalid');
         if (!transport || typeof transport.appdataRequest !== 'function' || typeof transport.state !== 'function') throw new Error('transport required');
         if (!CHANNEL_RE.test(channel)) throw new Error('channel invalid');
         const call = async (url, options, consume) => {
@@ -29,7 +33,7 @@ const DriveLedgerAdapter = (() => {
             try { return { connected: !!(transport.state() || {}).connected }; } catch (e) { return { connected: false }; }
         }
         async function list() {
-            const q = "appProperties has { key='app' and value='" + APP + "' } and appProperties has { key='channel' and value='" + channel + "' } and trashed = false";
+            const q = "appProperties has { key='app' and value='" + app + "' } and appProperties has { key='channel' and value='" + channel + "' } and trashed = false";
             const out = []; let token = '';
             for (let page = 0; page < MAX_PAGES; page++) {
                 const params = new URLSearchParams({ spaces: 'appDataFolder', q, pageSize: '100', fields: 'nextPageToken,files(id,size,appProperties)' });
@@ -48,11 +52,11 @@ const DriveLedgerAdapter = (() => {
         }
         async function read(file) {
             if (!file || typeof file.id !== 'string' || !ID_RE.test(file.id)) throw err('bad_response');
-            if (Number(file.size) > MAX_BYTES) throw err('too_large');
+            if (Number(file.size) > maxBytes) throw err('too_large');
             return call(API + 'files/' + file.id + '?alt=media', {}, async r => {
                 const text = await r.text();
                 if (typeof text !== 'string') throw err('bad_response');
-                if (text.length > MAX_BYTES) throw err('too_large');
+                if (text.length > maxBytes) throw err('too_large');
                 return text;
             });
         }
@@ -61,10 +65,10 @@ const DriveLedgerAdapter = (() => {
             const fileId = a.fileId == null ? null : a.fileId;
             if (!DEVICE_RE.test(String(a.deviceId || '')) || !SAVED_RE.test(String(a.savedAt || '')) || typeof a.text !== 'string') throw err('bad_response');
             if (fileId !== null && (typeof fileId !== 'string' || !ID_RE.test(fileId))) throw err('bad_response');
-            if (a.text.length > MAX_BYTES) throw err('too_large');
-            const props = { app: APP, channel, deviceId: a.deviceId, savedAt: a.savedAt };
+            if (a.text.length > maxBytes) throw err('too_large');
+            const props = { app, channel, deviceId: a.deviceId, savedAt: a.savedAt };
             const meta = fileId === null
-                ? { name: 'CULOchan-mail-ledger-' + a.deviceId + '.json', mimeType: 'application/json', parents: ['appDataFolder'], appProperties: props }
+                ? { name: prefix + a.deviceId + '.json', mimeType: 'application/json', parents: ['appDataFolder'], appProperties: props }
                 : { appProperties: props };
             let boundary;
             do { boundary = 'culoledger' + Math.random().toString(16).slice(2) + Date.now().toString(16); } while (a.text.indexOf(boundary) >= 0);
