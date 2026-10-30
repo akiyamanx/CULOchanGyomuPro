@@ -50,7 +50,15 @@ const MailBoxUI = (() => {
             if (typeof RouteManager !== 'undefined' && RouteManager.updateRoutePanel) RouteManager.updateRoutePanel();
         } catch (e) { console.error('mailbox: refresh_failed'); }
     }
-    const afterChange = () => { refreshChrome(); refreshApp(); render(); };
+    // 操作のあと、つながっていれば少し待ってから自動で同期する(★・確認済みなどをもう1台へ早く届ける)
+    let syncTimer = null, visHooked = false;
+    function scheduleSync() {
+        const ss = syncStatus();
+        if (!ss || !ss.connected) return;
+        clearTimeout(syncTimer);
+        syncTimer = setTimeout(() => { syncTimer = null; if (syncing) { scheduleSync(); return; } syncNow(true); }, 1500);
+    }
+    const afterChange = (fromSync) => { refreshChrome(); refreshApp(); render(); if (fromSync !== true) scheduleSync(); };
 
     // ---- 取り込み(試験用) ----
     function summarize(r) {
@@ -74,7 +82,7 @@ const MailBoxUI = (() => {
         else if (sy && sy.conflicts) { s.text += ' 同じ依頼書が2台で登録された可能性があります。確認してください。'; s.kind = 'warn'; }
         sayAll(s.text, s.kind);
         if (r.registered) tab = 'request'; else if (r.unreadable) tab = 'unreadable';
-        afterChange();
+        afterChange(true);
     }
     function importDemo() {
         if (!window.confirm('試験用: 架空の訪問先(デモ)をこの端末のデータに自動登録します。実際の業務データでは実行しないでください。続けますか?')) return;
@@ -175,7 +183,7 @@ const MailBoxUI = (() => {
         gNote = sum;
         sayAll(sum.lines[0] || '', sum.kind);
         if (r.ingest && r.ingest.registered) tab = 'request'; else if (r.ingest && r.ingest.unreadable) tab = 'unreadable';
-        afterChange();
+        afterChange(true);
     }
     function gmailCard() {
         if (!gTransport || !gImport) return null;
@@ -210,16 +218,16 @@ const MailBoxUI = (() => {
     const syncStatus = () => { try { return syncer ? syncer.status() : null; } catch (e) { return null; } };
     const SYNC_LEVEL = { off: ['未接続', ''], idle: ['未同期', ''], ok: ['同期済み', 'ok'], warn: ['要確認', 'warn'], error: ['失敗', 'warn'] };
     const when = iso => { const t = Date.parse(iso); return Number.isFinite(t) ? new Date(t).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''; };
-    async function syncNow() {
+    async function syncNow(quiet) {
         if (!syncer || syncing) return;
         syncing = true; render();
         let r; try { r = await syncer.sync(); } catch (e) { r = { ok: false, code: 'unexpected' }; }
         syncing = false;
         const st = syncStatus();
-        if (r.ok && !(st && st.level === 'warn')) sayAll('同期しました。', 'ok');
+        if (r.ok && !(st && st.level === 'warn')) { if (quiet !== true) sayAll('同期しました。', 'ok'); }
         else if (r.code === 'busy') sayAll('同期中です。少し待ってください。', '');
         else sayAll(st ? st.message : '同期できませんでした。', r.ok ? 'warn' : 'error');
-        afterChange();
+        afterChange(true);
     }
     async function connectDrive() {
         if (typeof DriveTransfer === 'undefined' || syncing) return;
@@ -257,7 +265,7 @@ const MailBoxUI = (() => {
     const chip = (text, kind) => h('span', { class: 'mailbox-chip ' + (kind || '') }, text);
     function meta(row) {
         const bits = [row.receivedDate ? `受信 ${row.receivedDate}` : '', row.fileName, row.subject && `件名: ${row.subject}`].filter(Boolean);
-        return h('p', { class: 'mailbox-meta' }, bits.join(' ／ '));
+        return h('p', { class: 'mailbox-meta' }, row.origin === 'remote' ? chip('他の端末から', '') : null, row.origin === 'remote' ? ' ' : null, bits.join(' ／ '));
     }
     function gmailLink(row) {
         if (row.source !== 'gmail' || !row.messageId) return null;
@@ -345,7 +353,7 @@ const MailBoxUI = (() => {
     function starBtn(row) {
         const on = row.starred === true;
         return h('button', { type: 'button', class: 'mailbox-star' + (on ? ' on' : ''), 'aria-pressed': String(on), 'aria-label': on ? 'お気に入りから外す' : 'お気に入りに入れる', title: on ? 'お気に入りから外す' : 'お気に入りに入れる',
-            onclick: () => { const r = box.setStar(row.id, !on); sayAll(r.ok ? (on ? 'お気に入りから外しました。' : 'お気に入りに入れました(⭐お気に入りタブでいつでも開けます)。') : 'お気に入りを保存できませんでした。', r.ok ? 'ok' : 'warn'); render(); } }, on ? '★' : '☆');
+            onclick: () => { const r = box.setStar(row.id, !on); sayAll(r.ok ? (on ? 'お気に入りから外しました。' : 'お気に入りに入れました(⭐お気に入りタブでいつでも開けます)。') : 'お気に入りを保存できませんでした。', r.ok ? 'ok' : 'warn'); render(); if (r.ok) scheduleSync(); } }, on ? '★' : '☆');
     }
     const CAT = { request: '依頼書', unreadable: '判別不可', reference: '通達' };
     const STATE = { dismissed: '確認済み', applied: '反映済み', cancelled: '取り消し済み' };
@@ -373,9 +381,9 @@ const MailBoxUI = (() => {
                 h('div', { class: 'mailbox-card-head' }, starBtn(row), h('strong', {}, row.state === 'cancelled' ? '依頼書(取り消し済み)' : '依頼書が来ました'), chip(st, row.state === 'cancelled' ? '' : 'ok'), row.needsAttention && row.state === 'registered' ? chip('確認推奨', 'warn') : null),
                 h('p', {}, places.length ? `登録先: ${places.join('、')}` : '新しく登録した訪問先はありません。', r.duplicates ? `(重複${r.duplicates}件は登録していません)` : ''),
                 row.needsAttention && row.state === 'registered' ? h('p', { class: 'mailbox-note' }, row.reason) : null,
-                missingWarn ? h('p', { class: 'mailbox-note' }, `登録した訪問先のうち${info.total - info.present}件が見つかりません(バックアップの復元などで消えた可能性)。自動では登録し直しません。必要なら手で追加してください。`) : null,
+                row.origin === 'remote' ? h('p', { class: 'mailbox-note' }, 'もう1台の端末で登録した依頼書です。訪問先そのものはその端末に入っています(訪問先を揃えるには「送る/受け取る」を使ってください)。') : missingWarn ? h('p', { class: 'mailbox-note' }, `登録した訪問先のうち${info.total - info.present}件が見つかりません(バックアップの復元などで消えた可能性)。自動では登録し直しません。必要なら手で追加してください。`) : null,
                 meta(row));
-            if (info && info.cancellable) {
+            if (info && info.cancellable && row.origin !== 'remote') {
                 const ask = confirming.has(row.id);
                 card.append(h('div', { class: 'mailbox-actions' },
                     h('button', { type: 'button', class: 'btn ' + (ask ? 'btn-primary' : 'btn-secondary') + ' mailbox-btn-s', onclick: () => {
@@ -455,6 +463,10 @@ const MailBoxUI = (() => {
         render();
         const ss = syncStatus();
         if (ss && ss.connected) syncNow();   // 接続済みなら開いたときに同期(待たせない)
+        if (!visHooked && typeof document !== 'undefined' && document.addEventListener) {   // アプリに戻ってきたとき(BOXを開いていれば)同期
+            visHooked = true;
+            document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && overlay && !overlay.hidden) { const s2 = syncStatus(); if (s2 && s2.connected) syncNow(true); } });
+        }
         overlay.querySelector('#mailBoxTitle').focus();
     }
     function close() {

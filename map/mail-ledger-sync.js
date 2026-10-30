@@ -3,12 +3,15 @@
 // ■ 方針(仕様書 §11 / §19)
 //   ・端末ごとに台帳ファイル1つ(CULOchan-mail-ledger-<端末ID>.json)を Drive の appDataFolder に置く。書くのはその端末だけ
 //     (1ファイル=書き手1人なので、同時書き込みで壊れない)。読むときに全端末分を合わせる。
-//   ・中身は「メッセージID/添付ID・結果の種別・処理日時」だけ。顧客名・住所・件名・本文・ファイル名は入れない。180日で期限切れ。
+//   ・中身は「メッセージID/添付ID・結果の種別・処理日時」と、メールBOXの行(rows: 件名・差出人の表示名・理由・読めた項目・状態・★)。
+//     2026-10-30 本人の要望で、スマホとタブレットのBOXの中身を揃えるため rows を追加(Drive の appDataFolder=このアプリ専用の非公開領域)。
+//     メールアドレス・本文・添付ファイルそのものは入れない。台帳は180日で期限切れ。
+//   ・rows を持たない古いファイル・rows を知らない古いアプリとも互換(v は 1 のまま。古いアプリは rows を読み飛ばす)。
 //   ・同期は「補助」: 通信の失敗・壊れたファイル・時間切れでも、取り込みは止めずローカルの判定で続け、画面に警告を出す。
 //   ・両端末が同時に取り込んで二重登録になった場合は、次の同期で検出して警告する(自動では消さない)。
 //
 // ■ 契約
-//   台帳ファイル: {app:'CULOchanMailLedger1', v:1, deviceId, savedAt, entries:{ "<messageId>/<attachmentId>": {r, at} }}
+//   台帳ファイル: {app:'CULOchanMailLedger1', v:1, deviceId, savedAt, entries:{ "<messageId>/<attachmentId>": {r, at} }, rows?:[BOXの行] }
 //     r ∈ registered|applied|unreadable|reference|dismissed|cancelled|excluded / at は ISO 8601 / 1ファイル512KB・5000件まで。
 //   アダプタ(差し替え可能。実Driveは map/mail-ledger-drive.js、テストはモック):
 //     available() → {connected:boolean}
@@ -50,7 +53,7 @@ const MailLedgerSync = (() => {
     };
 
     // 台帳ファイルの検証(信用しない入力)。戻り値 {ok, entries, expired, dropped} または {ok:false, code}
-    function parseLedgerDoc(text, expectedDeviceId, validate) {
+    function parseLedgerDoc(text, expectedDeviceId, validate, validateRows) {
         if (typeof text !== 'string') return { ok: false, code: 'bad_format' };
         if (text.length > MAX_FILE_BYTES) return { ok: false, code: 'file_too_large' };
         let doc; try { doc = JSON.parse(text); } catch (e) { return { ok: false, code: 'bad_json' }; }
@@ -60,7 +63,10 @@ const MailLedgerSync = (() => {
         const v = validate(doc.entries);
         if (v.invalid) return { ok: false, code: 'bad_format' };
         if (v.tooMany) return { ok: false, code: 'too_many' };
-        return { ok: true, entries: v.entries, expired: v.expired, dropped: v.dropped };
+        // rows は任意。形が不正なら rows だけ捨てる(台帳は使う)。
+        let rows = [], rowsDropped = 0;
+        if (doc.rows !== undefined && validateRows) { const rv = validateRows(doc.rows); rows = rv.rows; rowsDropped = rv.dropped; }
+        return { ok: true, entries: v.entries, expired: v.expired, dropped: v.dropped, rows, rowsDropped };
     }
 
     function create(opts) {
@@ -108,16 +114,18 @@ const MailLedgerSync = (() => {
                 if (!seen.has(f.deviceId) && seen.size >= MAX_DEVICES) { warn('too_many_files'); continue; }
                 seen.add(f.deviceId); kept.push(f);
             }
-            const byDevice = new Map(); let ownReadOk = true, expired = 0;
+            const byDevice = new Map(), rowsByDevice = new Map(); let ownReadOk = true, expired = 0;
             for (const f of kept) {
                 const isOwn = f.deviceId === state.deviceId;
                 if (f.size > MAX_FILE_BYTES) { warn('file_too_large'); continue; }
                 let text;
                 try { text = await adapter.read(f); } catch (e) { warn(errCode(e)); if (isOwn) ownReadOk = false; continue; }
                 guard();
-                const doc = parseLedgerDoc(text, f.deviceId, mailBox.validateEntries);
+                const doc = parseLedgerDoc(text, f.deviceId, mailBox.validateEntries, mailBox.validateRows);
                 if (!doc.ok) { warn(doc.code); continue; }
                 if (doc.dropped) warn('entries_invalid');
+                if (doc.rowsDropped) warn('rows_invalid');
+                if (doc.rows.length) { const prev = rowsByDevice.get(f.deviceId); if (!prev || (f.savedAt || '') >= prev.savedAt) rowsByDevice.set(f.deviceId, { savedAt: f.savedAt || '', rows: doc.rows }); }
                 expired += doc.expired;
                 const cur = byDevice.get(f.deviceId) || {};
                 for (const [k, e] of Object.entries(doc.entries)) if (!cur[k] || cur[k].at < e.at) cur[k] = e;   // 同じ端末の重複ファイルは新しい記録を採用
@@ -129,9 +137,14 @@ const MailLedgerSync = (() => {
             const devices = [...byDevice.entries()].map(([id, entries]) => ({ deviceId: id, entries }));
             const merged = mailBox.mergeRemoteLedger(devices, state.deviceId);
             if (!merged.ok) return { ok: false, code: merged.code || 'ledger_corrupt', stage: 'merge' };
+            let rowsMerged = { added: 0, updated: 0 };
+            if (mailBox.mergeRemoteRows) {
+                const mr = mailBox.mergeRemoteRows([...rowsByDevice.entries()].map(([id, v]) => ({ deviceId: id, rows: v.rows })), state.deviceId);
+                if (mr && mr.ok) rowsMerged = mr; else warn('rows_merge_failed');
+            }
             const rec = mailBox.reconcile();
             if (!rec.ok) warn('reconcile_failed');
-            const pulled = { files: kept.length, devices: byDevice.size, added: merged.added + merged.updated, recovered: merged.recovered, expired: expired + (merged.expired || 0), elsewhere: merged.elsewhere };
+            const pulled = { files: kept.length, devices: byDevice.size, added: merged.added + merged.updated, recovered: merged.recovered, expired: expired + (merged.expired || 0), elsewhere: merged.elsewhere, rowsAdded: rowsMerged.added || 0, rowsUpdated: rowsMerged.updated || 0 };
 
             // 3) 出す(自分のファイルを読めなかった回は上書きしない=記録を縮めない)
             guard();
@@ -139,12 +152,26 @@ const MailLedgerSync = (() => {
             if (!ownReadOk) { warn('push_skipped'); return out; }
             const mine = mailBox.ownLedger();
             if (!mine.ok) return { ...out, ok: false, code: mine.code, stage: 'push' };
-            const canonical = JSON.stringify(Object.keys(mine.entries).sort().map(k => [k, mine.entries[k].r, mine.entries[k].at]));
+            const myRows = mailBox.syncRows ? mailBox.syncRows() : { ok: true, rows: [] };
+            if (!myRows.ok) return { ...out, ok: false, code: myRows.code || 'mailbox_corrupt', stage: 'push' };
+            const canonical = JSON.stringify([Object.keys(mine.entries).sort().map(k => [k, mine.entries[k].r, mine.entries[k].at]), myRows.rows]);
             const h = hashOf(canonical);
             const ownFile = kept.find(f => f.deviceId === state.deviceId) || null;
             if (ownFile && state.lastPush && state.lastPush.ok && state.lastPush.hash === h) return out;
             const savedAt = nowIso();
-            const text = JSON.stringify({ app: APP, v: 1, deviceId: state.deviceId, savedAt, entries: mine.entries });
+            let rowsOut = myRows.rows;
+            let text = JSON.stringify({ app: APP, v: 1, deviceId: state.deviceId, savedAt, entries: mine.entries, rows: rowsOut });
+            if (text.length > MAX_FILE_BYTES) {   // 大きすぎるとき: まず処理済み行の「読めた項目」を外し、次に古い処理済み行から減らす(★と未確認は残す)
+                const keep = r => r.starred === true || (r.bucket === 'unreadable' && r.state === 'new');
+                rowsOut = rowsOut.map(r => keep(r) ? r : { ...r, items: undefined });
+                text = JSON.stringify({ app: APP, v: 1, deviceId: state.deviceId, savedAt, entries: mine.entries, rows: rowsOut });
+                while (text.length > MAX_FILE_BYTES && rowsOut.some(r => !keep(r))) {
+                    const i = rowsOut.map((r, j) => ({ r, j })).filter(x => !keep(x.r)).sort((a, b) => a.r.createdAt < b.r.createdAt ? -1 : 1)[0].j;
+                    rowsOut = rowsOut.filter((_, j) => j !== i);
+                    text = JSON.stringify({ app: APP, v: 1, deviceId: state.deviceId, savedAt, entries: mine.entries, rows: rowsOut });
+                }
+                warn('rows_trimmed');
+            }
             if (text.length > MAX_FILE_BYTES) { warn('too_large'); return { ...out, ok: false, code: 'too_large', stage: 'push', push: { ok: false, code: 'too_large' } }; }
             try {
                 const res = await adapter.write({ fileId: ownFile ? ownFile.id : null, deviceId: state.deviceId, text, savedAt });

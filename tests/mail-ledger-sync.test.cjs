@@ -93,7 +93,7 @@ const driveText = drive => JSON.stringify([...drive.files.values()]);
 const countFor = (dev, base) => dev.customers().filter(c => c.mailKey.startsWith(base + '/')).length;
 
 // ---------- 1. 基本: 端末Aが取り込む → 台帳を出す → 端末Bが取り込んでも増えない ----------
-test('端末Aが取り込むと、自分専用の台帳ファイルがDriveに置かれる。中身はID・結果・時刻だけ(顧客名・件名・ファイル名なし)', async () => {
+test('端末Aが取り込むと、自分専用の台帳ファイルがDriveに置かれる。台帳はID・結果・時刻だけ、BOXの行はrowsに入る(訪問先データ・メールアドレスは入れない)', async () => {
     const drive = makeDrive(), A = device(ID_A, drive);
     const r = await A.ingestMails([request('m1'), mail('m2', [att('a1', '配置図.pdf', 'pdf', [])], { subject: 'お知らせ' })]);
     assert.equal(r.ok, true); assert.equal(r.registered, 1); assert.equal(r.reference, 1);
@@ -102,12 +102,14 @@ test('端末Aが取り込むと、自分専用の台帳ファイルがDriveに�
     assert.equal(f.deviceId, ID_A);
     const doc = JSON.parse(f.text);
     assert.equal(doc.app, 'CULOchanMailLedger1'); assert.equal(doc.v, 1); assert.equal(doc.deviceId, ID_A);
-    assert.deepEqual(Object.keys(doc).sort(), ['app', 'deviceId', 'entries', 'savedAt', 'v']);
+    assert.deepEqual(Object.keys(doc).sort(), ['app', 'deviceId', 'entries', 'rows', 'savedAt', 'v']);
+    assert.deepEqual(doc.rows.map(r => r.id).sort(), ['m1/a1', 'm2/a1']);   // 2026-10-30 仕様変更: BOXの中身も端末間で揃える
     assert.deepEqual(Object.keys(doc.entries).sort(), ['m1/a1', 'm2/a1']);
     for (const e of Object.values(doc.entries)) assert.deepEqual(Object.keys(e).sort(), ['at', 'r']);
     assert.equal(doc.entries['m1/a1'].r, 'registered'); assert.equal(doc.entries['m2/a1'].r, 'reference');
-    for (const w of SECRET_WORDS) assert.equal(driveText(drive).includes(w), false, w);
-    assert.equal(driveText(drive).includes('既存会社'), false);
+    for (const w of SECRET_WORDS) assert.equal(JSON.stringify(doc.entries).includes(w), false, w);   // 台帳部分は今まで通りIDだけ
+    assert.equal(driveText(drive).includes('既存会社'), false);   // 訪問先データそのものは入れない
+    assert.equal(/@/.test(driveText(drive)), false);
 });
 test('端末Bが台帳を取り込んでから同じメールを取り込んでも、登録は増えない(二重登録なし)', async () => {
     const drive = makeDrive(), A = device(ID_A, drive), B = device(ID_B, drive);
@@ -116,7 +118,8 @@ test('端末Bが台帳を取り込んでから同じメールを取り込んで�
     assert.equal(r.ok, true); assert.equal(r.registered, 0); assert.equal(r.skipped, 1);
     assert.equal(countFor(B, 'm1'), 0); assert.equal(countFor(A, 'm1'), 1);
     assert.equal(B.ledger()['m1/a1'].x, 1);                                // 他の端末から知った印
-    assert.equal(B.mb('rows').length, 0);                                  // Bには行を作らない(Aの結果)
+    const rowsB = B.mb('rows');                                            // AのBOXの行がBにも出る(他端末由来の印つき)
+    assert.equal(rowsB.length, 1); assert.equal(rowsB[0].origin, 'remote'); assert.equal(rowsB[0].state, 'registered');
 });
 test('他の端末から知った記録は、自分の台帳ファイルには書き戻さない(出どころが混ざらない)', async () => {
     const drive = makeDrive(), A = device(ID_A, drive), B = device(ID_B, drive);
@@ -409,7 +412,7 @@ test('Bで「対象外/通達/判別不可」にした記録も、Aが同じメ�
     await A.ingestMails([mail('k4', [], { subject: '通知', excluded: true }), imageOnly('k2')]);
     const r = await B.ingestMails([mail('k4', [], { subject: '通知', excluded: true }), imageOnly('k2')]);
     assert.equal(r.excluded, 0); assert.equal(r.unreadable, 0); assert.equal(r.skipped, 2);
-    assert.equal(B.mb('rows').length, 0);
+    assert.deepEqual(B.mb('rows').map(x => x.origin), ['remote']);   // Aの判別不可の行がBにも出る(対象外は行なし)
 });
 
 // ---------- 8. mailKey と台帳の整合 ----------
@@ -481,4 +484,76 @@ test('validateEntries: __proto__ / constructor などの危険なキーは捨て
     const v = A.eval(`(() => { const v = MailBox.validateEntries(JSON.parse(__raw), ${Date.parse(T0)}); return { keys: Object.keys(v.entries), dropped: v.dropped, plainProto: Object.getPrototypeOf(v.entries) === Object.prototype, entry: v.entries['good/1'] }; })()`);
     assert.deepEqual(v.keys, ['good/1']); assert.equal(v.dropped, 3); assert.equal(v.plainProto, true);
     assert.deepEqual(v.entry, { r: 'reference', at });
+});
+
+// ---------- 2026-10-30 BOXの行の同期(★・処理状態)。2台で食い違う操作 ----------
+const unread = id => mail(id, [att('a1', '開けない.xlsx', 'xlsx', [], { opened: false })], { subject: '【架空】依頼 ' + id });
+async function pair() {
+    const drive = makeDrive(), A = device(ID_A, drive), B = device(ID_B, drive);
+    await A.ingestMails([unread('u1'), mail('n1', [att('a1', '配置図.pdf', 'pdf', [])], { subject: 'お知らせ' })]);
+    await B.sync();
+    return { drive, A, B, rowA: k => A.mb('rows').find(r => r.mailKey === k), rowB: k => B.mb('rows').find(r => r.mailKey === k) };
+}
+test('行の同期: Aの判別不可・通達の行がBにも出て、件数も揃う', async () => {
+    const { A, B } = await pair();
+    assert.deepEqual(B.mb('counts'), A.mb('counts'));
+    assert.equal(B.mb('rows').every(r => r.origin === 'remote'), true);
+});
+test('★: Aで付けた★がBに届き、後からBで外すとAでも外れる(新しい操作が勝つ)', async () => {
+    const { A, B, rowA, rowB } = await pair();
+    A.mb('setStar', rowA('n1/a1').id, true); await A.sync();
+    await B.sync(); assert.equal(rowB('n1/a1').starred, true);
+    B.setNow('2026-10-28T13:00:00+09:00'); B.mb('setStar', rowB('n1/a1').id, false); await B.sync();
+    A.setNow('2026-10-28T13:05:00+09:00'); await A.sync();
+    assert.equal(rowA('n1/a1').starred, undefined); assert.equal(A.mb('counts').favorite, 0);
+});
+test('★: 古い「外す」は新しい「付ける」を消さない(★を失わない)', async () => {
+    const { A, B, rowA, rowB } = await pair();
+    B.setNow('2026-10-28T12:10:00+09:00'); B.mb('setStar', rowB('n1/a1').id, true); B.mb('setStar', rowB('n1/a1').id, false);   // Bは12:10に外した(オフライン)
+    A.setNow('2026-10-28T12:30:00+09:00'); A.mb('setStar', rowA('n1/a1').id, true);                                           // Aは12:30に付けた
+    await B.sync(); await A.sync(); await B.sync();
+    assert.equal(rowA('n1/a1').starred, true); assert.equal(rowB('n1/a1').starred, true);
+});
+test('別々のまとまりは両方残る: Aで「確認済み」、Bで★ → 両端末とも確認済み+★', async () => {
+    const { A, B, rowA, rowB } = await pair();
+    A.setNow('2026-10-28T12:20:00+09:00'); A.mb('dismissRow', rowA('u1/a1').id);
+    B.setNow('2026-10-28T12:25:00+09:00'); B.mb('setStar', rowB('u1/a1').id, true);
+    await A.sync(); await B.sync(); await A.sync();
+    for (const r of [rowA('u1/a1'), rowB('u1/a1')]) { assert.equal(r.state, 'dismissed'); assert.equal(r.starred, true); }
+    assert.equal(A.mb('counts').unreadable, 0); assert.equal(B.mb('counts').unreadable, 0);
+});
+test('同じ行の状態を2台で変えたら、後の操作に揃う(通達→見直し をAが後に)', async () => {
+    const { A, B, rowA, rowB } = await pair();
+    B.setNow('2026-10-28T12:20:00+09:00'); B.mb('dismissRow', rowB('n1/a1').id);
+    A.setNow('2026-10-28T12:40:00+09:00'); A.mb('reclassify', rowA('n1/a1').id);
+    await B.sync(); await A.sync(); await B.sync();
+    for (const r of [rowA('n1/a1'), rowB('n1/a1')]) { assert.equal(r.bucket, 'unreadable'); assert.equal(r.state, 'new'); }
+});
+test('整理で消した行は、他端末のファイルから復活させない', async () => {
+    const { A, B, rowA } = await pair();
+    A.eval(`(() => { const s = AppStorage; const b = JSON.parse(s.getItem('gyomupro_mailbox')); b.rows = b.rows.filter(r => r.mailKey !== 'n1/a1'); s.setItem('gyomupro_mailbox', JSON.stringify(b)); return 1; })()`);
+    await B.sync(); await A.sync();
+    assert.equal(rowA('n1/a1'), undefined);
+});
+test('古い形式(rowsなし)のファイルも今まで通り台帳として使える。不正な行は捨てて台帳は使う', async () => {
+    const drive = makeDrive(), B = device(ID_B, drive);
+    const at = new Date(Date.parse(T0)).toISOString();
+    drive.files.set('old', { id: 'old', deviceId: ID_A, savedAt: at, text: JSON.stringify({ app: 'CULOchanMailLedger1', v: 1, deviceId: ID_A, savedAt: at, entries: { 'o1/a1': { r: 'reference', at } } }) });
+    drive.files.set('bad', { id: 'bad', deviceId: ID_C, savedAt: at, text: JSON.stringify({ app: 'CULOchanMailLedger1', v: 1, deviceId: ID_C, savedAt: at, entries: { 'o2/a1': { r: 'reference', at } },
+        rows: [{ id: '__proto__', bucket: 'reference', state: 'new', createdAt: at }, { id: 'o2/a1', bucket: 'evil', state: 'new', createdAt: at },
+            { id: 'o3/a1', bucket: 'reference', state: 'new', createdAt: at, subject: '【架空】件名', from: 'koono@example.invalid', reason: 'x', m: { star: at }, starred: true, items: [{ company: '架空' }] }] }) });
+    const r = await B.sync();
+    assert.equal(r.ok, true); assert.equal(r.warnings.includes('rows_invalid'), true);
+    assert.equal(B.ledger()['o1/a1'].x, 1); assert.equal(B.ledger()['o2/a1'].x, 1);
+    const rows = B.mb('rows');
+    assert.deepEqual(rows.map(x => x.id), ['o3/a1']);
+    assert.equal(rows[0].from, undefined); assert.equal(rows[0].items, undefined); assert.equal(rows[0].starred, true);
+    assert.equal(B.store.get(KEY_BOX).includes('example.invalid'), false);
+});
+test('rowsが配列でないファイル: 行だけ捨て、台帳は使う', async () => {
+    const drive = makeDrive(), B = device(ID_B, drive);
+    const at = new Date(Date.parse(T0)).toISOString();
+    drive.files.set('x', { id: 'x', deviceId: ID_A, savedAt: at, text: JSON.stringify({ app: 'CULOchanMailLedger1', v: 1, deviceId: ID_A, savedAt: at, entries: { 'p1/a1': { r: 'dismissed', at } }, rows: { a: 1 } }) });
+    const r = await B.sync();
+    assert.equal(r.ok, true); assert.equal(B.ledger()['p1/a1'].x, 1); assert.equal(B.mb('rows').length, 0);
 });

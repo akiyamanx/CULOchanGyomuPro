@@ -58,6 +58,57 @@ const MailBox = (() => {
         return out;
     }
 
+    // ---- 共有ファイルの行の検証(他端末の行は信用しない入力)。許可した項目だけを、型と長さを確かめて写す ----
+    const MAX_SYNC_ROWS = 300, MAX_SYNC_ITEMS = 50;
+    const BUCKETS = ['request', 'unreadable', 'reference'];
+    const STATES = ['new', 'registered', 'applied', 'dismissed', 'cancelled'];
+    const STATUS_FIELDS = ['bucket', 'state', 'reason', 'needsAttention', 'applicable', 'resolvedAt', 'result'];
+    const ITEM_STR = ['company', 'address', 'purpose', 'equipType', 'workDateText', 'titleText', 'appoDate', 'source', 'kind', 'managementNo', 'phone', 'contact', 'branch', 'filter', 'note', 'mailKey'];
+    const isoOk = (v, now) => typeof v === 'string' && ISO_RE.test(v) && Date.parse(v) <= now + 24 * 3600 * 1000;
+    function cleanItem(it) {
+        if (!it || typeof it !== 'object' || Array.isArray(it)) return null;
+        const o = {};
+        for (const k of ITEM_STR) if (typeof it[k] === 'string') o[k] = it[k].slice(0, 300);
+        if (Number.isInteger(it.unitCount) && it.unitCount >= 0 && it.unitCount < 10000) o.unitCount = it.unitCount;
+        if (Array.isArray(it.warnings)) o.warnings = it.warnings.filter(w => typeof w === 'string').slice(0, 10).map(w => w.slice(0, 200));
+        return o;
+    }
+    function cleanResult(r) {
+        if (!r || typeof r !== 'object' || Array.isArray(r)) return undefined;
+        const ws = {};
+        if (r.workspaces && typeof r.workspaces === 'object') for (const [k, n] of Object.entries(r.workspaces)) if (/^(\d{4}-\d{2}|unscheduled)$/.test(k) && Number.isInteger(n) && n >= 0 && n < 10000) ws[k] = n;
+        const customers = Array.isArray(r.customers) ? r.customers.filter(c => c && typeof c.ws === 'string' && /^(\d{4}-\d{2}|unscheduled)$/.test(c.ws) && typeof c.id === 'string' && /^[\w.-]{1,80}$/.test(c.id)).slice(0, 200).map(c => ({ ws: c.ws, id: c.id, h: typeof c.h === 'string' ? c.h.slice(0, 40) : '' })) : [];
+        return { workspaces: ws, duplicates: Number.isInteger(r.duplicates) && r.duplicates >= 0 ? r.duplicates : 0, moved: Number.isInteger(r.moved) && r.moved >= 0 ? r.moved : undefined, customers, at: typeof r.at === 'string' && ISO_RE.test(r.at) ? r.at : undefined };
+    }
+    function validateRows(list, nowMs) {
+        const now = Number.isFinite(nowMs) ? nowMs : Date.now();
+        const out = []; let dropped = 0; const seen = new Set();
+        if (list !== undefined && !Array.isArray(list)) return { rows: [], dropped: 1, invalid: true };
+        for (const r of list || []) {
+            if (out.length >= MAX_SYNC_ROWS) { dropped++; continue; }
+            if (!r || typeof r !== 'object' || Array.isArray(r) || typeof r.id !== 'string' || BAD_KEYS.has(r.id) || !KEY_RE.test(r.id) || seen.has(r.id)
+                || BUCKETS.indexOf(r.bucket) < 0 || STATES.indexOf(r.state) < 0 || !isoOk(r.createdAt, now)) { dropped++; continue; }
+            seen.add(r.id);
+            const o = { id: r.id, mailKey: typeof r.mailKey === 'string' && KEY_RE.test(r.mailKey) ? r.mailKey : r.id, bucket: r.bucket, state: r.state, reason: clip(r.reason, 200),
+                needsAttention: r.needsAttention === true, applicable: r.applicable === true && r.bucket === 'unreadable',
+                receivedDate: /^\d{4}-\d{2}-\d{2}$/.test(String(r.receivedDate)) ? r.receivedDate : '', subject: clip(r.subject, 80), fileName: clip(r.fileName, 80), kind: /^[a-z]{1,10}$/.test(String(r.kind)) ? r.kind : 'none',
+                source: r.source === 'gmail' ? 'gmail' : 'mock', messageId: /^[\w-]{1,80}$/.test(String(r.messageId)) ? r.messageId : '', createdAt: r.createdAt };
+            if (/^[0-9a-f]{6,32}$/.test(String(r.threadId || ''))) o.threadId = r.threadId;
+            if (typeof r.from === 'string' && r.from && !/@/.test(r.from)) o.from = r.from.slice(0, 60);
+            if (Number.isInteger(r.itemCount) && r.itemCount >= 0 && r.itemCount < 10000) o.itemCount = r.itemCount;
+            if (r.bucket === 'unreadable' && Array.isArray(r.items)) { const items = r.items.slice(0, MAX_SYNC_ITEMS).map(cleanItem).filter(Boolean); if (items.length) o.items = items; }
+            if (!o.items) o.applicable = false;
+            if (r.tries === 2) o.tries = 2;
+            if (typeof r.failure === 'string' && /^[a-z_]{1,30}$/.test(r.failure)) o.failure = r.failure;
+            if (isoOk(r.resolvedAt, now)) o.resolvedAt = r.resolvedAt;
+            const res = cleanResult(r.result); if (res) o.result = res;
+            if (r.starred === true) { o.starred = true; if (isoOk(r.starredAt, now)) o.starredAt = r.starredAt; }
+            if (r.m && typeof r.m === 'object' && !Array.isArray(r.m)) { const m = {}; if (isoOk(r.m.status, now)) m.status = r.m.status; if (isoOk(r.m.star, now)) m.star = r.m.star; if (m.status || m.star) o.m = m; }
+            out.push(o);
+        }
+        return { rows: out, dropped };
+    }
+
     function create(overrides = {}) {
         const deps = () => ({
             storage: overrides.storage || (typeof AppStorage !== 'undefined' ? AppStorage : localStorage),
@@ -109,6 +160,8 @@ const MailBox = (() => {
             if (st && st.box) { st.box.log.push(entry); if (st.box.log.length > MAX_LOG) st.box.log.splice(0, st.box.log.length - MAX_LOG); }
             if (/error|failed|corrupt/.test(entry.event) && typeof console !== 'undefined') console.error('mailbox:', entry.event, entry.code || '');
         }
+        // 端末間で合わせる項目のまとまりごとの更新時刻(row.m.status / row.m.star)。同じまとまりは一緒に動かす(半端な組み合わせを作らない)。
+        function touch(row, group) { row.m = { ...(row.m && typeof row.m === 'object' ? row.m : {}), [group]: nowIso() }; }
         // ⭐お気に入りの行は、期限・件数の整理で消さない。
         const keepRow = r => (r.bucket === 'unreadable' && r.state === 'new') || r.starred === true;
         function prune(st) {
@@ -243,14 +296,15 @@ const MailBox = (() => {
         }
         function dropForRetry(st, base) {
             const old = st.box.rows.find(r => r.id === base);
-            if (old && old.starred === true) { st.starCarry = st.starCarry || {}; st.starCarry[base] = old.starredAt || nowIso(); }
+            if (old && old.m && old.m.star) { st.starCarry = st.starCarry || {}; st.starCarry[base] = { on: old.starred === true, at: old.starredAt, m: old.m.star }; }
             st.box.rows = st.box.rows.filter(r => r.id !== base);
             delete st.ledger.entries[base];
         }
         const setLedger = (st, base, r) => { st.ledger.entries[base] = { r, at: nowIso() }; };
         function addRow(st, row) {
             if (st.box.rows.some(r => r.id === row.id)) return false;
-            if (st.starCarry && st.starCarry[row.id]) { row.starred = true; row.starredAt = st.starCarry[row.id]; }
+            const sc = st.starCarry && st.starCarry[row.id];
+            if (sc) { if (sc.on) { row.starred = true; row.starredAt = sc.at || nowIso(); } row.m = { ...(row.m || {}), star: sc.m }; }
             st.box.rows.push(row); return true;
         }
 
@@ -391,6 +445,7 @@ const MailBox = (() => {
                     const reg = registerGroups({ [ws]: row.items }, base, { review: true, noteLead: '【要確認】メールBOXから反映(内容を原本と照合してください)', allowCreateMonth: !!opts.allowCreateMonth });
                     row.state = 'applied'; row.resolvedAt = nowIso();
                     row.result = { workspaces: { [ws]: reg.added.length }, duplicates: reg.duplicates, customers: reg.added, at: nowIso() };
+                    touch(row, 'status');
                     setLedger(st, base, 'applied');
                     res.ok = true; res.count = reg.added.length; res.duplicates = reg.duplicates; out.applied++;
                 } catch (e) {
@@ -437,7 +492,7 @@ const MailBox = (() => {
                 const { data } = deps();
                 const writes = Object.entries(chk.byWs).map(([ws, ids]) => { const prev = data.getCustomersForWorkspace(ws); return { ws, prev, next: prev.filter(c => !(c && ids.has(c.id))) }; });
                 writeLists(writes);
-                row.state = 'cancelled'; row.resolvedAt = nowIso();
+                row.state = 'cancelled'; row.resolvedAt = nowIso(); touch(row, 'status');
                 setLedger(st, baseOf(String(row.id)), 'cancelled');
                 event(st, 'cancel_done', { removed: chk.present });
                 saveAll(st);
@@ -455,11 +510,12 @@ const MailBox = (() => {
         }
         const dismissRow = id => mutateRow(id, (row, st) => {
             if (row.bucket === 'request' || row.state !== 'new') return { ok: false, code: 'not_pending' };
-            row.state = 'dismissed'; row.resolvedAt = nowIso(); setLedger(st, baseOf(String(row.id).replace(/#partial$/, '')), 'dismissed'); return { ok: true };
+            row.state = 'dismissed'; row.resolvedAt = nowIso(); touch(row, 'status'); setLedger(st, baseOf(String(row.id).replace(/#partial$/, '')), 'dismissed'); return { ok: true };
         });
         // ⭐お気に入り(この端末に保存。どのBOXの行でも付け外しできる)
         const setStar = (id, on) => mutateRow(id, row => {
             if (on) { row.starred = true; row.starredAt = row.starredAt || nowIso(); } else { delete row.starred; delete row.starredAt; }
+            touch(row, 'star');   // 外した操作も時刻つきで残す(他端末の古い★で復活させない)
             return { ok: true, starred: !!on };
         });
         function favorites() {
@@ -468,7 +524,7 @@ const MailBox = (() => {
         const reclassify = id => mutateRow(id, (row, st) => {
             if (row.bucket !== 'reference' || row.state !== 'new') return { ok: false, code: 'not_pending' };
             row.bucket = 'unreadable'; row.needsAttention = true; row.applicable = false;
-            row.reason = '通達から戻しました。原本を確認し、必要ならGmailから登録してください。';
+            row.reason = '通達から戻しました。原本を確認し、必要ならGmailから登録してください。'; touch(row, 'status');
             setLedger(st, baseOf(String(row.id)), 'unreadable'); return { ok: true };
         });
 
@@ -558,6 +614,52 @@ const MailBox = (() => {
             if (st) { try { saveAll(st); } catch (e) { /* 記録のみ */ } }
         }
 
+        // ---------- 端末間のBOXの行の同期 ----------
+        // 共有ファイルに入れる行(項目を限定・長さを制限)。他端末から来た行もそのまま回す(3台目にも届くように)。
+        function syncRows() {
+            let list; try { list = loadBox().rows; } catch (e) { return { ok: false, code: safeCode(e) }; }
+            return { ok: true, rows: validateRows(list, nowMs()).rows };
+        }
+        // 他端末の行を合わせる。行は ID で突き合わせ、まとまりごとに新しい時刻の側を採用(同時刻はこの端末を優先)。
+        //  ・この端末に無い行: 追加(他端末由来の印 origin:'remote')。ただし、この端末が処理済み(台帳に自分の記録)なのに行が無い
+        //    = 整理で消した行は復活させない。
+        //  ・訪問先は作らない(訪問先データの同期は別の仕組み)。
+        function mergeRemoteRows(devices, selfId) {
+            let st; try { st = loadAll(); } catch (e) { return { ok: false, code: safeCode(e) }; }
+            const stats = { ok: true, added: 0, updated: 0, skipped: 0 };
+            const now = nowMs();
+            const t = v => Date.parse(v) || 0;
+            const list = (Array.isArray(devices) ? devices : []).filter(d => d && typeof d.deviceId === 'string' && d.deviceId !== selfId);
+            for (const dev of list) {
+                for (const rr of validateRows(dev.rows, now).rows) {
+                    const loc = st.box.rows.find(r => r.id === rr.id);
+                    if (!loc) {
+                        const base = baseOf(String(rr.id).replace(/#partial$/, ''));
+                        const own = has(st.ledger.entries, base) && !st.ledger.entries[base].x;
+                        if (own) { stats.skipped++; continue; }
+                        const row = { ...rr, origin: 'remote' };
+                        if (row.bucket === 'unreadable' && Array.isArray(row.items) && row.items.length) row.suggested = suggest(row.items) || undefined;
+                        st.box.rows.push(row); stats.added++; continue;
+                    }
+                    const lm = loc.m && typeof loc.m === 'object' ? loc.m : {};
+                    const rm = rr.m || {};
+                    let changed = false;
+                    if (t(rm.status) > t(lm.status)) {
+                        for (const f of STATUS_FIELDS) { if (rr[f] === undefined) delete loc[f]; else loc[f] = rr[f]; }
+                        loc.m = { ...(loc.m || {}), status: rm.status }; changed = true;
+                    }
+                    if (t(rm.star) > t(lm.star)) {
+                        if (rr.starred === true) { loc.starred = true; loc.starredAt = rr.starredAt || rm.star; } else { delete loc.starred; delete loc.starredAt; }
+                        loc.m = { ...(loc.m || {}), star: rm.star }; changed = true;
+                    }
+                    if (changed) stats.updated++;
+                }
+            }
+            if (stats.added || stats.updated) event(st, 'rows_merged', { added: stats.added, updated: stats.updated, skipped: stats.skipped });
+            if (stats.added || stats.updated) { try { saveAll(st); } catch (e) { return { ok: false, code: safeCode(e) }; } }
+            return stats;
+        }
+
         // 取り込み済みのキー(台帳・登録済み訪問先・BOXの行)だけを返す。Gmail取り込みが「再ダウンロードしない」判断に使う。読み取りのみ。
         function processedBases(list) {
             if (!Array.isArray(list)) return [];
@@ -565,8 +667,8 @@ const MailBox = (() => {
             return list.filter(b => typeof b === 'string' && b.length < 200 && !retryable(st, b) && (Object.prototype.hasOwnProperty.call(st.ledger.entries, b) || known.has(b) || st.box.rows.some(r => r.id === b || String(r.id).startsWith(b + '/') || r.id === b + '#partial')));
         }
         return { processedBases, ingest, rows, counts, health, log, ensureUnscheduled, monthOptions, suggestNewMonth, nextMonth, applyRows, cancelRegistration, registeredStatus, dismissRow, reclassify, setStar, favorites,
-            ownLedger, mergeRemoteLedger, reconcile, syncInfo, conflicts, ackConflict, recordEvent, validateEntries: o => validateEntries(o, nowMs()) };
+            ownLedger, mergeRemoteLedger, syncRows, mergeRemoteRows, validateRows: o => validateRows(o, nowMs()), reconcile, syncInfo, conflicts, ackConflict, recordEvent, validateEntries: o => validateEntries(o, nowMs()) };
     }
-    return { create, validateEntries, KEY_BOX, KEY_LEDGER, CANCEL_WINDOW_MS, LEDGER_KEEP_MS, MAX_LEDGER_ENTRIES, VALID_RESULTS, RESULT_KIND };
+    return { create, validateEntries, validateRows, MAX_SYNC_ROWS, KEY_BOX, KEY_LEDGER, CANCEL_WINDOW_MS, LEDGER_KEEP_MS, MAX_LEDGER_ENTRIES, VALID_RESULTS, RESULT_KIND };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = MailBox;
