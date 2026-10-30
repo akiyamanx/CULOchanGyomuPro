@@ -36,14 +36,14 @@ const DriveLedgerAdapter = (() => {
             const q = "appProperties has { key='app' and value='" + app + "' } and appProperties has { key='channel' and value='" + channel + "' } and trashed = false";
             const out = []; let token = '';
             for (let page = 0; page < MAX_PAGES; page++) {
-                const params = new URLSearchParams({ spaces: 'appDataFolder', q, pageSize: '100', fields: 'nextPageToken,files(id,size,appProperties)' });
+                const params = new URLSearchParams({ spaces: 'appDataFolder', q, pageSize: '100', fields: 'nextPageToken,files(id,size,modifiedTime,appProperties)' });
                 if (token) params.set('pageToken', token);
                 const data = await call(API + 'files?' + params.toString(), {}, r => r.json());
                 if (!data || !Array.isArray(data.files)) throw err('bad_response');
                 for (const f of data.files) {
                     const p = f && f.appProperties;
                     if (!f || typeof f.id !== 'string' || !ID_RE.test(f.id) || !p || !DEVICE_RE.test(String(p.deviceId || ''))) continue;
-                    out.push({ id: f.id, deviceId: p.deviceId, savedAt: SAVED_RE.test(String(p.savedAt || '')) ? p.savedAt : '', size: Number(f.size) >= 0 ? Number(f.size) : 0 });
+                    out.push({ id: f.id, deviceId: p.deviceId, savedAt: SAVED_RE.test(String(p.savedAt || '')) ? p.savedAt : '', size: Number(f.size) >= 0 ? Number(f.size) : 0, modified: typeof f.modifiedTime === 'string' ? f.modifiedTime.slice(0, 40) : '' });
                 }
                 token = typeof data.nextPageToken === 'string' ? data.nextPageToken : '';
                 if (!token) break;

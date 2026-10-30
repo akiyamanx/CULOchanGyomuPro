@@ -513,5 +513,8 @@ const MailBoxUI = (() => {
         });
         refreshChrome();
     }
-    return { init, open, close };
+    // 自動同期(data-sync-ui)から: 開いている間だけ他端末の台帳を定期的に取り込む
+    const isOpen = () => !!(overlay && !overlay.hidden);
+    const isSyncing = () => syncing;
+    return { init, open, close, isOpen, isSyncing, syncQuiet: () => syncNow(true) };
 })();

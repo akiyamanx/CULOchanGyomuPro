@@ -30,7 +30,7 @@ function device(deviceId, drive, seed = {}, hooks = {}) {
     const put = (k, v) => store.set(k, JSON.stringify(v));
     const all = () => [...store.keys()].filter(k => /^mm_customers_/.test(k)).flatMap(k => get(k).map(c => ({ ...c, _ws: k.slice(13) })));
     return {
-        store, backups, sync: async o => JSON.parse(JSON.stringify(await s.sync(o))), tick: m => { now += m * MIN; }, status: () => s.status(), cp: () => JSON.parse(JSON.stringify(s.checkpoint())), rebase: () => s.rebase(), fp: () => s.fingerprint(),
+        store, backups, sync: async o => JSON.parse(JSON.stringify(await s.sync(o))), tick: m => { now += m * MIN; }, status: () => s.status(), cp: () => JSON.parse(JSON.stringify(s.checkpoint())), sig: async () => JSON.parse(JSON.stringify(await s.remoteSignature())), rebase: () => s.rebase(), fp: () => s.fingerprint(),
         get, put, all, find: id => all().find(c => c.id === id),
         edit: (wsId, id, patch) => put('mm_customers_' + wsId, get('mm_customers_' + wsId).map(c => c.id === id ? { ...c, ...patch } : c)),
         add: (wsId, c) => { if (!get('mm_workspaces').some(w => w.id === wsId)) put('mm_workspaces', [...get('mm_workspaces'), { id: wsId, name: wsId }]); put('mm_customers_' + wsId, [...(get('mm_customers_' + wsId) || []), c]); },
@@ -213,4 +213,60 @@ test('大きさの上限: 送れないときは警告し、手元のデータは
     const big = Array.from({ length: 260 }, (_, i) => cust('g' + i, { note: '架'.repeat(19000) }));
     const A = device(ID_A, drive, seedOf({ '2026-10': big }));
     const r = await A.sync(); assert.equal(r.ok, true); assert.ok(r.warnings.includes('too_large')); assert.equal(drive.files.size, 0); assert.equal(A.all().length, 260);
+});
+
+// ---- 触っていない端末も自動で変わる(定期の確認) ----
+const { createPoller } = require('../map/data-sync-ui.js');
+function pollRig(A, extra = {}) {
+    const env = { visible: true, connected: true, editing: false, syncs: 0, listCalls: 0, fail: false };
+    const core = { async remoteSignature() { env.listCalls++; if (env.fail) return { ok: false, code: 'network' }; return A.sig(); } };
+    const p = createPoller({ core, isVisible: () => env.visible, isConnected: () => env.connected, isEditing: () => env.editing, runSync: async () => { env.syncs++; return A.sync(); }, ...extra });
+    return { env, p };
+}
+test('定期の確認: もう1台の変更を、触っていない端末が一覧だけ見て取り込む。変化が無ければ中身を読まない', async () => {
+    const drive = makeDrive();
+    const A = device(ID_A, drive, seedOf({ '2026-10': [cust('c1')] })), B = device(ID_B, drive, seedOf({}));
+    await settle(A, B);
+    const { env, p } = pollRig(B);
+    assert.equal(await p.check(), 'synced');      // 起動後の1回目は合わせる
+    assert.equal(await p.check(), 'same'); assert.equal(env.syncs, 1);
+    A.tick(1); A.edit('2026-10', 'c1', { note: 'Aで変更' }); await A.sync();
+    assert.equal(await p.check(), 'synced'); assert.equal(B.find('c1').note, 'Aで変更');
+    assert.equal(await p.check(), 'same'); assert.equal(env.syncs, 2);
+});
+test('定期の確認: 入力中は反映を待ち、入力が終わったら反映する(打っている文字は消えない)', async () => {
+    const drive = makeDrive();
+    const A = device(ID_A, drive, seedOf({ '2026-10': [cust('c1')] })), B = device(ID_B, drive, seedOf({}));
+    await settle(A, B);
+    const { env, p } = pollRig(B); await p.check();
+    A.tick(1); A.edit('2026-10', 'c1', { note: 'Aで変更' }); await A.sync();
+    env.editing = true;
+    assert.equal(await p.check(), 'deferred'); assert.equal(B.find('c1').note, undefined); assert.equal(p.isDeferred(), true);
+    assert.equal(await p.check(), 'deferred');
+    // Bで入力していた内容が保存される → 両方残る
+    B.tick(2); B.edit('2026-10', 'c1', { phone: '000-2222-3333' }); env.editing = false;
+    assert.equal(await p.check(), 'synced');
+    assert.equal(B.find('c1').note, 'Aで変更'); assert.equal(B.find('c1').phone, '000-2222-3333');
+    assert.equal(await p.check(), 'same');
+});
+test('定期の確認: 裏に回っている・未接続のときは通信しない。失敗が続くと間隔を延ばし、成功で戻す', async () => {
+    const drive = makeDrive();
+    const B = device(ID_B, drive, seedOf({}));
+    const { env, p } = pollRig(B, { baseMs: 20000, maxMs: 300000 });
+    env.visible = false; assert.equal(await p.check(), 'paused');
+    env.visible = true; env.connected = false; assert.equal(await p.check(), 'paused');
+    assert.equal(env.listCalls, 0);
+    env.connected = true; env.fail = true;
+    for (const want of [40000, 80000, 160000, 300000, 300000]) { assert.equal(await p.check(), 'error'); assert.equal(p.delay(), want); }
+    env.fail = false; await p.check(); assert.equal(p.delay(), 20000);
+});
+test('remoteSignature: 自分のファイルは見ず、他の端末が送ると変わる', async () => {
+    const drive = makeDrive();
+    const A = device(ID_A, drive, seedOf({ '2026-10': [cust('c1')] })), B = device(ID_B, drive, seedOf({}));
+    await settle(A, B);
+    const s1 = await B.sig(); assert.equal(s1.ok, true);
+    B.tick(1); B.edit('2026-10', 'c1', { note: 'B' }); await B.sync();
+    assert.equal((await B.sig()).sig, s1.sig);
+    A.tick(2); A.edit('2026-10', 'c1', { note: 'A' }); await A.sync();
+    assert.notEqual((await B.sig()).sig, s1.sig);
 });

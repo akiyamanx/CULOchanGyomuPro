@@ -391,6 +391,14 @@ const DataSync = (() => {
             let s = ''; for (const k of ks) { const v = S.getItem(k); s += k + '=' + hashOf(String(v)) + ';'; }
             return hashOf(s);
         }
+        // 他の端末のファイルが変わったかだけを安く調べる(一覧1回・中身は読まない)。同期は変わったときだけ。
+        async function remoteSignature() {
+            if (!adapter || !(adapter.available() || {}).connected) return { ok: false, code: 'not_connected' };
+            let me = ''; try { const st = JSON.parse(S.getItem(STATE_KEY) || 'null'); me = st && st.deviceId || ''; } catch (e) { me = ''; }
+            let files; try { files = await withTimeout(adapter.list()); } catch (e) { return { ok: false, code: errCode(e) }; }
+            const sig = files.filter(f => f && f.deviceId !== me).map(f => [f.id, f.savedAt || '', f.modified || '', f.size || 0].join(':')).sort().join('|');
+            return { ok: true, sig };
+        }
         // 通信なしで「いつ変えたか」だけ記録する(数秒ごとに呼ぶ)。オフラインで編集しても、編集した頃の時刻で比べられる。
         function checkpoint() {
             if (running) return { ok: false, code: 'busy' };
@@ -409,7 +417,7 @@ const DataSync = (() => {
         // 「受け取る」で丸ごと入れ替えた後: 次の同期を初回扱いにする(消えた分を削除として伝えない)
         function rebase() { try { const st = loadState(); st.clocks = null; saveState(st); return true; } catch (e) { return false; } }
         function status() { let st = null; try { st = JSON.parse(S.getItem(STATE_KEY) || 'null'); } catch (e) { st = null; } return { ...last, running: !!running, everSynced: !!(st && st.clocks), backupAt: st && st.backupAt || '' }; }
-        return { sync, status, fingerprint, rebase, checkpoint };
+        return { sync, status, fingerprint, rebase, checkpoint, remoteSignature };
     }
     return { create, parseDoc, APP, STATE_KEY, MAX_FILE_BYTES };
 })();
