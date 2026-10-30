@@ -230,7 +230,7 @@ test('旧データ(BOX・台帳キー無し)はそのまま開け、無関係な
     const { mb, store } = setup({ ...legacy(), mm_settings: '{"homeAddress":""}', mm_geocache: '{}' });
     const snap = new Map(store);
     assert.deepEqual(mb.rows(), []);
-    assert.deepEqual(mb.call('counts'), { unreadable: 0, request: 0, reference: 0, total: 0 });
+    assert.deepEqual(mb.call('counts'), { unreadable: 0, request: 0, reference: 0, total: 0, favorite: 0 });
     assert.equal(store.size, snap.size);
     mb.ingest([mail('l1', [att('a1', '配置図.pdf', 'pdf', [])])]);
     for (const [k, v] of snap) assert.equal(store.get(k), v, k);
@@ -449,4 +449,46 @@ test('日程未定にある機械に作業日つきの依頼が来たら、そ�
     assert.equal(customersOf(store, 'unscheduled').length, 0);
     const m = customersOf(store, '2026-11'); assert.equal(m.length, 1);
     assert.equal(m[0].id, u[0].id); assert.equal(m[0].appoDate, '2026-11-05T10:00'); assert.equal(m[0].note, '利用者メモ'); assert.equal(m[0].phone, '03-0000-0000');
+});
+
+// --- ⭐お気に入り ---
+test('お気に入り: どのBOXの行でも付け外しでき、一覧と件数に出る(確認済みにしても残る)', () => {
+    const { mb } = setup(legacy());
+    mb.ingest([mail('s1', [att('a1', '配置図.pdf', 'pdf', [])], { subject: 'お知らせ' }), mail('s2', [att('a1', 'x.xls', 'xls', [], { opened: false })])]);
+    const ref = mb.row('s1/a1'), un = mb.row('s2/a1');
+    assert.equal(mb.call('setStar', ref.id, true).ok, true);
+    assert.equal(mb.call('setStar', un.id, true).ok, true);
+    assert.equal(mb.call('counts').favorite, 2);
+    assert.deepEqual(mb.call('favorites').map(r => r.bucket).sort(), ['reference', 'unreadable']);
+    mb.call('dismissRow', un.id);
+    assert.equal(mb.call('favorites').length, 2);           // 確認済みでもお気に入りからは消えない
+    assert.equal(mb.call('setStar', ref.id, false).ok, true);
+    assert.deepEqual(mb.call('favorites').map(r => r.mailKey), ['s2/a1']);
+    assert.equal(mb.row('s1/a1').starred, undefined);
+    assert.equal(mb.call('setStar', 'nope', true).ok, false);
+});
+test('お気に入り: 90日超・件数超えの整理でも消えない', () => {
+    const { mb } = setup(legacy());
+    mb.ingest([mail('k1', [att('a1', '配置図.pdf', 'pdf', [])]), mail('k2', [att('a1', '配置図.pdf', 'pdf', [])])]);
+    mb.call('setStar', mb.row('k1/a1').id, true);
+    mb.setNow('2027-06-10T12:00:00+09:00');
+    mb.ingest([mail('k3', [att('a1', '配置図.pdf', 'pdf', [])])]);
+    const keys = mb.rows().map(r => r.mailKey);
+    assert.equal(keys.includes('k1/a1'), true);
+    assert.equal(keys.includes('k2/a1'), false);
+});
+test('お気に入り: 読み直し(再取り込み)で行が作り直されても星は残る', () => {
+    const { mb } = setup(legacy());
+    mb.ingest([mail('t1', [{ ...att('a1', 'x.xls', 'xls', [], { opened: false }), parseError: 'read_failed' }])]);
+    mb.call('setStar', mb.row('t1/a1').id, true);
+    mb.ingest([mail('t1', [{ ...att('a1', 'x.xls', 'xls', [], { opened: false }), parseError: 'read_failed' }])]);
+    assert.equal(mb.row('t1/a1').tries, 2);
+    assert.equal(mb.row('t1/a1').starred, true);
+});
+test('差出人は表示名だけ保存し、メールアドレスは残さない', () => {
+    const { mb, store } = setup(legacy());
+    mb.ingest([mail('f1', [att('a1', '配置図.pdf', 'pdf', [])], { from: '"架空 甲野" <koono@example.invalid>' }), mail('f2', [att('a1', '配置図.pdf', 'pdf', [])], { from: 'otsukawa@example.invalid' })]);
+    assert.equal(mb.row('f1/a1').from, '架空 甲野');
+    assert.equal(mb.row('f2/a1').from, undefined);
+    assert.equal(store.get(KEY_BOX).includes('example.invalid'), false);
 });

@@ -144,7 +144,7 @@ const GmailImport = (() => {
             for (const k of Object.keys(local.counts)) A[k] += local.counts[k];
             out.bytes += local.bytes;
             if (!anyNew) { out.knownMails++; return { mail: null }; }
-            return { mail: { messageId: msg.id, threadId: typeof msg.threadId === 'string' ? msg.threadId : '', subject: msg.subject, receivedDate: msg.internalDateMs ? tokyoDate(msg.internalDateMs) : '', senderKind: 'registered', source: 'gmail', attachments: atts } };
+            return { mail: { messageId: msg.id, threadId: typeof msg.threadId === 'string' ? msg.threadId : '', subject: msg.subject, from: msg.from, receivedDate: msg.internalDateMs ? tokyoDate(msg.internalDateMs) : '', senderKind: 'registered', source: 'gmail', attachments: atts } };
         }
 
         async function buildAttachment(a, msgId, out, local, signal) {

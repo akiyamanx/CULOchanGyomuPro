@@ -84,3 +84,8 @@ body.mailbox-open #migrationNotice { display: none; }
 .mailbox-gmail-result[data-kind="error"] { border-color: #c0392b; background: #fdf0ee; }
 .mailbox-gmail-result[data-kind="warn"] { border-color: #b7791f; }
 .mailbox-gmail-result[data-kind="ok"] { border-color: #2f855a; }
+/* ⭐お気に入り: 指で押しやすい大きさ(44px以上) */
+.mailbox-star { min-width: 44px; min-height: 44px; font-size: 24px; line-height: 1; border: 1px solid #d0d5dd; border-radius: 10px; background: #fff; color: #98a2b3; cursor: pointer; padding: 0 6px; }
+.mailbox-star.on { color: #e0a800; border-color: #e0a800; background: #fff8e1; }
+.mailbox-fav-subject { overflow-wrap: anywhere; flex: 1 1 160px; min-width: 0; }
+.mailbox-tabs { overflow-x: auto; }

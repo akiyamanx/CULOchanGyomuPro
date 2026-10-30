@@ -109,7 +109,8 @@ const MailBox = (() => {
             if (st && st.box) { st.box.log.push(entry); if (st.box.log.length > MAX_LOG) st.box.log.splice(0, st.box.log.length - MAX_LOG); }
             if (/error|failed|corrupt/.test(entry.event) && typeof console !== 'undefined') console.error('mailbox:', entry.event, entry.code || '');
         }
-        const keepRow = r => r.bucket === 'unreadable' && r.state === 'new';
+        // ⭐お気に入りの行は、期限・件数の整理で消さない。
+        const keepRow = r => (r.bucket === 'unreadable' && r.state === 'new') || r.starred === true;
         function prune(st) {
             const now = nowMs();
             st.box.rows = st.box.rows.filter(r => keepRow(r) || now - Date.parse(r.createdAt) <= ROW_KEEP_MS);
@@ -212,13 +213,15 @@ const MailBox = (() => {
                 return t.reviewNeeded ? null : t.workspaceId;
             } catch (e) { return null; }
         }
+        // 差出人は表示名だけ残す(メールアドレスは保存しない)。
+        const senderName = v => { const t = String(v || '').replace(/<[^>]*>/g, ' ').replace(/[^\s@]+@[^\s@]+/g, ' ').replace(/["']/g, '').replace(/\s+/g, ' ').trim(); return t ? clip(t, 60) : undefined; };
         function makeRow(id, mail, att, bucket, reason, extra = {}) {
             const items = extra.items || [];
             return {
                 id, mailKey: id, bucket, reason: clip(reason, 200), needsAttention: bucket === 'unreadable' || !!extra.attention,
                 state: extra.state || (bucket === 'request' ? 'registered' : 'new'),
                 receivedDate: /^\d{4}-\d{2}-\d{2}$/.test(String(mail.receivedDate)) ? mail.receivedDate : '',
-                subject: clip(mail.subject, 80), fileName: att ? clip(att.fileName, 80) : '', kind: att ? clip(att.kind, 10) : 'none',
+                subject: clip(mail.subject, 80), from: senderName(mail.from), fileName: att ? clip(att.fileName, 80) : '', kind: att ? clip(att.kind, 10) : 'none',
                 source: mail.source === 'gmail' ? 'gmail' : 'mock', messageId: clip(mail.messageId, 80), threadId: /^[0-9a-f]{6,32}$/.test(String(mail.threadId || '')) ? mail.threadId : undefined,
                 itemCount: extra.itemCount != null ? extra.itemCount : items.length,
                 items: bucket === 'unreadable' && items.length ? items : undefined,
@@ -239,12 +242,15 @@ const MailBox = (() => {
             return !!row && row.bucket === 'unreadable' && row.state === 'new' && (row.tries || 1) < 2 && (RETRY_FAILURES.includes(row.failure) || (!row.failure && row.reason === LEGACY_READ_FAILED));
         }
         function dropForRetry(st, base) {
+            const old = st.box.rows.find(r => r.id === base);
+            if (old && old.starred === true) { st.starCarry = st.starCarry || {}; st.starCarry[base] = old.starredAt || nowIso(); }
             st.box.rows = st.box.rows.filter(r => r.id !== base);
             delete st.ledger.entries[base];
         }
         const setLedger = (st, base, r) => { st.ledger.entries[base] = { r, at: nowIso() }; };
         function addRow(st, row) {
             if (st.box.rows.some(r => r.id === row.id)) return false;
+            if (st.starCarry && st.starCarry[row.id]) { row.starred = true; row.starredAt = st.starCarry[row.id]; }
             st.box.rows.push(row); return true;
         }
 
@@ -349,6 +355,7 @@ const MailBox = (() => {
                 else if (r.bucket === 'reference' && r.state === 'new') c.reference++;
             }
             c.total = c.unreadable + c.request + c.reference;
+            c.favorite = rows().filter(r => r.starred === true).length;
             return c;
         }
         function health() { try { loadAll(); return { ok: true }; } catch (e) { return { ok: false, code: safeCode(e) }; } }
@@ -450,6 +457,14 @@ const MailBox = (() => {
             if (row.bucket === 'request' || row.state !== 'new') return { ok: false, code: 'not_pending' };
             row.state = 'dismissed'; row.resolvedAt = nowIso(); setLedger(st, baseOf(String(row.id).replace(/#partial$/, '')), 'dismissed'); return { ok: true };
         });
+        // ⭐お気に入り(この端末に保存。どのBOXの行でも付け外しできる)
+        const setStar = (id, on) => mutateRow(id, row => {
+            if (on) { row.starred = true; row.starredAt = row.starredAt || nowIso(); } else { delete row.starred; delete row.starredAt; }
+            return { ok: true, starred: !!on };
+        });
+        function favorites() {
+            return rows().filter(r => r.starred === true).sort((a, b) => (Date.parse(b.starredAt) || 0) - (Date.parse(a.starredAt) || 0));
+        }
         const reclassify = id => mutateRow(id, (row, st) => {
             if (row.bucket !== 'reference' || row.state !== 'new') return { ok: false, code: 'not_pending' };
             row.bucket = 'unreadable'; row.needsAttention = true; row.applicable = false;
@@ -549,7 +564,7 @@ const MailBox = (() => {
             let st, known; try { st = loadAll(); known = knownBases(); } catch (e) { return []; }
             return list.filter(b => typeof b === 'string' && b.length < 200 && !retryable(st, b) && (Object.prototype.hasOwnProperty.call(st.ledger.entries, b) || known.has(b) || st.box.rows.some(r => r.id === b || String(r.id).startsWith(b + '/') || r.id === b + '#partial')));
         }
-        return { processedBases, ingest, rows, counts, health, log, ensureUnscheduled, monthOptions, suggestNewMonth, nextMonth, applyRows, cancelRegistration, registeredStatus, dismissRow, reclassify,
+        return { processedBases, ingest, rows, counts, health, log, ensureUnscheduled, monthOptions, suggestNewMonth, nextMonth, applyRows, cancelRegistration, registeredStatus, dismissRow, reclassify, setStar, favorites,
             ownLedger, mergeRemoteLedger, reconcile, syncInfo, conflicts, ackConflict, recordEvent, validateEntries: o => validateEntries(o, nowMs()) };
     }
     return { create, validateEntries, KEY_BOX, KEY_LEDGER, CANCEL_WINDOW_MS, LEDGER_KEEP_MS, MAX_LEDGER_ENTRIES, VALID_RESULTS, RESULT_KIND };

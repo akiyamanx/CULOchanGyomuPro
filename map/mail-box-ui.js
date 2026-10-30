@@ -1,7 +1,7 @@
 // [メールBOX 画面] スマホ・タブレット向け。3つのBOX(依頼書の結果 / 判別不可 / 通達)。
 // 画面の文字は textContent で入れる(メールの件名・会社名をHTMLとして解釈しない)。
 const MailBoxUI = (() => {
-    const TABS = [['request', '依頼書'], ['unreadable', '判別不可'], ['reference', '通達']];
+    const TABS = [['request', '依頼書'], ['unreadable', '判別不可'], ['reference', '通達'], ['favorite', '⭐お気に入り']];
     const LABEL = { company: '会社名', address: '住所', purpose: '作業内容' };
     let box, syncer, gTransport, gImport, gSource = null, gAccount = '', gRunning = false, gAbort = null, gProgressEl = null, overlay, statusEl, bodyEl, tabsEl, opener, tab = 'unreadable', syncing = false;
     const selected = new Set();       // 判別不可でチェックした行
@@ -341,6 +341,24 @@ const MailBoxUI = (() => {
         afterChange();
     }
 
+    // ---- ⭐お気に入り ----
+    function starBtn(row) {
+        const on = row.starred === true;
+        return h('button', { type: 'button', class: 'mailbox-star' + (on ? ' on' : ''), 'aria-pressed': String(on), 'aria-label': on ? 'お気に入りから外す' : 'お気に入りに入れる', title: on ? 'お気に入りから外す' : 'お気に入りに入れる',
+            onclick: () => { const r = box.setStar(row.id, !on); sayAll(r.ok ? (on ? 'お気に入りから外しました。' : 'お気に入りに入れました(⭐お気に入りタブでいつでも開けます)。') : 'お気に入りを保存できませんでした。', r.ok ? 'ok' : 'warn'); render(); } }, on ? '★' : '☆');
+    }
+    const CAT = { request: '依頼書', unreadable: '判別不可', reference: '通達' };
+    const STATE = { dismissed: '確認済み', applied: '反映済み', cancelled: '取り消し済み' };
+    function favoritePane() {
+        const list = box.favorites();
+        if (!list.length) return h('p', { class: 'mailbox-empty' }, 'お気に入りはまだありません。各BOXのメールの ☆ を押すと、ここに集まります。');
+        return h('div', {}, h('p', { class: 'mailbox-hint' }, '大事なメールをいつでも開けます。★を押すとお気に入りから外れます(メール自体は消えません)。'), list.map(row => h('article', { class: 'mailbox-card' },
+            h('div', { class: 'mailbox-card-head' }, starBtn(row), h('strong', { class: 'mailbox-fav-subject' }, row.subject || '(件名なし)'), chip(CAT[row.bucket] || 'その他', row.bucket === 'unreadable' ? 'warn' : ''), STATE[row.state] ? chip(STATE[row.state], '') : null),
+            row.from ? h('p', { class: 'mailbox-meta' }, `差出人: ${row.from}`) : null,
+            meta(row),
+            h('div', { class: 'mailbox-actions' }, gmailLink(row)))));
+    }
+
     // ---- 3つのBOX ----
     function requestPane(rows) {
         const list = rows.filter(r => r.bucket === 'request');
@@ -352,7 +370,7 @@ const MailBoxUI = (() => {
             const info = row.state === 'registered' ? box.registeredStatus(row.id) : null;
             const missingWarn = info && info.total && info.present < info.total;
             const card = h('article', { class: 'mailbox-card' },
-                h('div', { class: 'mailbox-card-head' }, h('strong', {}, row.state === 'cancelled' ? '依頼書(取り消し済み)' : '依頼書が来ました'), chip(st, row.state === 'cancelled' ? '' : 'ok'), row.needsAttention && row.state === 'registered' ? chip('確認推奨', 'warn') : null),
+                h('div', { class: 'mailbox-card-head' }, starBtn(row), h('strong', {}, row.state === 'cancelled' ? '依頼書(取り消し済み)' : '依頼書が来ました'), chip(st, row.state === 'cancelled' ? '' : 'ok'), row.needsAttention && row.state === 'registered' ? chip('確認推奨', 'warn') : null),
                 h('p', {}, places.length ? `登録先: ${places.join('、')}` : '新しく登録した訪問先はありません。', r.duplicates ? `(重複${r.duplicates}件は登録していません)` : ''),
                 row.needsAttention && row.state === 'registered' ? h('p', { class: 'mailbox-note' }, row.reason) : null,
                 missingWarn ? h('p', { class: 'mailbox-note' }, `登録した訪問先のうち${info.total - info.present}件が見つかりません(バックアップの復元などで消えた可能性)。自動では登録し直しません。必要なら手で追加してください。`) : null,
@@ -382,7 +400,7 @@ const MailBoxUI = (() => {
             h('button', { type: 'button', class: 'btn btn-primary mailbox-btn-s', disabled: !selected.size, onclick: () => applyMany(list.filter(r => selected.has(r.id)), false) }, `選んだ${selected.size}件を反映`));
         return h('div', {}, h('p', { class: 'mailbox-hint' }, '自動で判別できなかった依頼です。月を選んで反映するか、日程未定に入れてください。反映した訪問先には「要確認」の印が付きます。'), applicable.length ? bar : null, list.map(row => {
             const card = h('article', { class: 'mailbox-card mailbox-attn' },
-                h('div', { class: 'mailbox-card-head' }, row.applicable ? h('label', { class: 'mailbox-check' }, h('input', { type: 'checkbox', 'aria-label': 'この依頼を選ぶ', checked: selected.has(row.id), onchange: ev => { ev.target.checked ? selected.add(row.id) : selected.delete(row.id); render(); } })) : null, h('strong', {}, '確認が必要'), chip('判別不可', 'warn'), row.elsewhere ? chip('他端末で登録済みの可能性', 'warn') : null),
+                h('div', { class: 'mailbox-card-head' }, starBtn(row), row.applicable ? h('label', { class: 'mailbox-check' }, h('input', { type: 'checkbox', 'aria-label': 'この依頼を選ぶ', checked: selected.has(row.id), onchange: ev => { ev.target.checked ? selected.add(row.id) : selected.delete(row.id); render(); } })) : null, h('strong', {}, '確認が必要'), chip('判別不可', 'warn'), row.elsewhere ? chip('他端末で登録済みの可能性', 'warn') : null),
                 h('p', {}, row.reason), row.elsewhere ? h('p', { class: 'mailbox-note' }, '他の端末でこの依頼書が登録された可能性があります。反映する前に、訪問先の一覧に同じものが無いか確認してください。') : null, meta(row));
             if (row.applicable) {
                 card.append(itemsView(row), h('div', { class: 'mailbox-actions' }, monthSelect(row),
@@ -397,7 +415,7 @@ const MailBoxUI = (() => {
         const list = rows.filter(r => r.bucket === 'reference' && r.state === 'new');
         if (!list.length) return h('p', { class: 'mailbox-empty' }, '通達・資料はありません。');
         return h('div', {}, h('p', { class: 'mailbox-hint' }, '配置図・連絡など、登録しないメールです。'), list.map(row => h('article', { class: 'mailbox-card' },
-            h('div', { class: 'mailbox-card-head' }, h('strong', {}, row.fileName ? '資料' : '連絡メール'), chip('通達', '')),
+            h('div', { class: 'mailbox-card-head' }, starBtn(row), h('strong', {}, row.fileName ? '資料' : '連絡メール'), chip('通達', '')),
             h('p', {}, row.reason), meta(row),
             h('div', { class: 'mailbox-actions' }, gmailLink(row),
                 h('button', { type: 'button', class: 'btn btn-secondary mailbox-btn-s', onclick: () => { box.reclassify(row.id); tab = 'unreadable'; sayAll('判別不可BOXに戻しました。', 'ok'); afterChange(); } }, '依頼書として見直す'),
@@ -418,11 +436,11 @@ const MailBoxUI = (() => {
         const health = box.health();
         const rows = box.rows();
         const c = box.counts();
-        const counts = { request: c.request, unreadable: c.unreadable, reference: c.reference };
+        const counts = { request: c.request, unreadable: c.unreadable, reference: c.reference, favorite: c.favorite || 0 };
         tabsEl.replaceChildren(...TABS.map(([id, label]) => h('button', { type: 'button', role: 'tab', id: 'mailBoxTab-' + id, 'aria-selected': String(tab === id), 'aria-controls': 'mailBoxBody', class: 'mailbox-tab' + (tab === id ? ' active' : ''), onclick: () => { tab = id; render(); } }, label, h('span', { class: 'mailbox-count' + (id === 'unreadable' && counts[id] ? ' warn' : '') }, String(counts[id])))));
         bodyEl.setAttribute('aria-labelledby', 'mailBoxTab-' + tab);
         const pane = !health.ok ? h('p', { class: 'mailbox-error', role: 'alert' }, 'メールBOXのデータを読み込めません(破損の可能性)。データは上書きしていません。アプリを再読込しても直らない場合は、このBOXのデータだけを消す操作が必要です。')
-            : tab === 'request' ? requestPane(rows) : tab === 'unreadable' ? unreadablePane(rows) : referencePane(rows);
+            : tab === 'request' ? requestPane(rows) : tab === 'unreadable' ? unreadablePane(rows) : tab === 'favorite' ? favoritePane() : referencePane(rows);
         const empty = !rows.length && health.ok ? h('p', { class: 'mailbox-hint' }, gmailCardAvailable() ? 'まだ取り込んだメールはありません。上の「Gmailから取り込み」から始めます。' : 'まだ取り込んだメールはありません。') : null;
         bodyEl.replaceChildren(...[gmailCard(), syncCard(), pane, empty, devTools()].filter(Boolean));
         statusEl.textContent = note.text; statusEl.dataset.kind = note.kind;
