@@ -89,3 +89,8 @@ body.mailbox-open #migrationNotice { display: none; }
 .mailbox-star.on { color: #e0a800; border-color: #e0a800; background: #fff8e1; }
 .mailbox-fav-subject { overflow-wrap: anywhere; flex: 1 1 160px; min-width: 0; }
 .mailbox-tabs { overflow-x: auto; }
+
+/* タブレット(幅700px以上)では高さが中身なり+上限になるため、中身が多いと見出し・お知らせ・タブまで縮んで隠れていた。
+   縮むのは一覧(.mailbox-body)だけにする。 */
+.mailbox-sheet > :not(.mailbox-body) { flex-shrink: 0; }
+.mailbox-body { min-height: 0; }
