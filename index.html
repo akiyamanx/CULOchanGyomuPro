@@ -456,8 +456,8 @@
             document.getElementById('storageStartup').hidden = true;
             var fi = document.getElementById('fileInput');
             RequestImport.init();
-            // お試し版だけ: すでにできた本体番号(MF)の重複を一度だけまとめる(利用者が入れた情報がある方は消さない。消した分は控えに残す)。
-            if (AppProfile.staging) {
+            // 起動時に一度だけ: すでにできた本体番号(MF)の重複を一度だけまとめる(利用者が入れた情報がある方は消さない。消した分は控えに残す)。
+            {
                 try {
                     var dd = MfDedupe.runOnce(DataStorage, AppStorage);
                     if (dd.ran && (dd.removed || dd.kept)) {
@@ -476,7 +476,7 @@
             if (bi) bi.addEventListener('change', function(e) { DataStorage.importBackup(e); });
             var mapSettings = DataStorage.getSettings();
             // お試し版で地図キーが未設定なら、本番のキーを読むだけ借りる(連携用IDと同じ考え方。書き込みはしない)。
-            var mapKey = mapSettings.apiKey || GeocodeGuard.borrowedMapsKey(AppProfile, { getItem: AppStorage.readProduction });
+            var mapKey = mapSettings.apiKey;
             if (mapKey) {
                 document.getElementById('mapSetupMessage').textContent = '地図を読み込み中です。訪問先の一覧はそのまま使えます。';
                 var s = document.createElement('script');

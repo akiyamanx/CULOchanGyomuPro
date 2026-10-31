@@ -9,13 +9,10 @@
 //   - ASSETSは実在するファイルだけ(tests/sw-assets.test.cjs が検査する)
 // ==========================================
 
-// 本番とお試し版(/CULOchanGyomuPro-staging/)は同じオリジンでCache Storageを共有するため、名前で分ける
-const IS_STAGING = /^\/CULOchanGyomuPro-staging\//.test((self.location && self.location.pathname) || '');
-const CACHE_PREFIX = IS_STAGING ? 'gyomupro-stg-' : 'gyomupro-';
-const CACHE_NAME = CACHE_PREFIX + 'v60';
-// 自分(本番/お試し版)のキャッシュだけを古い版の掃除対象にする。相手側のキャッシュは消さない
+// v6.1 2026-10-31 - 本番リリース(release-20261031)。旧本番 gyomupro-v44 は有効化時に削除される
+const CACHE_NAME = 'gyomupro-v61';
+// 本番の古いキャッシュだけ消す。同じオリジンのお試し版のキャッシュ(gyomupro-stg-)は消さない
 function ownCache(name) {
-    if (IS_STAGING) return name.startsWith('gyomupro-stg-');
     return name.startsWith('gyomupro-') && !name.startsWith('gyomupro-stg-');
 }
 const ASSETS = [

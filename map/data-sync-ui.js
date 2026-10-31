@@ -177,8 +177,7 @@ const DataSyncUI = (() => {
         const x = document.createElement('button'); x.type = 'button'; x.setAttribute('aria-label', '同期の帯をしまう'); x.textContent = '×'; x.style.cssText = 'flex:0 0 auto;width:auto;min-width:44px;min-height:44px;border:0;background:transparent;font-size:18px;';
         x.onclick = () => { hiddenByUser = true; bar.hidden = true; };
         bar.append(textEl, btn, x);
-        const staging = document.getElementById('stagingBanner');
-        if (staging && staging.nextSibling) staging.parentNode.insertBefore(bar, staging.nextSibling); else document.body.insertBefore(bar, document.body.firstChild);
+        document.body.insertBefore(bar, document.body.firstChild);
         const prev = document.getElementById('fullBackupPrevious');
         if (prev && typeof BackupStore !== 'undefined' && BackupStore.beforeSync) {
             const b2 = document.createElement('button'); b2.type = 'button'; b2.className = 'btn btn-secondary'; b2.id = 'beforeSyncDownload'; b2.textContent = '初回の自動同期の前の記録を書き出す'; b2.onclick = downloadBeforeSync;

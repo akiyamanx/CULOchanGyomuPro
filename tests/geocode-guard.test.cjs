@@ -32,22 +32,17 @@ test('普通に返ってきた結果はそのまま、失敗(reject)は null', a
     assert.equal(await g.run(() => Promise.reject('ZERO_RESULTS')), null);
     assert.equal(g.failed(), '');
 });
-test('お試し版だけ、本番の地図キーを読むだけ借りる(書かない・本番では借りない)', () => {
-    const store = { mm_settings: JSON.stringify({ apiKey: 'AIzaFAKEKEY_example_not_real_0000', homeAddress: '架空の住所' }) };
-    const ls = { getItem: k => (k in store ? store[k] : null), setItem() { throw new Error('書いてはいけない'); } };
-    assert.equal(Guard.borrowedMapsKey({ staging: true }, ls), 'AIzaFAKEKEY_example_not_real_0000');
-    assert.equal(Guard.borrowedMapsKey({ staging: false }, ls), '');
-    assert.equal(Guard.borrowedMapsKey({ staging: true }, { getItem: () => '{"apiKey":"bad key<script>"}' }), '');
-    assert.equal(Guard.borrowedMapsKey({ staging: true }, { getItem: () => 'not json' }), '');
+test('リリース版: 地図キーを他の保存領域から借りない', () => {
+    const ls = { getItem: () => JSON.stringify({ apiKey: 'AIzaFAKEKEY_example_not_real_0000' }) };
+    assert.equal(Guard.borrowedMapsKey({ staging: true }, ls), '');
+    assert.equal(Guard.borrowedMapsKey(), '');
 });
-test('AppStorage.readProduction: お試し版は mm_settings だけ本番を読める、本番では何も返さない', () => {
+test('AppStorage.readProduction: リリース版は何も返さない', () => {
     const vm = require('node:vm'), fs = require('node:fs');
     const src = fs.readFileSync(require.resolve('../shared/app-storage.js'), 'utf8');
-    const mk = prefix => { const data = new Map([['mm_settings', '{"apiKey":"x"}'], ['mm_customers', '[]']]);
-        const ctx = vm.createContext({ AppProfile: { storagePrefix: prefix, readThroughKeys: [] }, window: { localStorage: { getItem: k => data.has(k) ? data.get(k) : null, setItem: (k, v) => data.set(k, v), removeItem() {} } } });
-        vm.runInContext(src + ';this.S=AppStorage;', ctx); return ctx.S; };
-    const stg = mk('stg:');
-    assert.equal(stg.readProduction('mm_settings'), '{"apiKey":"x"}');
-    assert.equal(stg.readProduction('mm_customers'), null);
-    assert.equal(mk('').readProduction('mm_settings'), null);
+    const data = new Map([['mm_settings', '{"apiKey":"x"}']]);
+    const ctx = vm.createContext({ window: { localStorage: { getItem: k => data.has(k) ? data.get(k) : null, setItem: (k, v) => data.set(k, v), removeItem() {} } } });
+    vm.runInContext(src + ';this.S=AppStorage;', ctx);
+    assert.equal(ctx.S.readProduction('mm_settings'), null);
+    assert.equal(ctx.S.getItem('mm_settings'), '{"apiKey":"x"}');
 });

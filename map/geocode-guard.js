@@ -28,14 +28,7 @@ const GeocodeGuard = (() => {
         }
         return { run, markFailed, failed: () => reason };
     }
-    function borrowedMapsKey(profile, ls) {
-        if (!profile || !profile.staging || !ls) return '';
-        try {
-            const raw = ls.getItem('mm_settings');
-            const key = raw ? String((JSON.parse(raw) || {}).apiKey || '') : '';
-            return KEY_RE.test(key) ? key : '';
-        } catch (e) { return ''; }
-    }
+    function borrowedMapsKey() { return ''; } // 本番では他の保存領域のキーを借りない
     return Object.freeze({ create, borrowedMapsKey, NOTICE });
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = GeocodeGuard;
