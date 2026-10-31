@@ -1,7 +1,7 @@
 // 精算書と領収書のスナップショットを1トランザクションで保存する。
 // 一覧には画像を読み込まない。旧localStorage下書きは元のまま読める。
 const ExpenseDraftStore = (() => {
-    const DB_NAME = 'CULOchanExpenseDrafts';
+    const DB_NAME = (typeof AppProfile !== 'undefined' ? AppProfile.dbName('CULOchanExpenseDrafts') : 'CULOchanExpenseDrafts');
     const LEGACY_KEY = 'travelExpenseDrafts';
     let opening;
     function open() {

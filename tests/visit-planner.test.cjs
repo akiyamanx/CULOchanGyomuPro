@@ -34,7 +34,7 @@ test('訪問先の保存に失敗した時は成功結果を返さず、以前�
 test('ピンを押すと安全な会社名・別々の電話リンク・日時備考の編集が表示される',()=>{
     let content='',click;
     const nodes=new Map();
-    const context=vm.createContext({console,VisitPlanner:Planner,ExpenseImport:require('../expense/expense-import'),
+    const context=vm.createContext({console,GeocodeGuard:require('../map/geocode-guard'),VisitPlanner:Planner,ExpenseImport:require('../expense/expense-import'),
         document:{getElementById:id=>{if(!nodes.has(id))nodes.set(id,{textContent:'',innerHTML:'',hidden:false});return nodes.get(id);}},
         DataStorage:{getSettings:()=>({}),getCustomers:()=>[],getRoutes:()=>[]},RouteManager:{updateRoutePanel:()=>{}},
         google:{maps:{Map:class{},Geocoder:class{},InfoWindow:class{setContent(html){content=html;}open(){}},

@@ -1,5 +1,5 @@
 const EtcStore = (() => {
-    const DB_NAME='CULOchanEtcEvidence';let connection;
+    const DB_NAME=(typeof AppProfile!=='undefined'?AppProfile.dbName('CULOchanEtcEvidence'):'CULOchanEtcEvidence');let connection;
     function open() {
         if(connection)return Promise.resolve(connection);
         return new Promise((resolve,reject)=>{

@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="shared/app-storage.js?v=20261028-1"></script>
+    <script src="shared/app-profile.js?v=20261029-1"></script>
+    <script src="shared/app-storage.js?v=20261030-4"></script>
     <title>CULOchan業務Pro</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#16324a">
@@ -28,7 +29,8 @@
     <link rel="stylesheet" href="styles/map-workspace.css?v=20261019-13">
     <link rel="stylesheet" href="styles/settings.css?v=20261019-15">
     <link rel="stylesheet" href="styles/request-import.css">
-    <link rel="stylesheet" href="styles/etc-workflow.css?v=20261019-8">
+    <link rel="stylesheet" href="styles/mail-box.css?v=20261031-1">
+    <link rel="stylesheet" href="styles/etc-workflow.css?v=20261031-2">
 </head>
 <body inert>
     <div id="migrationNotice" role="note" hidden style="background:#fff3cd;color:#5d4600;padding:10px 16px;font-size:14px;position:relative;z-index:10000">新しい版になりました。念のため、「設定 → バックアップ・データ管理」で写真入りバックアップを保存しておくと安心です。 <button type="button" id="migrationNoticeClose" style="margin-left:8px;padding:4px 10px;">閉じる</button></div>
@@ -37,8 +39,10 @@
     <header class="app-header">
         <div class="brand-mark" aria-hidden="true">C</div>
         <div><h1 class="app-title">CULOchan<span class="accent">業務</span>Pro</h1><p class="app-tagline">訪問から精算まで、ひとつの流れに。</p></div>
+        <button class="settings-btn mailbox-btn" id="mailBoxBtn" type="button" aria-label="メールBOXを開く">📬 <span>メールBOX</span><b class="mailbox-badge" id="mailBoxBadge" hidden></b></button>
         <button class="settings-btn" onclick="AppCore.openSettings()" aria-label="アプリの設定">⚙ <span>設定</span></button>
     </header>
+    <div class="mailbox-banner" id="mailBoxBanner" role="status" hidden><span class="mailbox-banner-text"></span><button type="button" class="btn btn-secondary" id="mailBoxBannerOpen">メールBOXを開く</button></div>
     <nav class="tab-nav" aria-label="仕事の流れ">
         <p class="nav-caption">WORK FLOW <span>仕事の流れ</span></p>
         <button class="tab-btn active" data-tab="map" aria-current="page" aria-controls="tab-map" onclick="AppCore.switchTab('map')"><span class="tab-icon">01</span><span class="nav-copy"><span class="tab-label">訪問・ルート</span><span class="nav-hint">予定と回る順番を整える</span></span></button>
@@ -343,6 +347,14 @@
             <div class="modal-footer"><button class="btn btn-secondary" id="settingsReturn" onclick="AppCore.closeSettings()">設定を閉じる</button></div>
         </div>
     </div>
+    <div class="mailbox-overlay" id="mailBoxOverlay" hidden>
+        <div class="mailbox-sheet" role="dialog" aria-modal="true" aria-labelledby="mailBoxTitle">
+            <div class="mailbox-head"><h2 id="mailBoxTitle" tabindex="-1">📬 メールBOX</h2><button type="button" class="btn btn-secondary" id="mailBoxClose">閉じる</button></div>
+            <p class="mailbox-status" id="mailBoxStatus" role="status" aria-live="polite"></p>
+            <div class="mailbox-tabs" id="mailBoxTabs" role="tablist" aria-label="メールBOXの分類"></div>
+            <div class="mailbox-body" id="mailBoxBody" role="tabpanel"></div>
+        </div>
+    </div>
     <div class="loading-overlay" id="loading" style="display:none;"><div class="loading-spinner"></div><div class="loading-text" id="loadingText">処理中...</div></div>
     <dialog id="transferBusy" aria-labelledby="transferBusyText"><p id="transferBusyText" role="status"></p><p>画面を閉じずにお待ちください。</p></dialog>
     <script src="shared/settings-panel.js?v=20261019-15"></script>
@@ -355,7 +367,7 @@
     <script src="shared/pdf-renderer.js"></script>
     <script src="expense/expense-draft-store.js?v=20261019-15"></script>
     <script src="expense/expense-draft-receipts.js?v=20261019-2"></script>
-    <script src="expense/expense-manager.js?v=20261019-15"></script>
+    <script src="expense/expense-manager.js?v=20261031-1"></script>
     <script src="expense/expense-pdf.js?v=20261019-7"></script>
     <script src="expense/expense-etc.js"></script>
     <!-- v1.3追加 - Phase I: 駐車場明細IndexedDB管理 -->
@@ -366,9 +378,23 @@
     <script src="map/map-data-storage.js?v=20261019-10"></script>
     <script src="map/v1-converter.js"></script>
     <script src="map/request-parser.js?v=20261019-9"></script>
-    <script src="map/request-reader.js?v=20261019-9"></script>
-    <script src="map/request-import.js"></script>
-    <script src="map/map-core.js?v=20261019-10"></script>
+    <script src="map/request-reader.js?v=20261030-3"></script>
+    <script src="map/request-month.js?v=20261028-1"></script>
+    <script src="map/request-classifier.js?v=20261030-3"></script>
+    <script src="map/mf-dedupe.js?v=20261030-5"></script>
+    <script src="map/mail-box.js?v=20261030-7"></script>
+    <script src="map/mail-ledger-sync.js?v=20261030-7"></script>
+    <script src="map/mail-ledger-drive.js?v=20261030-8"></script>
+    <script src="map/data-sync.js?v=20261030-8"></script>
+    <script src="map/gmail-transport.js?v=20261030-3"></script>
+    <script src="map/gmail-source.js?v=20261030-3"></script>
+    <script src="map/gmail-import.js?v=20261030-6"></script>
+    <script src="map/mail-box-demo.js?v=20261029-2"></script>
+    <script src="map/mail-gmail-links.js?v=20261030-3"></script>
+    <script src="map/mail-box-ui.js?v=20261030-8"></script>
+    <script src="map/request-import.js?v=20261030-5"></script>
+    <script src="map/geocode-guard.js?v=20261030-4"></script>
+    <script src="map/map-core.js?v=20261030-4"></script>
     <script src="map/google-calendar-data.js?v=20261019-13"></script>
     <script src="map/google-visit-calendar.js?v=20261019-14"></script>
     <script src="map/visit-planner.js?v=20261019-13"></script>
@@ -383,28 +409,29 @@
     <script src="map/gcal-panel.js?v=20261019-13"></script>
     <script src="expense/parking-matcher.js?v=20261014-4"></script>
     <script src="expense/etc-document.js?v=20261019-7"></script>
-    <script src="expense/etc-journey.js?v=20261019-7"></script>
+    <script src="expense/etc-journey.js?v=20261031-2"></script>
     <script src="expense/etc-store.js?v=20261019-7"></script>
     <script src="expense/etc-reader.js?v=20261019-7"></script>
-    <script src="expense/etc-view.js?v=20261019-7"></script>
-    <script src="expense/etc-workflow.js?v=20261019-15"></script>
+    <script src="expense/etc-view.js?v=20261031-2"></script>
+    <script src="expense/etc-workflow.js?v=20261031-2"></script>
     <script src="shared/workflow-ui.js?v=20261019-14"></script>
     <script src="shared/backup-format.js?v=20261019-15"></script>
-    <script src="shared/backup-store.js?v=20261019-15"></script>
+    <script src="shared/backup-store.js?v=20261030-6"></script>
     <script src="shared/drive-graph.js?v=20261019-15"></script>
-    <script src="shared/drive-transfer.js?v=20261019-15"></script>
-    <script src="shared/transfer-ui.js?v=20261019-15"></script>
+    <script src="shared/drive-transfer.js?v=20261029-1"></script>
+    <script src="shared/transfer-ui.js?v=20261030-6"></script>
+    <script src="map/data-sync-ui.js?v=20261030-8"></script>
     <script>
         (function() {
             var KEY = 'culo_migration_notice_20261028';
             document.addEventListener('DOMContentLoaded', function() {
                 var box = document.getElementById('migrationNotice');
                 var close = document.getElementById('migrationNoticeClose');
-                try { if (!box || window.localStorage.getItem(KEY)) return; } catch (e) { return; }
+                try { if (!box || AppStorage.getItem(KEY)) return; } catch (e) { return; }
                 box.hidden = false;
                 close.addEventListener('click', function() {
                     box.hidden = true;
-                    try { window.localStorage.setItem(KEY, '1'); } catch (e) {}
+                    try { AppStorage.setItem(KEY, '1'); } catch (e) {}
                 });
             });
         })();
@@ -429,16 +456,33 @@
             document.getElementById('storageStartup').hidden = true;
             var fi = document.getElementById('fileInput');
             RequestImport.init();
+            // 起動時に一度だけ: すでにできた本体番号(MF)の重複を一度だけまとめる(利用者が入れた情報がある方は消さない。消した分は控えに残す)。
+            {
+                try {
+                    var dd = MfDedupe.runOnce(DataStorage, AppStorage);
+                    if (dd.ran && (dd.removed || dd.kept)) {
+                        var note = document.createElement('div');
+                        note.setAttribute('role', 'status');
+                        note.style.cssText = 'background:#ecfdf5;color:#065f46;font:14px/1.5 sans-serif;padding:8px 12px;border-bottom:1px solid #a7f3d0;';
+                        note.textContent = '同じ本体番号(MF)の重複を' + dd.removed + '件まとめました。' + (dd.kept ? 'ルートや日時が入っている' + dd.kept + '件は消さずに残しています(一覧で確認してください)。' : '');
+                        note.addEventListener('click', function() { note.remove(); });
+                        document.body.insertBefore(note, document.body.children[1] || null);
+                    }
+                } catch (error) { console.error('mf-dedupe: failed'); }
+            }
+            try { MailBoxUI.init(); } catch (error) { console.error('mailbox: init_failed'); }
             if (fi) fi.addEventListener('change', RequestImport.handleFile);
             var bi = document.getElementById('backupInput');
             if (bi) bi.addEventListener('change', function(e) { DataStorage.importBackup(e); });
             var mapSettings = DataStorage.getSettings();
-            if (mapSettings.apiKey) {
+            // お試し版で地図キーが未設定なら、本番のキーを読むだけ借りる(連携用IDと同じ考え方。書き込みはしない)。
+            var mapKey = mapSettings.apiKey;
+            if (mapKey) {
                 document.getElementById('mapSetupMessage').textContent = '地図を読み込み中です。訪問先の一覧はそのまま使えます。';
                 var s = document.createElement('script');
-                s.src = 'https://maps.googleapis.com/maps/api/js?key=' + mapSettings.apiKey + '&libraries=places,geometry&callback=initMap';
+                s.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(mapKey) + '&libraries=places,geometry&callback=initMap';
                 s.async = true; s.defer = true;
-                s.onerror = function() { document.getElementById('mapSetupMessage').textContent = '地図を読み込めませんでした。通信状態と地図の設定を確認してください。'; };
+                s.onerror = function() { try { MapCore.mapFailed('load'); } catch (e) {} document.getElementById('mapSetupMessage').textContent = '地図を読み込めませんでした。通信状態と地図の設定を確認してください。'; };
                 document.body.appendChild(s);
             }
         });

@@ -35,3 +35,6 @@
   #etcWorkflow .etc-record, #etcWorkflow .etc-plan { padding:12px; }
   #etcWorkflow .etc-submit .btn { width:100%; }
 }
+#etcWorkflow .etc-provisional { color:#8a5a00; font-weight:600; font-size:.78rem; }
+#etcWorkflow .etc-provisional:empty { display:none; }
+#etcWorkflow .etc-suggested { background:#fff6e0; border:1px dashed #d9a400; color:#6b4a00; border-radius:8px; padding:6px 10px; font-size:.85rem; margin:8px 0; }

@@ -1,7 +1,7 @@
 // A write-ahead recovery copy spans the existing stores; no success before all writes finish.
 const BackupStore = (() => {
-    const DB_NAME = 'CULOchanTransfers';
-    const channel = 'gyomupro-main';
+    const DB_NAME = (typeof AppProfile !== 'undefined' ? AppProfile.dbName('CULOchanTransfers') : 'CULOchanTransfers');
+    const channel = (typeof AppProfile !== 'undefined' ? AppProfile.channel : 'gyomupro-main');
     const sessionName = 'culo-transfer-session-' + channel;
     let opening, releaseSession, sessionTask, running = false, initialized = false;
     function open() {
@@ -105,5 +105,7 @@ const BackupStore = (() => {
             throw new Error('復元できなかったため、元の保存データに戻しました。' + error.message);
         }
     }
-    return {channel,start,exclusive,capture,restore,recover,previous:()=>recovery(store=>store.get('previous'))};
+    // 端末間の自動同期(map/data-sync.js)の初回の前に取る控え。取り込み前の控え('previous')とは別に1つだけ持つ。
+    async function keepBeforeSync(bundle) {await BackupFormat.verify(bundle);await recovery(store=>store.put(bundle,'before-sync'));}
+    return {channel,start,exclusive,capture,restore,recover,previous:()=>recovery(store=>store.get('previous')),keepBeforeSync,beforeSync:()=>recovery(store=>store.get('before-sync'))};
 })();

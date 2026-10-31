@@ -9,12 +9,34 @@ const RequestReader = (() => {
         const date = `${value.getFullYear()}-${pad(value.getMonth()+1)}-${pad(value.getDate())}`;
         return value.getHours() || value.getMinutes() ? `${date} ${pad(value.getHours())}:${pad(value.getMinutes())}` : date;
     }
+    // Excelのシリアル値(1900年系)を YYYY-MM-DD にする。2000〜2099年だけを日付とみなす。
+    function serialDate(serial) {
+        if (typeof serial !== 'number' || !Number.isFinite(serial) || serial < 36526 || serial >= 73051) return '';
+        const date = new Date(Math.floor(serial - 25569) * 86400000);
+        return date.toISOString().slice(0,10);
+    }
+    // 日付セルの表示文字(w)を、年つきの YYYY-MM-DD に揃える。
+    // 実サンプルの「作業希望日」は書式情報の無い数値で、表示だけが 10/15/26 のような月/日/2桁年になり、
+    // 日付として読めなかった。数値でも、表示が日付の形(区切りの数字3つ)でシリアル値が日付の範囲なら、値から直す。
+    function normalizeDateCells(sheet) {
+        for (const [ref,cell] of Object.entries(sheet)) {
+            if (ref.startsWith('!') || !cell) continue;
+            if (cell.t === 'd' && cell.v instanceof Date) {
+                // A time-only cell has no calendar date. Keep its displayed time.
+                const format = String(cell.z || '').replace(/"[^"]*"|\\./g,'');
+                if (!(/[hs]/i.test(format) && !/[dy]/i.test(format))) cell.w = excelDate(cell.v);
+            } else if (cell.t === 'n' && /^\d{1,4}[\/.-]\d{1,2}[\/.-]\d{1,4}$/.test(String(cell.w ?? ''))) {
+                const date = serialDate(cell.v);
+                if (date) cell.w = date;
+            }
+        }
+    }
     function loadOcr() {
         if (!ocrScript) ocrScript = new Promise((resolve, reject) => {
             const script = document.createElement('script');
             script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tesseract.min.js';
             script.onload = resolve;
-            script.onerror = () => { script.remove(); ocrScript = null; reject(new Error('文字読取ツールを読み込めません。通信状態を確認してください。')); };
+            script.onerror = () => { script.remove(); ocrScript = null; reject(Object.assign(new Error('文字読取ツールを読み込めません。通信状態を確認してください。'),{code:'ocr_tool_failed'})); };
             document.head.appendChild(script);
         });
         return ocrScript;
@@ -22,7 +44,8 @@ const RequestReader = (() => {
     async function pdf(file, progress, signal) {
         // PDF.js documented display API: https://mozilla.github.io/pdf.js/examples/
         pdfLibrary ||= import(PDF_BASE + 'build/pdf.min.mjs').catch(error => { pdfLibrary = null; throw error; });
-        const lib = await pdfLibrary;
+        let lib;
+        try { lib = await pdfLibrary; } catch (error) { throw Object.assign(new Error('PDF読取ツールを読み込めません。通信状態を確認してください。'),{code:'pdf_tool_failed'}); }
         lib.GlobalWorkerOptions.workerSrc = PDF_BASE + 'build/pdf.worker.min.mjs';
         const task = lib.getDocument({data:new Uint8Array(await file.arrayBuffer()),isEvalSupported:false});
         const abort = () => { task.destroy().catch(()=>{}); if (worker) worker.terminate().catch(()=>{}); };
@@ -32,7 +55,7 @@ const RequestReader = (() => {
         try {
             if (signal.aborted) throw new Error('読取を中止しました。');
             doc = await task.promise;
-            if (doc.numPages > 10) throw new Error('PDFは1ファイル10ページまでです。分割して取り込んでください。');
+            if (doc.numPages > 10) throw Object.assign(new Error('PDFは1ファイル10ページまでです。分割して取り込んでください。'),{code:'too_many_pages'});
             for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber++) {
                 if (signal.aborted) throw new Error('読取を中止しました。');
                 progress(`PDF ${pageNumber}/${doc.numPages}ページを読取中…`);
@@ -71,6 +94,7 @@ const RequestReader = (() => {
                 canvas.width = canvas.height = 0;
                 page.cleanup();
             }
+            if (!result.length) throw Object.assign(new Error('業務依頼書として読めるページがありませんでした。精算書・納品書・調査票などの参考資料は取り込みません。'),{code:'no_items'});
             return result;
         } finally {
             signal.removeEventListener('abort',abort);
@@ -94,21 +118,43 @@ const RequestReader = (() => {
             for (const name of book.SheetNames) {
                 if (book.Workbook?.Sheets?.find(sheet=>sheet.name===name)?.Hidden) continue;
                 const sheet = book.Sheets[name];
-                // Date cells keep their year, rather than a display format that hides it.
-                for (const [ref,cell] of Object.entries(sheet)) {
-                    if (!ref.startsWith('!') && cell.t === 'd' && cell.v instanceof Date) {
-                        // A time-only cell has no calendar date. Keep its displayed time.
-                        const format = String(cell.z || '').replace(/"[^"]*"|\\./g,'');
-                        if (!(/[hs]/i.test(format) && !/[dy]/i.test(format))) cell.w = excelDate(cell.v);
-                    }
-                }
+                normalizeDateCells(sheet);
                 const rows = XLSX.utils.sheet_to_json(sheet,{header:1,raw:false,defval:''});
                 result.push(...RequestParser.parseRows(rows,`${file.name} · ${name}`));
             }
         } else throw new Error('CSV・Excel（xlsx/xls）・PDFを選択してください。');
-        if (!result.length) throw new Error('会社名と住所を含む一覧表、または対応する業務依頼書が見つかりません。');
+        if (!result.length) throw Object.assign(new Error('会社名と住所を含む一覧表、または対応する業務依頼書が見つかりません。'),{code:'no_items'});
         return result;
     }
-    return {read,excelDate};
+    // --- メール取り込み用(メールBOX) ---
+    // read は「0件」を例外にするが、メールBOXは「開けた・0件」と「開けなかった」を区別して仕分けに渡す。
+    // 戻り値に個人情報は含めない(errorCode は固定の英小文字コードだけ)。
+    function kindOf(fileName) {
+        const ext = String(fileName || '').split('.').pop().toLowerCase();
+        if (ext === 'pdf') return 'pdf';
+        if (ext === 'xls' || ext === 'xlsx' || ext === 'csv') return ext;
+        if (['jpg','jpeg','png','heic','gif','webp'].includes(ext)) return 'image';
+        return 'other';
+    }
+    const MAIL_CODES = ['pdf_tool_failed','ocr_tool_failed','too_many_pages'];
+    async function readForMail(file, progress, signal) {
+        // メール取り込みは進み具合を表示しない呼び方(progress=null)をする。PDFの読取は progress() を呼ぶため、必ず関数にする。
+        if (typeof progress !== 'function') progress = () => {};
+        if (!signal || typeof signal.addEventListener !== 'function') signal = new AbortController().signal;
+        const kind = kindOf(file && file.name);
+        const out = {kind, opened:false, items:[], errorCode:''};
+        if (kind === 'other') { out.errorCode = 'unsupported_kind'; return out; }
+        if (kind === 'image') { out.opened = true; return out; } // 画像は読まず、判別不可で本人に確認してもらう。
+        if (file.size > 20*1024*1024) { out.errorCode = 'too_large'; return out; }
+        try {
+            out.items = await read(file,progress,signal);
+            out.opened = true;
+        } catch (error) {
+            if (error && error.code === 'no_items') out.opened = true;
+            else out.errorCode = signal.aborted ? 'aborted' : error && MAIL_CODES.includes(error.code) ? error.code : 'read_failed';
+        }
+        return out;
+    }
+    return {read,readForMail,kindOf,excelDate,normalizeDateCells};
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = RequestReader;

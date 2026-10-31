@@ -117,3 +117,26 @@ test('登録先の事前読取は月を変更せず、保存失敗と不正デ�
     storage.set('mm_customers_2026-09','broken');
     assert.throws(()=>run("DataStorage.getCustomersForWorkspace('2026-09')"));
 });
+test('登録月の判定用に、作業予定日の原文と一覧表のタイトルを項目へ残す(保存はしない)', () => {
+    const [table] = Parser.parseRows([['11月','DP-400定期メンテナンスリスト'],['設置先会社名','住所','工事予定日'],['架空会社A','千葉県架空市1','11月5日']]);
+    assert.equal(table.workDateText,'11月5日');
+    assert.match(table.titleText,/11月/);
+    const [form] = Parser.parsePdfText('設置業務依頼書\n設置先名 架空会社C\n設置先住所 東京都架空区9-9\n設置日 2026/11/05','設置.pdf · 1ページ');
+    assert.equal(form.workDateText,'2026/11/05');
+    const source = fs.readFileSync(require.resolve('../map/request-import.js'),'utf8');
+    assert.match(source,/workDateText,titleText/,'登録するデータにworkDateText/titleTextを含めない');
+});
+
+// 実サンプルの月次一覧は、表題行に「作成日(日付だけのセル)」が並ぶ。作成日の月を表題の月と取り違えない。
+test('月次一覧の表題に作成日だけのセルがあっても、表題の月だけを titleText にする', () => {
+    const Month = require('../map/request-month');
+    const items = Parser.parseRows([['2026年11月 フィルター交換リスト','','2026-10-26'],[],
+        ['営業所','型式','設置先会社名','住所','交換フィルター'],
+        ['試験営業所','タ','架空会社A','千葉県架空市1','試験フィルター']]);
+    assert.equal(items.length,1);
+    assert.doesNotMatch(items[0].titleText,/2026-10-26/);
+    assert.match(items[0].titleText,/2026年11月/);
+    const r = Month.resolveRegistrationMonth({workDateText:items[0].workDateText,titleText:items[0].titleText,today:'2026-10-28'});
+    assert.equal(r.month,'2026-11');
+    assert.equal(r.needsReview,false);
+});

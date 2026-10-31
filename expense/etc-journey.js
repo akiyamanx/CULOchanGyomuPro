@@ -16,15 +16,43 @@ const EtcJourney = (() => {
     }
     function signature(day) {return JSON.stringify([day.stops,day.legs]);}
     function invalidate(records,date) {records.filter(r=>r.date===date).forEach(r=>{r.confirmed=false;});}
-    function candidates(record,day) {
+    // 照合用の仮の時刻。保存せず、入力済みの時刻は上書きしない。明細の時刻は「出口料金所を出た時刻」。
+    // onSiteMinutes: 到着から出発までの作業時間 / leadMinutes: 最初の訪問の何分前に会社を出るか
+    // returnMinutes: 最後の訪問から会社へ戻るまでの最大時間 / graceMinutes: 到着時刻を少し過ぎた出口時刻の許容
+    const TIMING={onSiteMinutes:60,leadMinutes:120,returnMinutes:240,graceMinutes:15};
+    const clock=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+    function effectiveTimes(day,options={}) {
+        const t={...TIMING,...options},stops=day?.stops||[];
+        return stops.map((stop,i)=>{
+            let departure=minutes(stop.departure),depProv=false,arrival=minutes(stop.arrival),arrProv=false;
+            if(departure===null && i<stops.length-1) {
+                const own=minutes(stop.arrival),next=minutes(stops[i+1]?.arrival);
+                if(i===0){if(next!==null){departure=Math.max(0,next-t.leadMinutes);depProv=true;}}
+                else if(own!==null){departure=own+t.onSiteMinutes;if(next!==null&&next>own)departure=Math.min(departure,next);departure=Math.min(departure,1439);depProv=true;}
+            }
+            return {departure,departureProvisional:depProv,arrival,arrivalProvisional:arrProv};
+        }).map((x,i,all)=>{
+            // 帰社の到着が空なら、直前の出発から returnMinutes までを帰り道の範囲にする。
+            if(i===all.length-1 && i>0 && x.arrival===null && all[i-1].departure!==null){x.arrival=Math.min(all[i-1].departure+t.returnMinutes,1439);x.arrivalProvisional=true;}
+            return x;
+        });
+    }
+    function provisionalLabel(day,index,key) {
+        const x=effectiveTimes(day)[index];
+        return x&&x[key+'Provisional']?clock(x[key]):'';
+    }
+    function candidates(record,day,options={}) {
         if(!day)return [];
-        const time=minutes(record.time);
+        const time=minutes(record.time),times=effectiveTimes(day,options),grace={...TIMING,...options}.graceMinutes;
         return day.legs.map((leg,index)=>{
-            const from=day.stops[index],to=day.stops[index+1],start=minutes(from.departure),end=minutes(to.arrival);
-            let score=0;const reasons=[];
+            const from=day.stops[index],to=day.stops[index+1],a=times[index]||{},b=times[index+1]||{};
+            const start=a.departure??null,end=b.arrival??null;
+            let score=0,timeMatch=false;const reasons=[];
             if(leg.road==='highway'){score+=1;reasons.push('高速の設定');}
             if(time!==null && start!==null && end!==null && start<=end) {
-                if(time>=start && time<=end){score+=5;reasons.push('区間の時刻内');}else{score-=6;}
+                // 出口時刻なので、出発より後・到着(＋少し)より前なら区間内。
+                const prov=a.departureProvisional||b.arrivalProvisional;
+                if(time>=start && time<=end+grace){score+=5;timeMatch=true;reasons.push(prov?'区間の時刻内（仮の時刻で判定）':'区間の時刻内');}else{score-=6;}
             }
             const road=clean(leg.roadText);
             for(const [key,label] of [['entry','入口'],['exit','出口']]) {
@@ -32,8 +60,15 @@ const EtcJourney = (() => {
                 if(value.length>=2 && ((leg[key] && clean(leg[key])===value)||road.includes(value))) {score+=4;reasons.push(label+'料金所が一致');}
             }
             if(from.job==='other'||to.job==='other')reasons.push('別の仕事の前後');
-            return {id:leg.id,label:leg.label,score,reasons};
+            return {id:leg.id,label:leg.label,score,reasons,timeMatch};
         }).filter(c=>c.score>0).sort((a,b)=>b.score-a.score);
+    }
+    // 提案する区間：時刻で当てはまる区間が1つだけ、または1位が2位より4点以上高く時刻も合う場合だけ。確定はしない。
+    function suggestion(record,day,options={}) {
+        const list=candidates(record,day,options),timed=list.filter(c=>c.timeMatch);
+        if(timed.length===1)return timed[0].id;
+        if(list[0]?.timeMatch && list[0].score-(list[1]?.score??0)>=4)return list[0].id;
+        return '';
     }
     function validDecision(record,day) {
         if(!record.confirmed || !day || record.routeSignature!==signature(day))return false;
@@ -65,6 +100,6 @@ const EtcJourney = (() => {
     function fingerprint(records,day) {
         return JSON.stringify([signature(day),records.filter(r=>r.date===day.date).map(({id,owner,confirmed,routeSignature,legId,claimAmount,visitCompany,machineName,purpose,note})=>({id,owner,confirmed,routeSignature,legId,claimAmount,visitCompany,machineName,purpose,note}))]);
     }
-    return {clone,minutes,rebuild,signature,invalidate,candidates,validDecision,confirm,totals,distance,fingerprint};
+    return {TIMING,effectiveTimes,provisionalLabel,suggestion,clone,minutes,rebuild,signature,invalidate,candidates,validDecision,confirm,totals,distance,fingerprint};
 })();
 if(typeof module!=='undefined')module.exports=EtcJourney;

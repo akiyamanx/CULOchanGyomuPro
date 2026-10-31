@@ -54,7 +54,7 @@ const ExpenseManager = (() => {
             + '<div class="exp-fg"><label>走行距離（km）</label>'
             + '<input type="number" class="exp-input exp-distance" placeholder="186" '
             + 'onchange="ExpenseManager.onDistanceChange(this)">'
-            + '<div class="exp-hint-green">※100km以上で自動計算</div></div>'
+            + '<div class="exp-hint-green">※1日の距離で自動計算: 100kmまで0円・101〜200kmは1kmごと30円・201km以上は1kmごと38円(1km未満は切り捨て)</div></div>'
             + '<div class="exp-fg"><label>ガソリン代（自動）</label>'
             + '<input type="number" class="exp-input exp-gas" placeholder="0" readonly></div>'
             + '</div>'
@@ -125,8 +125,9 @@ const ExpenseManager = (() => {
     // 計算ロジック
     // ==========================================
     function calcGasCost(distance) {
-        const km = parseInt(distance) || 0;
-        return km >= 100 ? (km - 100) * 30 : 0;
+        // 1日の走行距離で計算: 0〜100kmは0円、101〜200kmは1kmごと30円、201km以上は1kmごと38円。1km未満は切り捨て。
+        const km = Math.max(0, parseInt(distance, 10) || 0);
+        return Math.min(Math.max(km - 100, 0), 100) * 30 + Math.max(km - 200, 0) * 38;
     }
 
     function onDistanceChange(input) {

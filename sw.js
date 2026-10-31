@@ -9,11 +9,17 @@
 //   - ASSETSは実在するファイルだけ(tests/sw-assets.test.cjs が検査する)
 // ==========================================
 
-const CACHE_NAME = 'gyomupro-v44';
+// v6.1 2026-10-31 - 本番リリース(release-20261031)。旧本番 gyomupro-v44 は有効化時に削除される
+const CACHE_NAME = 'gyomupro-v61';
+// 本番の古いキャッシュだけ消す。同じオリジンのお試し版のキャッシュ(gyomupro-stg-)は消さない
+function ownCache(name) {
+    return name.startsWith('gyomupro-') && !name.startsWith('gyomupro-stg-');
+}
 const ASSETS = [
     './',
     './index.html',
     './manifest.json',
+    './shared/app-profile.js',
     './shared/app-storage.js',
     './icons/icon-192.png',
     './styles/common.css',
@@ -29,6 +35,7 @@ const ASSETS = [
     './styles/map-workspace.css',
     './styles/settings.css',
     './styles/request-import.css',
+    './styles/mail-box.css',
     './styles/etc-workflow.css',
     './shared/settings-panel.js',
     './shared/app-core.js',
@@ -51,7 +58,22 @@ const ASSETS = [
     './map/v1-converter.js',
     './map/request-parser.js',
     './map/request-reader.js',
+    './map/request-month.js',
+    './map/request-classifier.js',
+    './map/mf-dedupe.js',
+    './map/mail-box.js',
+    './map/mail-ledger-sync.js',
+    './map/mail-ledger-drive.js',
+    './map/data-sync.js',
+    './map/data-sync-ui.js',
+    './map/gmail-transport.js',
+    './map/gmail-source.js',
+    './map/gmail-import.js',
+    './map/mail-box-demo.js',
+    './map/mail-gmail-links.js',
+    './map/mail-box-ui.js',
     './map/request-import.js',
+    './map/geocode-guard.js',
     './map/map-core.js',
     './map/google-calendar-data.js',
     './map/google-visit-calendar.js',
@@ -119,7 +141,7 @@ self.addEventListener('activate', event => {
     event.waitUntil(
         caches.keys().then(keys => {
             return Promise.all(
-                keys.filter(k => k !== CACHE_NAME)
+                keys.filter(k => ownCache(k) && k !== CACHE_NAME)
                     .map(k => caches.delete(k))
             );
         }).then(() => self.clients.claim())
@@ -143,10 +165,10 @@ self.addEventListener('fetch', event => {
             })
             .catch(async () => {
                 // オフライン時: 同じURL、?v=の違いは無視、画面の移動は index.html
-                const cached = await caches.match(request, { ignoreSearch: true });
+                const cached = await caches.open(CACHE_NAME).then(c => c.match(request, { ignoreSearch: true }));
                 if (cached) return cached;
                 if (request.mode === 'navigate') {
-                    const page = await caches.match('./index.html');
+                    const page = await caches.open(CACHE_NAME).then(c => c.match('./index.html'));
                     if (page) return page;
                 }
                 return Response.error();

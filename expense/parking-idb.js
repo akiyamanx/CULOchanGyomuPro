@@ -13,7 +13,7 @@
 // ==========================================
 
 const ParkingIDB = (() => {
-    const DB_NAME = 'CULOchanGyomuPro'; // 旧本番と同じDB名・バージョン1・同じスキーマ(keyPath id, index date)を引き継ぐ
+    const DB_NAME = (typeof AppProfile !== 'undefined' ? AppProfile.dbName('CULOchanGyomuPro') : 'CULOchanGyomuPro'); // 旧本番と同じDB名・バージョン1・同じスキーマ(keyPath id, index date)を引き継ぐ
     const DB_VERSION = 1;
     const STORE_NAME = 'parking';
     const LS_KEY = 'gyomupro_parking'; // マイグレーション元のlocalStorageキー

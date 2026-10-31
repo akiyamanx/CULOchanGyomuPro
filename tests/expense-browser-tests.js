@@ -34,7 +34,7 @@ async function runExpenseTests() {
         ExpenseManager.syncParking('2026-10');
         assert(ExpenseManager.getRowsData()[1].parking === '800', '削除した駐車場明細は反映額から除外');
         ExpenseManager.applyRoute('2026-10-08', 180, {company:'検証株式会社',address:'千葉県千葉市中央区'});
-        assert(ExpenseManager.getRowsData()[0].gasCost === '2400', '既存のガソリン代ルールを維持');
+        assert(ExpenseManager.getRowsData()[0].gasCost === '2400', '180kmは2,400円(100kmまで0円・超えた分30円)');
         assert(ExpenseManager.getRowsData()[0].destCompany === '検証株式会社', '行先・住所を日別明細へ反映');
         assert(document.getElementById('expGrandTotal').textContent === '¥5,800', 'ETC・ガソリン・駐車場を総合計');
         testDraftId = await ExpenseManager.saveDraft();

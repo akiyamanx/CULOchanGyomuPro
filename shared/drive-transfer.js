@@ -19,22 +19,32 @@ const DriveTransfer = (() => {
         });
         return preparing;
     }
+    // Errors carry an additive machine-readable .code (messages are unchanged) so callers such as the mail ledger can show a precise status.
+    const coded=(message,code)=>Object.assign(new Error(message),{code});
     async function request(url, options={}, consume=async response=>response) {
-        if (!token || Date.now()>=expiry || clientId!==configured()) {disconnect();throw new Error('共有先への接続が切れました。もう一度接続してください。');}
+        if (!token || Date.now()>=expiry || clientId!==configured()) {disconnect();throw coded('共有先への接続が切れました。もう一度接続してください。','not_connected');}
         const own=generation, controller=new AbortController();requests.add(controller);
-        const timer=setTimeout(()=>controller.abort(),60000);
+        let timedOut=false;const timer=setTimeout(()=>{timedOut=true;controller.abort();},60000);
         try {
             const response=await fetch(url,{...options,signal:controller.signal,cache:'no-store',credentials:'omit',headers:{...options.headers,Authorization:'Bearer '+token}});
-            if (own!==generation) throw new Error('接続が変更されたため操作を中止しました。');
-            if (response.status===401) {disconnect();throw new Error('Googleの許可が切れました。もう一度接続してください。');}
-            if (!response.ok) throw new Error(response.status===403 ? 'Google Driveを利用できません。Drive APIの有効化、追加のアクセス許可、保存容量を確認してください。' : '共有先との通信に失敗しました（'+response.status+'）。端末の保存データは変更していません。');
+            if (own!==generation) throw coded('接続が変更されたため操作を中止しました。','aborted');
+            if (response.status===401) {disconnect();throw coded('Googleの許可が切れました。もう一度接続してください。','auth_expired');}
+            if (!response.ok) throw coded(response.status===403 ? 'Google Driveを利用できません。Drive APIの有効化、追加のアクセス許可、保存容量を確認してください。' : '共有先との通信に失敗しました（'+response.status+'）。端末の保存データは変更していません。',response.status===403?'forbidden':'http_error');
             const result=await consume(response);
-            if (own!==generation || clientId!==configured()) throw new Error('接続が変更されたため操作を中止しました。');
+            if (own!==generation || clientId!==configured()) throw coded('接続が変更されたため操作を中止しました。','aborted');
             return result;
         } catch(error) {
-            if(error.name==='AbortError') throw new Error('通信が中断しました。接続を確認して共有先を再確認してください。');
+            if(error.name==='AbortError') throw coded('通信が中断しました。接続を確認して共有先を再確認してください。',timedOut?'timeout':'aborted');
             throw error;
         } finally {clearTimeout(timer);requests.delete(controller);}
+    }
+    // Narrow door for the mail ledger (map/mail-ledger-drive.js): only Drive v3 files calls on googleapis.com, GET/POST/PATCH only.
+    // It reuses the same in-memory token, 60s timeout and error mapping; it never reads or exposes the token.
+    const appdataUrl=/^https:\/\/www\.googleapis\.com\/(upload\/)?drive\/v3\/files(\/[\w-]+)?(\?[^#\s]*)?$/;
+    function appdataRequest(url, options={}, consume) {
+        const method=String(options.method||'GET').toUpperCase();
+        if (typeof url!=='string' || !appdataUrl.test(url) || ['GET','POST','PATCH'].indexOf(method)<0) return Promise.reject(coded('許可されていない通信先です。','bad_url'));
+        return request(url,options,consume);
     }
     function connect() {
         const id=configured();
@@ -120,5 +130,5 @@ const DriveTransfer = (() => {
         });
     }
     window.addEventListener('pagehide',disconnect);
-    return {prepare,connect,disconnect,state,list,send,receive,acknowledge};
+    return {prepare,connect,disconnect,state,list,send,receive,acknowledge,appdataRequest};
 })();
