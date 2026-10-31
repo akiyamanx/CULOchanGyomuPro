@@ -4,6 +4,10 @@ const EtcView = (() => {
     const field=(label,html)=>'<label>'+e(label)+html+'</label>';
     const input=(scope,index,key,value,type='text')=>'<input data-scope="'+scope+'" data-index="'+index+'" data-key="'+key+'" type="'+type+'" value="'+e(value)+'"'+(type==='number'?' min="0" step="0.1"':'')+'>';
     const select=(scope,index,key,value,values)=>'<select data-scope="'+scope+'" data-index="'+index+'" data-key="'+key+'">'+options(values,value)+'</select>';
+    // 空欄の時刻に入れた照合用の仮の時刻（保存しない）。
+    const prov=(day,i,key)=>'<span class="etc-provisional" data-prov-index="'+i+'" data-prov-key="'+key+'">'+provText(day,i,key)+'</span>';
+    function provText(day,i,key) {const t=EtcJourney.provisionalLabel(day,i,key);return t?'仮 '+e(t)+'（照合だけに使用）':'';}
+    function provisional(day) {document.querySelectorAll('#etcTrip [data-prov-index]').forEach(span=>{span.innerHTML=provText(day,Number(span.dataset.provIndex),span.dataset.provKey);});}
     function mount() {
         document.getElementById('etcWorkflow').innerHTML='<p class="section-desc">月まとめPDFから1日ずつ確認。寄り道がある日も、提出する分を選べます。</p><p id="etcMode" role="status"></p><fieldset id="etcControls"><legend class="sr-only">ETCと寄り道の確認</legend>'+
             '<div class="etc-toolbar"><label class="btn btn-primary file-control">① 月まとめPDFを追加<input id="etcPdfInput" type="file" accept="application/pdf,.pdf" class="file-input"></label><button type="button" id="etcRestoreLive" class="btn btn-secondary" hidden>保存済みのETCに戻る</button></div><p class="parking-caption">ETC利用照会のA4横・5列×2段形式。初回は読み取り機能の準備に通信が必要です。PDFの内容は外部AIへ送信しません。</p>'+
@@ -13,11 +17,11 @@ const EtcView = (() => {
     function trip(day,plans) {
         let html='<div class="etc-plan"><strong>この日の訪問順</strong><div class="etc-toolbar">'+field('登録済みルート','<select id="etcPlan">'+options([['','ルートを選ぶ'],...plans.map(p=>[p.id,p.name])],day?.routeId||'')+'</select>')+'<button type="button" class="btn btn-secondary" data-etc-action="plan">予定から読み込む</button><button type="button" class="btn btn-secondary" data-etc-action="empty">訪問順を手入力する</button></div>';
         if(!day){document.getElementById('etcTrip').innerHTML=html+'<p>先に日付を選び、訪問ルートを読み込むか手入力してください。明細だけ先に保管しておけます。</p></div>';return;}
-        html+='<p class="etc-route-line">'+day.stops.map(s=>e(s.name)+(s.job==='other'?'〈別の仕事〉':'')).join(' → ')+'</p><details id="etcStopsDetails"><summary>訪問順を確認・寄り道を追加</summary><p class="parking-caption">時刻は任意です。予定時刻が入る場合があります。実際の時刻に直すと照合候補が絞れます。</p><div class="etc-stops">';
+        html+='<p class="etc-route-line">'+day.stops.map(s=>e(s.name)+(s.job==='other'?'〈別の仕事〉':'')).join(' → ')+'</p><details id="etcStopsDetails"><summary>訪問順を確認・寄り道を追加</summary><p class="parking-caption">時刻は任意です。予定時刻が入る場合があります。出発が空欄なら「仮」の時刻（作業'+EtcJourney.TIMING.onSiteMinutes+'分・最初は訪問の'+EtcJourney.TIMING.leadMinutes+'分前に出発）で照合だけします。明細の時刻は出口料金所を出た時刻です。実際の時刻に直すと候補が絞れます。</p><div class="etc-stops">';
         day.stops.forEach((stop,i)=>{
             const end=i===0||i===day.stops.length-1;
             html+='<div class="etc-stop"><strong>'+e(end?stop.name:i+'. '+stop.name)+'</strong><div class="etc-fields">'+(!end?field('訪問先',input('stop',i,'name',stop.name)):'')+field('住所',input('stop',i,'address',stop.address))+(!end?field('仕事',select('stop',i,'job',stop.job,[['hq','本部の仕事'],['other','別の仕事']]))+field('機種名',input('stop',i,'machineName',stop.machineName))+field('作業内容',input('stop',i,'purpose',stop.purpose)):'')+
-                (i?field('到着',input('stop',i,'arrival',stop.arrival,'time')):'')+(i<day.stops.length-1?field('出発',input('stop',i,'departure',stop.departure,'time')):'')+'</div>';
+                (i?field('到着',input('stop',i,'arrival',stop.arrival,'time')+prov(day,i,'arrival')):'')+(i<day.stops.length-1?field('出発',input('stop',i,'departure',stop.departure,'time')+prov(day,i,'departure')):'')+'</div>';
             if(!end)html+='<div class="etc-toolbar"><button type="button" class="btn btn-secondary" data-etc-action="up" data-index="'+i+'"'+(i===1?' disabled':'')+'>前へ</button><button type="button" class="btn btn-secondary" data-etc-action="down" data-index="'+i+'"'+(i===day.stops.length-2?' disabled':'')+'>後へ</button><button type="button" class="btn btn-secondary" data-etc-action="remove-stop" data-index="'+i+'">この訪問を外す</button></div>';
             html+='</div>';
         });
@@ -34,7 +38,7 @@ const EtcView = (() => {
             const index=state.records.indexOf(r),valid=EtcJourney.validDecision(r,day),candidates=EtcJourney.candidates(r,day),top=candidates[0];
             const choices=[['','区間を選ぶ'],...(day?.legs||[]).map(l=>[l.id,l.label]),['shared','複数の区間にまたがる（共通）']];
             return '<article class="etc-record" data-record-index="'+index+'"><div class="etc-receipt-head"><img src="'+e(r.imageDataUrl)+'" alt="元のETC利用証明書" loading="lazy"><div><strong>'+e(r.time)+'　¥'+r.amount.toLocaleString()+'</strong><p>'+e(r.entry||'入口記載なし')+' → '+e(r.exit||'出口記載なし')+'</p><span class="etc-badge '+(valid?r.owner:'pending')+'">'+(valid?(r.owner==='hq'?'本部・確定':'別の仕事・確定'):'要確認')+'</span><p class="parking-caption">'+e(r.sourceName)+'・'+r.sourcePage+'ページ</p></div></div>'+
-                '<p class="etc-candidate">'+(top?'候補：'+e(top.label)+'<br>'+e(top.reasons.join(' ／ '))+(candidates[1]?.score===top.score?' ／ 他にも同順位の候補あり':''):'区間を選んで確認してください。')+'</p>'+
+                (r.legSuggested&&r.legId&&!valid?'<p class="etc-suggested">区間を提案しました（未確定）。内容を確認して「確認して確定」を押してください。</p>':'')+'<p class="etc-candidate">'+(top?'候補：'+e(top.label)+'<br>'+e(top.reasons.join(' ／ '))+(candidates[1]?.score===top.score?' ／ 他にも同順位の候補あり':''):'区間を選んで確認してください。')+'</p>'+
                 '<div class="etc-fields">'+field('移動区間',select('record',index,'legId',r.legId,choices))+field('提出先',select('record',index,'owner',r.owner,[['hold','あとで確認'],['hq','本部に提出'],['other','別の仕事']]))+'</div>'+
                 '<details class="etc-caption"'+(r.owner==='hq'?' open':'')+'><summary>提出内容を確認・修正</summary><div class="etc-fields">'+field('本部への提出額（円）',input('record',index,'claimAmount',r.claimAmount,'number'))+field('訪問先',input('record',index,'visitCompany',r.visitCompany))+field('機種名',input('record',index,'machineName',r.machineName))+field('作業内容',input('record',index,'purpose',r.purpose))+field('メモ・共通区間の説明',input('record',index,'note',r.note))+'</div></details>'+
                 '<div class="etc-toolbar">'+(top?'<button type="button" class="btn btn-secondary" data-etc-action="candidate" data-index="'+index+'">候補の区間を選ぶ</button>':'')+'<button type="button" class="btn btn-save" data-etc-action="confirm" data-index="'+index+'">確認して確定</button></div><details><summary>元の証明書を拡大</summary><img class="etc-proof-large" src="'+e(r.imageDataUrl)+'" alt="ETC証明書の全体"></details></article>';
@@ -49,5 +53,5 @@ const EtcView = (() => {
         const line=document.querySelector('#etcTrip .etc-route-line');
         if(line)line.textContent=day.stops.map(s=>s.name+(s.job==='other'?'〈別の仕事〉':'')).join(' → ');
     }
-    return {mount,trip,legs,records,totals,options,routeLine};
+    return {provisional,mount,trip,legs,records,totals,options,routeLine};
 })();

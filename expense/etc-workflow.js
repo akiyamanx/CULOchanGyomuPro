@@ -31,8 +31,17 @@ const EtcWorkflow = (() => {
     }
     function lock(value) {busy=value;el('etcControls').disabled=value;}
     function scheduleSave() {clearTimeout(saveTimer);saveTimer=setTimeout(()=>{saveTimer=null;persist();},250);}
+    // 未選択・未確定の明細に提案区間を入れる。確定は利用者が1件ずつ行う。
+    function suggestLegs() {
+        const d=day();if(!d||d.planChanged)return false;let changed=false;
+        for(const r of state.records.filter(x=>x.date===d.date&&!x.confirmed&&!x.legId)) {
+            const id=EtcJourney.suggestion(r,d);if(id){chooseLeg(r,id);r.legSuggested=true;changed=true;}
+        }
+        return changed;
+    }
     function render() {
         if(changedPlans())persist();
+        if(suggestLegs())scheduleSave();
         const dates=[...new Set(state.records.map(r=>r.date))].sort();
         el('etcDate').value=state.selectedDate;
         el('etcDates').innerHTML=EtcView.options(dates.map(d=>[d,d]),state.selectedDate);
@@ -82,6 +91,8 @@ const EtcWorkflow = (() => {
         const d=day();EtcJourney.rebuild(d);EtcJourney.invalidate(state.records,d.date);
         // 区間の距離は訪問編集後に確認し直す。
         d.legs.forEach(l=>{l.km='';l.roadText='';});
+        // 提案だけの区間は訪問順・時刻が変わったら選び直す。
+        state.records.filter(r=>r.date===d.date&&r.legSuggested&&!r.confirmed).forEach(r=>{r.legId='';r.legSuggested=false;r.visitCompany='';r.machineName='';r.purpose='';});
     }
     function chooseLeg(record,id) {
         record.legId=id;record.confirmed=false;
@@ -95,11 +106,11 @@ const EtcWorkflow = (() => {
         if(event.type==='change'&&input.tagName==='INPUT')return;
         const index=Number(input.dataset.index),key=input.dataset.key,d=day();
         if(scope==='record') {
-            const r=state.records[index];if(key==='legId')chooseLeg(r,input.value);
+            const r=state.records[index];if(key==='legId'){chooseLeg(r,input.value);r.legSuggested=false;}
             else {r[key]=key==='claimAmount'?(input.value===''?null:Number(input.value)):input.value;r.confirmed=false;}
             if(key==='legId'||key==='owner')EtcView.records(state,d);
         }else if(d) {
-            if(scope==='stop'){d.stops[index][key]=input.value;updateRoute();EtcView.legs(d);EtcView.routeLine?.(d);}
+            if(scope==='stop'){d.stops[index][key]=input.value;updateRoute();EtcView.legs(d);EtcView.routeLine?.(d);EtcView.provisional?.(d);suggestLegs();}
             if(scope==='leg'){d.legs[index][key]=input.value;if(key==='road'){d.legs[index].km='';d.legs[index].roadText='';}EtcJourney.invalidate(state.records,d.date);}
             EtcView.records(state,d);
         }
@@ -119,7 +130,7 @@ const EtcWorkflow = (() => {
             const next=index+(action==='up'?-1:1);if(index<1||next<1||index>=d.stops.length-1||next>=d.stops.length-1)return;
             [d.stops[index],d.stops[next]]=[d.stops[next],d.stops[index]];updateRoute();
         }else if(action==='remove-stop') {if(!confirm(d.stops[index].name+'をこの日の訪問順から外しますか？'))return;d.stops.splice(index,1);updateRoute();}
-        else if(action==='candidate') {const r=state.records[index],candidate=EtcJourney.candidates(r,d)[0];if(candidate)chooseLeg(r,candidate.id);}
+        else if(action==='candidate') {const r=state.records[index],candidate=EtcJourney.candidates(r,d)[0];if(candidate){chooseLeg(r,candidate.id);r.legSuggested=false;}}
         else if(action==='confirm') {if(d?.planChanged)throw new Error('変更された訪問予定を先に読み直してください。');EtcJourney.confirm(state.records[index],d);}
         else if(action==='calculate') {await calculate();return;}
         const openStops=el('etcStopsDetails')?.open,openLegs=el('etcLegsDetails')?.open;
