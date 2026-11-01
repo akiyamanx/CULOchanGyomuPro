@@ -10,7 +10,7 @@
 // ==========================================
 
 // v6.1 2026-10-31 - 本番リリース(release-20261031)。旧本番 gyomupro-v44 は有効化時に削除される
-const CACHE_NAME = 'gyomupro-v61';
+const CACHE_NAME = 'gyomupro-v63';
 // 本番の古いキャッシュだけ消す。同じオリジンのお試し版のキャッシュ(gyomupro-stg-)は消さない
 function ownCache(name) {
     return name.startsWith('gyomupro-') && !name.startsWith('gyomupro-stg-');

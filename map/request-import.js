@@ -58,10 +58,12 @@ const RequestImport = (() => {
         catch (error) { status('登録先の保存済みデータを読み込めません。月またはバックアップを確認してください。'); return; }
         const mfIdx = mfIndex();
         candidates.forEach(item => {
+            // 本体番号(MF)があれば「同じ番号・同じ作業・まだ終わっていない」ものだけを登録済みとみなす。無ければ今まで通り。
             const mf = MfDedupe.mfOf(item);
-            // 本体番号(MF)があれば番号だけで判断(どの月・日程未定にあっても登録済み)。無ければ今まで通り。
-            item.mfDuplicate = Boolean(mf && mfIdx.has(mf));
-            if (mf && !mfIdx.has(mf)) mfIdx.set(mf, { ws: targetMonth(), c: item });
+            const d = MfDedupe.decide(item, targetMonth(), mfIdx);
+            item.mfDuplicate = d.action !== 'add';
+            item.sameUnit = d.action === 'add' && d.sameUnit;
+            if (d.action === 'add') MfDedupe.remember(mfIdx, item, targetMonth());
             item.possibleDuplicate = item.mfDuplicate || (!mf && known.some(other => RequestParser.duplicate(item,other)));
             item.selected = !item.possibleDuplicate;
             known.push(item);
@@ -75,7 +77,7 @@ const RequestImport = (() => {
         document.getElementById('requestImportResults').innerHTML = candidates.map((item,index) =>
             `<article class="request-card"><label class="request-select"><input type="checkbox" data-index="${index}" data-field="selected" ${item.selected?'checked':''}>${index+1}. ${esc(item.company || '会社名を確認してください')}</label>
             <p class="request-source">${esc(item.kind)} · ${esc(item.source)}</p>
-            ${item.mfDuplicate?'<p class="request-warning">同じ本体番号(MF)の訪問先が登録済みのため、登録しません。</p>':item.possibleDuplicate?'<p class="request-warning">登録済み、または今回の候補と重複の可能性があります。追加したい別作業の場合だけチェックしてください。</p>':''}
+            ${item.mfDuplicate?`<p class="request-warning">同じ本体番号(MF)で同じ作業${item.purpose?`（${esc(item.purpose)}）`:''}の訪問先がまだ終わっていないため、登録しません。別の作業なら作業内容を変えてください。</p>`:item.sameUnit?`<p class="request-source request-note">同じ本体(MF)の別の依頼${item.purpose?`（${esc(item.purpose)}）`:''}として登録します。</p>`:item.possibleDuplicate?'<p class="request-warning">登録済み、または今回の候補と重複の可能性があります。追加したい別作業の場合だけチェックしてください。</p>':''}
             ${(item.warnings || []).map(w=>`<p class="request-warning">${esc(w)}</p>`).join('')}
             <div class="request-grid">${input(item,index,'company','会社名 *')}${input(item,index,'address','住所 *')}
             <label class="request-field">作業内容<select data-index="${index}" data-field="purpose">${['','メンテナンス','修理','本体設置','その他'].map(p=>`<option value="${p}" ${item.purpose===p?'selected':''}>${p||'未設定'}</option>`).join('')}</select></label>
@@ -121,10 +123,10 @@ const RequestImport = (() => {
         try {
             const known = existing();
             const mfIdx = mfIndex();
-            const fresh = selected.filter(item => { const mf = MfDedupe.mfOf(item); if (!mf) return true; if (mfIdx.has(mf)) return false; mfIdx.set(mf, { ws: month, c: item }); return true; });
+            const fresh = selected.filter(item => { const d = MfDedupe.decide(item, month, mfIdx); if (d.action !== 'add') return false; MfDedupe.remember(mfIdx, item, month); return true; });
             const skippedMf = selected.length - fresh.length;
             const added = fresh.map((item,index) => {
-                const {selected,possibleDuplicate,mfDuplicate,warnings,previewUrl,originalText,kind,workDateText,titleText,...customer} = item;
+                const {selected,possibleDuplicate,mfDuplicate,sameUnit,warnings,previewUrl,originalText,kind,workDateText,titleText,...customer} = item;
                 return {...customer,unitCount:Number(item.unitCount),id:'c_'+crypto.randomUUID(),routeId:null,status:'pending',createdAt:new Date().toISOString()};
             });
             if (!DataStorage.getWorkspaces().some(ws=>ws.id===month)) DataStorage.createWorkspace(month);
@@ -135,7 +137,7 @@ const RequestImport = (() => {
             if (typeof updateWsButton === 'function') updateWsButton();
             candidates = [];
             document.getElementById('requestImportResults').replaceChildren();
-            status(`${month}に${added.length}件を追加登録しました。${skippedMf ? `同じ本体番号(MF)が登録済みの${skippedMf}件は登録していません。` : ''}既存の訪問先・ルートは保持しています。`);
+            status(`${month}に${added.length}件を追加登録しました。${skippedMf ? `同じ本体番号(MF)・同じ作業の訪問先がまだ終わっていない${skippedMf}件は登録していません。` : ''}既存の訪問先・ルートは保持しています。`);
             document.getElementById('requestImportErrors').textContent = '';
             updateCount();
             MapCore.refreshAllMarkers();

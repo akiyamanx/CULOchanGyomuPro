@@ -84,10 +84,26 @@ const RequestParser = (() => {
         });
         return result;
     }
+    // 依頼書の見出しの右側の値。結合セルや空白のマスを挟んで右に書かれた値も読む。
+    // 次の見出し(「台数」「到着日」など)に当たったら、その行の値は空欄とみなす。
+    const FORM_LABELS = new Set(Object.values(fieldNames).flat().concat([
+        '台数','数量','出荷日','到着日','初回設置日','最終訪問日','販社名','住居形態','現地集金','時間指定',
+        '受付年月日','受付者名','送信日時','備考欄','受領年月日','受領者名','客先連絡日時','工事完了日時','返信日時',
+        '注文日','発注日','商品コード','品番','品名','本部','ss'
+    ]).map(label => norm(label).replace(/[.:：]+$/g, '')));
+    const isFormLabel = value => FORM_LABELS.has(norm(value).replace(/[.:：]+$/g, ''));
+    function valueRight(row, col) {
+        for (let c = col + 1; c < row.length; c++) {
+            const value = clean(row[c]);
+            if (!value) continue;
+            return isFormLabel(value) ? '' : value;
+        }
+        return '';
+    }
     function parseForm(rows, source) {
         const get = labels => {
             for (const row of rows) for (let c = 0; c < row.length; c++) {
-                if (labels.some(label => norm(row[c]) === norm(label))) return {row, col:c, value:clean(row[c+1])};
+                if (labels.some(label => norm(row[c]) === norm(label))) return {row, col:c, value:valueRight(row, c)};
             }
             return {row:[],col:-1,value:''};
         };

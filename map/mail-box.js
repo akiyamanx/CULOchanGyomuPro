@@ -220,7 +220,7 @@ const MailBox = (() => {
             return c;
         }
         // groups: { wsId: [item...] } → 重複を除いて登録。戻り値 {added:[{ws,id,h}], duplicates, moved}
-        // 本体番号(MF)がある項目は、どの月・日程未定にも同じ番号が無いときだけ足す(会社名・住所が同じでも別の機械はあり得る)。
+        // 本体番号(MF)がある項目は、同じ番号・同じ作業の終わっていない訪問先が無いときだけ足す(別の作業や完了後の新しい依頼は足す)。
         // 日程未定にあって今回作業日が決まっていれば、その訪問先を月へ移す(利用者の入力は残し、空欄だけ埋める)。
         function registerGroups(groups, base, opts = {}) {
             const { data, parser, dedupe } = deps();
@@ -242,7 +242,7 @@ const MailBox = (() => {
                     if (!d.mf && next.some(c => c && parser.duplicate(probe, c))) { duplicates++; continue; }
                     const c = buildCustomer(item, ws, base, opts.review, opts.noteLead || '');
                     next.push(c); added.push({ ws, id: c.id, h: hash(JSON.stringify(c)) });
-                    if (d.mf) idx.set(d.mf, { ws, c });
+                    if (d.mf) dedupe.remember ? dedupe.remember(idx, c, ws) : idx.set(d.mf, { ws, c });
                 }
                 if (next.length !== prev.length) writes.push({ ws, prev, next });
             }
