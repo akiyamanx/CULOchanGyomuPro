@@ -427,12 +427,19 @@ test('readForMail は開けないとき例外を投げず opened:false を返す
 });
 
 // --- 本体番号(MF)で二重登録しない ---
-test('同じMF番号は、別のメール・住所の書き方違い(階数あり/なし)・別の月でも二重に登録しない', () => {
+test('同じMF番号は、別のメール・住所の書き方違い(階数あり/なし)・別の月でも、同じ作業(修理)がまだ終わっていなければ二重に登録しない', () => {
     const { mb, store } = setup(legacy());
     mb.ingest([mail('f1', [att('a1', '業務依頼書.xlsx', 'xlsx', [full({ managementNo: 'MF900001', workDateText: '2026-10-29', appoDate: '2026-10-29T10:00' })])])]);
-    const r = mb.ingest([mail('f2', [att('a1', '業務依頼書.pdf', 'pdf', [full({ managementNo: 'MF900001', address: '東京都架空区1-2-3 3F', purpose: '点検', workDateText: '2026-11-04', appoDate: '2026-11-04T10:00' })])])]);
+    const r = mb.ingest([mail('f2', [att('a1', '業務依頼書.pdf', 'pdf', [full({ managementNo: 'MF900001', address: '東京都架空区1-2-3 3F', purpose: '修理依頼', workDateText: '2026-11-04', appoDate: '2026-11-04T10:00' })])])]);
     assert.equal(r.registered, 0); assert.equal(r.duplicates, 1);
     assert.equal(allCustomers(store).filter(c => c.managementNo === 'MF900001').length, 1);
+});
+test('同じMF番号でも作業が違えば(メンテナンスの後の修理)、同じ本体の別の依頼として登録する', () => {
+    const { mb, store } = setup(legacy());
+    mb.ingest([mail('j1', [att('a1', '業務依頼書.xlsx', 'xlsx', [full({ managementNo: 'MF900011', purpose: 'メンテナンス', workDateText: '2026-11-04', appoDate: '2026-11-04T10:00' })])])]);
+    const r = mb.ingest([mail('j2', [att('a1', '業務依頼書.pdf', 'pdf', [full({ managementNo: 'MF900011', purpose: '修理', workDateText: '2026-11-05', appoDate: '2026-11-05T10:00' })])])]);
+    assert.equal(r.registered, 1); assert.equal(r.duplicates, 0);
+    assert.deepEqual(allCustomers(store).filter(c => c.managementNo === 'MF900011').map(c => c.purpose).sort(), ['メンテナンス', '修理']);
 });
 test('同じ会社・同じ住所でもMF番号が違えば別の機械として両方登録する', () => {
     const { mb, store } = setup(legacy());

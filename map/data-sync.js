@@ -212,14 +212,15 @@ const DataSync = (() => {
         const val = (r, n) => r.f[n] ? r.f[n].v : undefined;
         const day = v => String(v || '').slice(0, 10);
         const score = r => (val(r, '_ws') !== UNSCH && val(r, 'appoDate') ? 4 : 0) + (val(r, 'routeId') ? 2 : 0) + ((val(r, 'status') || 'pending') !== 'pending' ? 2 : 0) + (val(r, 'appoDate') ? 1 : 0);
-        const removable = (d, keep) => !val(d, 'routeId') && (val(d, 'status') || 'pending') === 'pending' && (!val(d, 'appoDate') || day(val(d, 'appoDate')) === day(val(keep, 'appoDate')));
+        const removable = (d, keep) => val(keep, 'status') !== 'completed' && !val(d, 'routeId') && (val(d, 'status') || 'pending') === 'pending' && (!val(d, 'appoDate') || day(val(d, 'appoDate')) === day(val(keep, 'appoDate')));
         const FILL = ['phone', 'contact', 'branch', 'equipType', 'filter', 'purpose', 'address', 'note'];
         function mfMerge(view, fromRemote, now) {
             if (typeof MfDedupe === 'undefined' || !MfDedupe.mfOf) return 0;
             const groups = new Map();
             for (const [key, r] of view.cust) {
                 if (!alive(r)) continue;
-                const mf = MfDedupe.mfOf({ managementNo: val(r, 'managementNo') });
+                // 同じ本体でも作業(修理・メンテなど)が違えば別の訪問先なので、まとめない。
+                const mf = MfDedupe.keyOf ? MfDedupe.keyOf({ managementNo: val(r, 'managementNo'), purpose: val(r, 'purpose') }) : MfDedupe.mfOf({ managementNo: val(r, 'managementNo') });
                 if (!mf) continue;
                 if (!groups.has(mf)) groups.set(mf, []);
                 groups.get(mf).push({ key, r });
