@@ -25,7 +25,7 @@ test('区間の分け方', () => {
     assert.deepEqual(HS.planLegs('A', 'B', 'general').map(l => [l.avoidHighways, l.part]), [[true, 'general']]);
     assert.deepEqual(HS.planLegs('A', 'B', 'highway').map(l => [l.avoidHighways, l.part]), [[false, 'highway']]);
     const f = HS.planLegs('A', 'B', { type: 'hwFrom', ic: ukishima });
-    assert.deepEqual(f.map(l => [l.origin, l.avoidHighways, l.part]), [['A', true, 'general'], [{ lat: ukishima.lat, lng: ukishima.lng }, false, 'highway']]);
+    assert.deepEqual(f.map(l => [l.origin, l.avoidHighways, l.part]), [['A', true, 'general'], [HS.accessPoint(ukishima), false, 'highway']]);
     const u = HS.planLegs('A', 'B', { type: 'hwUntil', ic: ukishima });
     assert.deepEqual(u.map(l => [l.avoidHighways, l.part]), [[false, 'highway'], [true, 'general']]);
     assert.equal(u[1].destination, 'B');

@@ -298,7 +298,8 @@ const RouteManager = (() => {
             if (DataStorage.getCurrentWorkspaceId() !== workspace) throw new Error('月が切り替わりました。選択中の月で計算し直してください');
             if (distanceSignature(routeId, date) !== signature) throw new Error('訪問先が変更されました。計算し直してください');
             route.distanceResults = route.distanceResults || {};
-            route.distanceResults[date] = { ...result, signature };
+            const { mapData, ...stored } = result; // 地図の道筋は保存しない（容量を使わない）
+            route.distanceResults[date] = { ...stored, signature };
             // 計算待ちの間に行われた他ルートの編集を上書きしない。
             const currentRoutes = DataStorage.getRoutes();
             const currentRoute = currentRoutes.find(item => item.id === routeId);
@@ -306,15 +307,7 @@ const RouteManager = (() => {
             DataStorage.saveRoutes(currentRoutes);
             MapExpenseForm.updateSummary();
             loading.style.display = 'none';
-            let msg = `📏 ${route.name} の走行距離\n\n`;
-            msg += `総距離: ${result.totalKm}km\n  🚗 下道: ${result.generalKm}km\n  🛣️ 高速: ${result.highwayKm}km\n\n--- 区間詳細 ---\n`;
-            result.segments.forEach((s, i) => {
-                const icon = (window.HighwaySegments && HighwaySegments.ICONS[s.type]) || (s.type === 'highway' ? '🛣️' : '🚗');
-                msg += `${i + 1}. ${icon} ${s.km}km (${s.duration})\n   ${s.from} → ${s.to}\n`;
-                if (s.breakdown) msg += `   ${s.breakdown}\n`;
-            });
-            msg += `\n精算書に反映しますか？`;
-            if (confirm(msg)) {
+            if (await showDistanceResult(route.name, result)) {
                 const dest = buildDestinationText(ordered);
                 ExpenseManager.applyRoute(date, result.totalKm, dest);
                 ExpenseManager.syncParking(date);
@@ -324,6 +317,51 @@ const RouteManager = (() => {
             loading.style.display = 'none';
             alert('❌ 距離計算に失敗しました\n' + err.message);
         }
+    }
+
+    // 距離計算の結果（ブラウザの確認ダイアログは長い文で表示が崩れることがあるので、アプリ内で出す）
+    function distanceResultHtml(name, result) {
+        const HS = window.HighwaySegments;
+        let html = `<div class="seg-title">📏 ${esc(name)} の走行距離</div><div class="dist-result">`;
+        html += `<div><b>総距離: ${esc(String(result.totalKm))}km</b><br>🚗 下道: ${esc(String(result.generalKm))}km ／ 🛣️ 高速: ${esc(String(result.highwayKm))}km</div><ol>`;
+        result.segments.forEach((s, i) => {
+            const icon = s.sameAddress ? '📍' : (HS && HS.ICONS[s.type]) || (s.type === 'highway' ? '🛣️' : '🚗');
+            html += `<li data-seg="${i + 1}"><b>${i + 1}. ${icon} ${esc(String(s.km))}km（${esc(String(s.duration))}）</b><span class="dr-addr">${esc(s.from)} → ${esc(s.to)}</span>`;
+            if (s.sameAddress) html += `<span class="dr-sub">同じ場所なので0km${s.ignoredChoice ? '（この区間の道路の選択は使っていません）' : ''}</span>`;
+            if (s.breakdown) html += `<span class="dr-sub">${esc(s.breakdown)}</span>`;
+            if (s.detourWarn) html += `<span class="dr-warn">${esc(s.detourWarn)}</span>`;
+            html += '</li>';
+        });
+        html += '</ol><div class="dr-map-head">🗺️ 確認用ルートマップ <span class="dr-legend"><i class="lg-g"></i>下道 <i class="lg-h"></i>高速 <i class="lg-w"></i>要確認</span></div>'
+            + '<div id="distMap" class="dr-map" aria-label="確認用ルートマップ"></div><div id="distMapNote" class="dr-map-note" hidden></div>'
+            + '<button type="button" id="distMapAll" class="dr-map-all">🗺️ ルート全体を表示</button>';
+        return html + '</div><div class="seg-actions"><button type="button" id="distCancel" class="seg-cancel">キャンセル</button><button type="button" id="distApply" class="seg-calc">精算書に反映</button></div>';
+    }
+    function showDistanceResult(name, result) {
+        return new Promise(resolve => {
+            const old = document.getElementById('distResultDialog');
+            if (old) old.remove();
+            const ov = document.createElement('div');
+            ov.id = 'distResultDialog'; ov.className = 'seg-overlay';
+            ov.innerHTML = '<div class="seg-dialog" role="dialog" aria-label="走行距離の結果">' + distanceResultHtml(name, result) + '</div>';
+            document.body.appendChild(ov);
+            const done = v => { ov.remove(); resolve(v); };
+            ov.querySelector('#distCancel').onclick = () => done(false);
+            ov.querySelector('#distApply').onclick = () => done(true);
+            const note = msg => { const n = ov.querySelector('#distMapNote'); n.textContent = msg; n.hidden = false; ov.querySelector('#distMap').hidden = true; ov.querySelector('#distMapAll').hidden = true; };
+            let ctl = null;
+            try {
+                if (typeof google === 'undefined' || !google.maps || !window.ResultMap || !result.mapData) throw new Error('no maps');
+                ctl = ResultMap.draw(ov.querySelector('#distMap'), result, google.maps);
+            } catch (e) { console.warn('確認用ルートマップを表示できません', e); note('⚠️ 地図を表示できませんでした。上の一覧で確認してください'); }
+            if (ctl) {
+                ov.querySelector('#distMapAll').onclick = () => { ctl.showAll(); mark(-1); };
+                const mark = i => ov.querySelectorAll('.dist-result li').forEach((li, k) => li.classList.toggle('dr-active', k === i));
+                ov.querySelectorAll('.dist-result li').forEach((li, i) => li.addEventListener('click', () => {
+                    if (ctl.focus(i)) { mark(i); ov.querySelector('#distMap').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+                }));
+            }
+        });
     }
 
     function distanceSignature(routeId, date) {
@@ -347,7 +385,7 @@ const RouteManager = (() => {
         updateRoutePanel, toggleRouteSection,
         drawRouteLines, exportPDF, updateSummary,
         calcDistance, getDistance, distanceSignature, buildDestinationText,
-        routeDateInfo, routeDateHtml
+        routeDateInfo, routeDateHtml, distanceResultHtml, showDistanceResult
     };
 })();
 

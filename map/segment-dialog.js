@@ -22,8 +22,9 @@ const SegmentDialog = (() => {
             const segs = [];
             for (let i = 0; i < points.length - 1; i++) {
                 const key = `${points[i].id}_${points[i + 1].id}`;
-                segs.push({ key, fromLabel: points[i].label, toLabel: points[i + 1].label,
-                    a: pt(points[i]), b: pt(points[i + 1]), choice: HS().normalize((savedSegments || {})[key]) });
+                const same = !!(HS().samePlace && HS().samePlace(points[i], points[i + 1]));
+                segs.push({ key, same, fromLabel: points[i].label, toLabel: points[i + 1].label,
+                    a: pt(points[i]), b: pt(points[i + 1]), choice: same ? HS().normalize('general') : HS().normalize((savedSegments || {})[key]) });
             }
             const overlay = document.createElement('div');
             overlay.id = 'segmentDialog';
@@ -48,6 +49,10 @@ const SegmentDialog = (() => {
         let html = '<div class="seg-title">📏 区間別 道路選択</div><div class="seg-hint">区間ごとに選んでください。途中から／途中まで は IC も選びます</div><div class="seg-list">';
         state.segs.forEach((s, i) => {
             const t = s.choice.type;
+            if (s.same) {
+                html += `<div class="seg-row seg-same" id="seg_${i}" data-type="same"><div class="seg-route"><b>${esc(s.fromLabel)}</b><span>↓</span><b>${esc(s.toLabel)}</b></div><div class="seg-same-note">📍 同じ場所なので 0km（道路の選択はありません）</div></div>`;
+                return;
+            }
             html += `<div class="seg-row seg-${t}" id="seg_${i}" data-type="${t}">
                 <div class="seg-route"><b>${esc(s.fromLabel)}</b><span>↓</span><b>${esc(s.toLabel)}</b></div>
                 <div class="seg-types" role="radiogroup">${HS().TYPES.map(k =>
@@ -56,6 +61,8 @@ const SegmentDialog = (() => {
                 const word = t === 'hwFrom' ? '乗ったIC' : '降りたIC';
                 html += `<div class="seg-ic">${s.choice.ic ? `🛣️ ${word}：<b>${esc(s.choice.ic.name)}</b>` : `<span class="seg-warn">⚠️ ${word}を選んでください</span>`}
                     <button type="button" class="seg-ic-btn" onclick="SegmentDialog.openPicker(${i})">${s.choice.ic ? '変更' : 'ICを選ぶ'}</button></div>`;
+                const dt = s.choice.ic && HS().detour ? HS().detour(s.a, s.b, s.choice.ic) : null;
+                if (dt && dt.warn) html += `<div class="seg-warn seg-detour">⚠️ このICを通るとかなり遠回りです（直線で約${Math.round(dt.directKm)}km → 約${Math.round(dt.viaKm)}km）。区間やICが合っているか確認してください</div>`;
             }
             html += '</div>';
         });
