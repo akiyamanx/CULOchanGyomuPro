@@ -212,7 +212,7 @@ const RequestParser = (() => {
             return '';
         };
         const item = base(source, 'PDF依頼書');
-        // 「顧客名」「所在地」「■チェック欄」の業務依頼書(マーフィード書式)。設置先名などの別書式とは別に扱う。
+        // 「顧客名」「所在地」「■チェック欄」の業務依頼書(特定顧客の書式)。設置先名などの別書式とは別に扱う。
         const customerForm = /顧\s*客\s*名/.test(joined);
         item.company = value(['設置先名','客先名','会社名'], '設置先担当者|担当者') || value(['顧客名'], '\\s*様(?:\\s.*)?$');
         item.address = value(['設置先住所','所在地','住所'], 'TEL|電話|携帯').replace(/^〒?\s*\d{3}[- ]?\d{4}\s*/, '');
