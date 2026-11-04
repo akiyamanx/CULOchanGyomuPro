@@ -18,7 +18,7 @@ test('入口の登録がないICは従来どおりICの点', () => {
   const ic = { name: '架空IC', lat: 35.1, lng: 139.1 };
   assert.deepStrictEqual(HS.planLegs('a', 'b', { type: 'hwFrom', ic })[0].destination, { lat: 35.1, lng: 139.1 });
 });
-test('下道が直線に比べて長すぎると警告（北品川付近→浮島IC 下道91.5km）', () => {
+test('下道が直線に比べて長すぎると警告（架空の出発地→浮島IC 下道91.5km）', () => {
   const from = { lat: 35.6215, lng: 139.7327 };
   const bad = HS.generalDetour(from, {}, { type: 'hwFrom', ic: UK }, 91500);
   assert.strictEqual(bad.warn, true);
