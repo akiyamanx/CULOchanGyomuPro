@@ -16,6 +16,38 @@ const RouteManager = (() => {
     const jsArg = value => esc(JSON.stringify(String(value)));
     const safeColor = color => /^#[0-9a-fA-F]{3,8}$/.test(String(color || '')) ? color : '#9e9e9e';
 
+    // ルートの訪問日（各訪問先のアポ日・作業予定日から）。全部同じ日ならその日、違えば最初〜最後、無ければ日付未定
+    const WD = ['日', '月', '火', '水', '木', '金', '土'];
+    function routeDateInfo(members) {
+        const days = [...new Set((members || []).map(c => {
+            const m = String((c && c.appoDate) || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+            return m ? m[0] : '';
+        }).filter(Boolean))].sort();
+        const one = d => {
+            const [y, mo, da] = d.split('-').map(Number);
+            const w = new Date(Date.UTC(y, mo - 1, da)).getUTCDay();
+            return { text: `${mo}/${da}(${WD[w]})`, cls: w === 0 ? 'sun' : w === 6 ? 'sat' : '' };
+        };
+        const undated = (members || []).filter(c => !/^\d{4}-\d{2}-\d{2}/.test(String((c && c.appoDate) || ''))).length;
+        if (!days.length) return { kind: 'none', text: '日付未定', days: [], undated };
+        const first = one(days[0]);
+        if (days.length === 1) return { kind: 'same', text: first.text, first, days, undated };
+        const last = one(days[days.length - 1]);
+        // 同じ月なら後ろの月は省く（11/7(土)〜8(日)）。スマホの見出しに収めるため
+        if (days[0].slice(0, 7) === days[days.length - 1].slice(0, 7)) last.text = last.text.replace(/^\d+\//, '');
+        return { kind: 'mixed', text: `${first.text}〜${last.text}`, first, last, days, undated };
+    }
+    function routeDateHtml(members) {
+        const info = routeDateInfo(members);
+        const part = p => `<span class="${p.cls ? 'rd-' + p.cls : ''}">${esc(p.text)}</span>`;
+        if (info.kind === 'none') return `<span class="route-date route-date-none">日付未定</span>`;
+        const warn = info.kind === 'mixed' ? ' title="訪問先の日付がバラバラです"' : (info.undated ? ' title="日付が無い訪問先があります"' : '');
+        let html = `<span class="route-date route-date-${info.kind}"${warn}>📅${part(info.first)}`;
+        if (info.kind === 'mixed') html += `〜${part(info.last)}<small class="route-date-warn">⚠️バラバラ</small>`;
+        else if (info.undated) html += `<small class="route-date-warn">⚠️未定${info.undated}件</small>`;
+        return html + `</span>`;
+    }
+
     function updateRoutePanel() {
         const routes = DataStorage.getRoutes();
         const customers = DataStorage.getCustomers();
@@ -34,7 +66,8 @@ const RouteManager = (() => {
             html += `<div class="route-section">`;
             html += `<div class="route-header" onclick="RouteManager.toggleRouteSection(this)">`;
             html += `<span class="route-color-dot" style="background:${safeColor(route.color)}"></span>`;
-            html += `<span>${esc(route.name)}</span>`;
+            html += `<span class="route-name">${esc(route.name)}</span>`;
+            html += routeDateHtml(members);
             html += `<span class="route-count">${members.length}件</span>`;
             if (members.length >= 1) {
                 html += `<button class="route-dist-btn" onclick="event.stopPropagation();RouteManager.calcDistance(${jsArg(route.id)})">距離計算</button>`;
@@ -313,7 +346,8 @@ const RouteManager = (() => {
     return {
         updateRoutePanel, toggleRouteSection,
         drawRouteLines, exportPDF, updateSummary,
-        calcDistance, getDistance, distanceSignature, buildDestinationText
+        calcDistance, getDistance, distanceSignature, buildDestinationText,
+        routeDateInfo, routeDateHtml
     };
 })();
 

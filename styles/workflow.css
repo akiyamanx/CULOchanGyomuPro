@@ -176,6 +176,11 @@ button:focus-visible, a:focus-visible, summary:focus-visible, input:focus-visibl
 .parking-match-btn { background: #eaf3fb; color: var(--accent-dark); border: 1px solid #8ca9c0; }
 .route-header { flex-wrap: wrap; }
 .route-dist-btn { width: auto; padding: 8px; }
+.route-date { letter-spacing: -0.2px; display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 2px 4px; font-size: 13px; font-weight: 700; color: var(--text-primary); white-space: nowrap; min-width: 0; }
+.route-date .rd-sat { color: #1565c0; }
+.route-date .rd-sun { color: #c62828; }
+.route-date-none { font-weight: 400; color: #8a8f98; font-size: 12px; }
+.route-date-warn { font-size: 11px; font-weight: 400; color: #a15c00; white-space: nowrap; }
 .map-exp-bridge { background: none; padding: 0; border: 0; color: var(--text-primary); }
 .map-exp-bridge h3 { font-size: 15px; }
 .map-exp-bridge p { color: var(--text-secondary); font-size: 13px; }
