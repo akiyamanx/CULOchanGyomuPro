@@ -221,6 +221,21 @@ const MapCore = (() => {
         return marker;
     }
 
+    // 吹き出しと情報カードで共通の詳細行(customer は文字列をエスケープ済みのコピー)
+    function detailLines(customer) {
+        let html = '';
+        if (customer.managementNo) html += `<p>🔖 ${customer.managementNo}</p>`;
+        html += `<p>📍 ${customer.address || ''}</p>`;
+        if (customer.phone) html += `<p>📞 ${customer.phone}</p>`;
+        if (customer.contact) html += `<p>👤 ${customer.contact}</p>`;
+        if (customer.floors && customer.floors.length > 0) html += `<p>🏢 ${customer.floors.join(', ')}</p>`;
+        if (customer.model) html += `<p>💧 ${customer.model}</p>`;
+        if (customer.branch) html += `<p>🏢 営業所: ${customer.branch}</p>`;
+        if (customer.equipType) html += `<p>⚙️ 型式: ${customer.equipType}</p>`;
+        if (customer.filter) html += `<p>🔧 フィルター: ${customer.filter}</p>`;
+        return html;
+    }
+
     function showInfoWindow(marker, customer) {
         const esc = ExpenseImport.escapeHtml;
         const statusText = { pending: '未アポ', appointed: 'アポ済み', completed: '完了' };
@@ -236,15 +251,7 @@ const MapCore = (() => {
         html += `<h3>${customer.company || '不明'}`;
         if (customer.unitCount > 1) html += ` <small>(${customer.unitCount}台)</small>`;
         html += `</h3>`;
-        if (customer.managementNo) html += `<p>🔖 ${customer.managementNo}</p>`;
-        html += `<p>📍 ${customer.address || ''}</p>`;
-        if (customer.phone) html += `<p>📞 ${customer.phone}</p>`;
-        if (customer.contact) html += `<p>👤 ${customer.contact}</p>`;
-        if (customer.floors && customer.floors.length > 0) html += `<p>🏢 ${customer.floors.join(', ')}</p>`;
-        if (customer.model) html += `<p>💧 ${customer.model}</p>`;
-        if (customer.branch) html += `<p>🏢 営業所: ${customer.branch}</p>`;
-        if (customer.equipType) html += `<p>⚙️ 型式: ${customer.equipType}</p>`;
-        if (customer.filter) html += `<p>🔧 フィルター: ${customer.filter}</p>`;
+        html += detailLines(customer);
         if (route) html += `<p>🗺️ ${esc(route.name)}</p>`;
         html += `<p>${statusText[customer.status] || statusText.pending}</p>`;
         if (customer.appoDate) {
@@ -324,15 +331,74 @@ const MapCore = (() => {
         listEl.innerHTML = html;
     }
 
+    // 一覧で押した行を目立たせる(訪問先一覧・ルートの行)。
+    function markSelected(customerId) {
+        document.querySelectorAll('.list-selected').forEach(el => { el.classList.remove('list-selected'); el.removeAttribute('aria-current'); });
+        document.querySelectorAll('[data-customer-id],[data-stop-id]').forEach(el => {
+            if ((el.dataset.customerId || el.dataset.stopId) === customerId) { el.classList.add('list-selected'); el.setAttribute('aria-current', 'true'); }
+        });
+    }
+    // 長い一覧の下の方で押しても、地図が見える位置まで戻す(動きを減らす設定なら一瞬で)。
+    // 画面に固定されたヘッダー/下のナビを除いた「見える範囲」を求める
+    function visibleBand() {
+        let top = 0, bottom = innerHeight;
+        document.querySelectorAll('body *').forEach(el => {
+            const st = getComputedStyle(el);
+            if (st.position !== 'fixed' && st.position !== 'sticky') return;
+            if (st.display === 'none' || st.visibility === 'hidden') return;
+            const b = el.getBoundingClientRect();
+            if (!b.height || b.width < innerWidth / 2 || b.height > innerHeight / 3) return;
+            if (b.top <= 1 && b.bottom > 0) top = Math.max(top, b.bottom);
+            else if (b.bottom >= innerHeight - 1 && b.top < innerHeight) bottom = Math.min(bottom, b.top);
+        });
+        return { top, bottom };
+    }
+    function revealMap() {
+        if (document.body.classList.contains('map-focus')) return;
+        const canvas = document.querySelector('.map-canvas');
+        if (!canvas || !canvas.getBoundingClientRect) return;
+        const r = canvas.getBoundingClientRect();
+        const { top, bottom } = visibleBand();
+        const avail = bottom - top;
+        // 入るなら見える範囲の真ん中に、入らないならヘッダーのすぐ下に上端を合わせる
+        const want = r.height <= avail ? top + (avail - r.height) / 2 : top + 8;
+        if (Math.abs(r.top - want) < 4) return;
+        const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+        window.scrollTo({ top: Math.max(0, scrollY + r.top - want), behavior: reduce ? 'auto' : 'smooth' });
+    }
     function focusMarker(customerId) {
         const marker = markers.find(m => m.customData && m.customData.id === customerId);
+        markSelected(customerId);
         if (marker) {
-            map.setCenter(marker.getPosition());
+            const old = document.getElementById('listPickCard'); if (old) old.remove();
+            revealMap();
             map.setZoom(16);
+            map.panTo(marker.getPosition());
             google.maps.event.trigger(marker, 'click');
         } else {
-            openEdit(customerId);
+            // 地図が無い/位置が無いときは編集を開かず、地図の場所に簡単な情報カードを出す
+            revealMap();
+            showPickCard(customerId);
         }
+    }
+
+    function showPickCard(customerId) {
+        const customer = DataStorage.getCustomers().find(c => c.id === customerId);
+        const host = document.querySelector('.map-canvas');
+        if (!customer || !host) return;
+        const esc = ExpenseImport.escapeHtml;
+        const statusText = { pending: '未アポ', appointed: 'アポ済み', completed: '完了' };
+        const route = DataStorage.getRoutes().find(r => r.id === customer.routeId);
+        const why = (typeof google === 'undefined' || !map) ? '地図を表示できないため、位置は出せません。' : 'この訪問先はまだ地図の位置がありません。';
+        let card = document.getElementById('listPickCard');
+        if (!card) { card = document.createElement('div'); card.id = 'listPickCard'; card.className = 'list-pick-card'; card.setAttribute('role', 'status'); host.appendChild(card); }
+        card.innerHTML = `<button type="button" class="list-pick-close" aria-label="閉じる" onclick="this.parentNode.remove()">×</button>`
+            + `<div class="list-pick-title">${esc(customer.company || '')}</div>`
+            + (() => { const c = {...customer}; Object.keys(c).forEach(k => { if (typeof c[k] === 'string') c[k] = esc(c[k]); }); if (c.floors) c.floors = c.floors.map(esc); return detailLines(c); })()
+            + (route ? `<div>🗺️ ${esc(route.name || '')}</div>` : '')
+            + `<div>${esc(statusText[customer.status] || '')}</div>`
+            + `<div class="list-pick-note">${why}</div>`
+            + `<button type="button" class="info-btn info-btn-edit" onclick="MapCore.openEdit(${esc(JSON.stringify(customer.id))})">日時・備考を編集</button>`;
     }
 
     function openEdit(customerId) {

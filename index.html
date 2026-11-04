@@ -26,7 +26,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
     <link rel="stylesheet" href="styles/workflow.css">
-    <link rel="stylesheet" href="styles/map-workspace.css?v=20261019-13">
+    <link rel="stylesheet" href="styles/map-workspace.css?v=20261104-1">
     <link rel="stylesheet" href="styles/settings.css?v=20261019-15">
     <link rel="stylesheet" href="styles/request-import.css">
     <link rel="stylesheet" href="styles/mail-box.css?v=20261031-1">
@@ -249,7 +249,7 @@
             <div class="modal-overlay" id="addModal" style="display:none;"><div class="modal"><h2>訪問先を追加</h2><div class="modal-row"><label for="addCompany">会社名 *</label><input type="text" id="addCompany" placeholder="例：㈱サンプル会社"></div><div class="modal-row"><label for="addAddress">住所 *</label><input type="text" id="addAddress" placeholder="例：東京都港区虎ノ門1-1-1"></div><div class="modal-row"><label for="addPhone">電話番号</label><input type="tel" id="addPhone" placeholder="例：03-1234-5678"></div><div class="modal-row"><label for="addContact">担当者</label><input type="text" id="addContact" placeholder="例：山田様"></div><div class="modal-row"><label for="addPurpose">目的</label><select id="addPurpose"><option value="">未設定</option><option value="メンテナンス">メンテナンス</option><option value="修理">修理</option><option value="本体設置">本体設置</option><option value="その他">その他</option></select></div><div class="modal-row"><label for="addNote">備考</label><textarea id="addNote" placeholder="台数や機種、駐車場情報など..."></textarea></div><div class="modal-buttons"><button class="modal-cancel" onclick="hideAddModal()">キャンセル</button><button class="modal-submit" onclick="addNewLocation()">追加する</button></div></div></div>
             <div class="modal-overlay" id="editModal" style="display:none;"><div class="modal visit-editor">
                 <header class="visit-editor-header"><div><h2>電話・訪問予定を登録</h2><strong id="visitEditorName"></strong><p id="visitEditorAddress" class="visit-help"></p></div><button type="button" class="modal-cancel" onclick="hideEditModal()" aria-label="訪問先の編集を閉じる">閉じる</button></header>
-                <div class="visit-editor-actions"><div id="visitPhoneActions"></div><a class="btn btn-secondary" href="https://calendar.google.com" target="_blank" rel="noopener">Googleカレンダーを開く ↗</a></div>
+                <div class="visit-editor-actions"><div id="visitPhoneActions"></div><div id="visitCallInfo" class="visit-call-info" aria-label="電話中に見る情報"></div><p id="visitFilterInfo" class="visit-filter-info" hidden></p><a class="btn btn-secondary" href="https://calendar.google.com" target="_blank" rel="noopener">Googleカレンダーを開く ↗</a></div>
                 <div class="visit-editor-grid"><section aria-label="訪問先の編集">
                     <div class="visit-date-fields"><div class="modal-row"><label for="visitScheduleDay">訪問日</label><input type="date" id="visitScheduleDay"></div><div class="modal-row"><label for="visitScheduleTime">訪問時刻</label><input type="time" id="visitScheduleTime"></div></div><input type="hidden" id="editAppoDate">
                     <p id="visitScheduleHint" class="visit-help" role="status"></p>
@@ -400,11 +400,13 @@
     <script src="map/visit-planner.js?v=20261019-13"></script>
     <script src="map/map-workspace.js?v=20261019-11"></script>
     <script src="map/route-list-pdf.js"></script>
-    <script src="map/route-manager.js"></script>
+    <script src="map/route-manager.js?v=20261104-1"></script>
     <script src="map/map-expense-form.js"></script>
-    <script src="map/route-order.js"></script>
-    <script src="map/segment-dialog.js"></script>
-    <script src="map/distance-calc.js?v=20261019-7"></script>
+    <script src="map/route-order.js?v=20261104-1"></script>
+    <script src="map/ic-kanto.js?v=20261104-1"></script>
+    <script src="map/highway-segments.js?v=20261104-1"></script>
+    <script src="map/segment-dialog.js?v=20261104-1"></script>
+    <script src="map/distance-calc.js?v=20261104-1"></script>
     <script src="map/ui-actions.js?v=20261019-15"></script>
     <script src="map/gcal-panel.js?v=20261019-13"></script>
     <script src="expense/parking-matcher.js?v=20261014-4"></script>

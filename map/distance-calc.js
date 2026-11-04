@@ -73,48 +73,49 @@ const DistanceCalc = (() => {
         ordered.forEach(m => points.push({ address: m.address, id: m.id }));
         points.push({ address: homeAddress, id: 'home_end' });
 
-        // 区間ごとに距離計算
+        // 区間ごとに距離計算（途中から／途中まで高速はICで2つに分けて合計する）
+        const HS = (typeof HighwaySegments !== 'undefined') ? HighwaySegments : null;
         let totalKm = 0;
         let highwayKm = 0;
         let generalKm = 0;
         const segments = [];
+        let calls = 0;
 
         for (let i = 0; i < points.length - 1; i++) {
             const from = points[i];
             const to = points[i + 1];
-
-            // v2.2.3 - segmentChoicesから区間の道路種別を取得
             const segKey = `${from.id}_${to.id}`;
-            const segType = choices[segKey] || 'general';
-            const avoidHighways = (segType === 'general');
-
-            // Directions API呼び出し（レート制限対策で500ms間隔）
-            if (i > 0) await sleep(500);
-
+            const raw = choices[segKey] || 'general';
+            const choice = HS ? HS.normalize(raw) : { type: raw === 'highway' ? 'highway' : 'general', ic: null };
+            const legs = HS ? HS.planLegs(from.address, to.address, choice)
+                : [{ origin: from.address, destination: to.address, avoidHighways: choice.type === 'general', part: choice.type }];
+            const segType = choice.type;
+            const base = { from: from.address.substring(0, 20), to: to.address.substring(0, 20), type: segType };
             try {
-                const result = await getDistance(from.address, to.address, avoidHighways);
-                const seg = {
-                    from: from.address.substring(0, 20),
-                    to: to.address.substring(0, 20),
-                    type: segType,
-                    km: result.distanceKm,
-                    duration: result.durationText,
-                    roadText: result.roadText
-                };
+                const results = [];
+                for (const leg of legs) {
+                    // Directions API呼び出し（レート制限対策で500ms間隔）
+                    if (calls++ > 0) await sleep(500);
+                    const r = await getDistance(leg.origin, leg.destination, leg.avoidHighways);
+                    results.push({ part: leg.part, meters: r.distanceM, r });
+                }
+                const c = HS ? HS.compose(results)
+                    : { km: results[0].r.distanceKm, generalKm: segType === 'general' ? results[0].r.distanceKm : 0, highwayKm: segType === 'general' ? 0 : results[0].r.distanceKm };
+                const durSec = results.reduce((t, x) => t + (x.r.durationSec || 0), 0);
+                const seg = Object.assign(base, {
+                    km: c.km, generalKm: c.generalKm, highwayKm: c.highwayKm, generalM: c.generalM, highwayM: c.highwayM,
+                    duration: results.length > 1 ? Math.round(durSec / 60) + '分' : results[0].r.durationText,
+                    roadText: results.map(x => x.r.roadText).join(' '),
+                    ic: choice.ic ? choice.ic.name : undefined
+                });
+                if (HS) seg.breakdown = HS.breakdown(Object.assign({ choice }, c));
                 segments.push(seg);
-                totalKm += result.distanceKm;
-                if (segType === 'highway') highwayKm += result.distanceKm;
-                else generalKm += result.distanceKm;
+                totalKm += c.km;
+                highwayKm += c.highwayKm;
+                generalKm += c.generalKm;
             } catch (err) {
                 console.warn(`区間距離計算失敗: ${from.address} → ${to.address}`, err);
-                segments.push({
-                    from: from.address.substring(0, 20),
-                    to: to.address.substring(0, 20),
-                    type: segType,
-                    km: 0,
-                    duration: '計算失敗',
-                    error: true
-                });
+                segments.push(Object.assign(base, { km: 0, duration: '計算失敗', error: true }));
             }
         }
 
@@ -131,5 +132,4 @@ const DistanceCalc = (() => {
 
     return { getDistance, calcRouteDistance };
 })();
-
-
+if (typeof module !== 'undefined' && module.exports) module.exports = DistanceCalc;

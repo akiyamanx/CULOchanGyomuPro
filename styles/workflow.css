@@ -246,3 +246,13 @@ button:focus-visible, a:focus-visible, summary:focus-visible, input:focus-visibl
     .modal-overlay { padding: 12px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation-duration: .01ms !important; } }
+
+/* 一覧で押した訪問先 */
+.customer-item.list-selected, .route-stop.list-selected { background: #e3f0fb; box-shadow: inset 4px 0 0 #1f6fb2; }
+
+.list-pick-card { position:absolute; left:12px; right:12px; top:12px; z-index:5; background:#fff; border:1px solid #c9d6e3; border-radius:10px; padding:12px 36px 12px 12px; box-shadow:0 4px 14px rgba(0,0,0,.15); font-size:14px; line-height:1.6; }
+.list-pick-title { font-weight:700; color:#1f4f82; font-size:16px; }
+.list-pick-note { color:#6b7785; font-size:12px; margin:4px 0 8px; }
+.list-pick-close { position:absolute; top:6px; right:8px; border:0; background:none; font-size:20px; line-height:1; cursor:pointer; color:#555; }
+.list-pick-card .info-btn-edit { border:0; border-radius:8px; padding:8px 14px; background:#1f6fb2; color:#fff; font-weight:700; font-size:14px; }
+.list-pick-card p { margin:0; }

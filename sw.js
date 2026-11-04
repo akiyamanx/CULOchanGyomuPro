@@ -10,7 +10,8 @@
 // ==========================================
 
 // v6.1 2026-10-31 - 本番リリース(release-20261031)。旧本番 gyomupro-v44 は有効化時に削除される
-const CACHE_NAME = 'gyomupro-v63';
+// v7.0 2026-11-04 - 本番リリース(release-20261104)。リストタップで地図へ、地図なし情報カード、担当者・フィルター表示、途中から/途中まで高速(IC指定)
+const CACHE_NAME = 'gyomupro-v70';
 // 本番の古いキャッシュだけ消す。同じオリジンのお試し版のキャッシュ(gyomupro-stg-)は消さない
 function ownCache(name) {
     return name.startsWith('gyomupro-') && !name.startsWith('gyomupro-stg-');
@@ -83,6 +84,8 @@ const ASSETS = [
     './map/route-manager.js',
     './map/map-expense-form.js',
     './map/route-order.js',
+    './map/ic-kanto.js',
+    './map/highway-segments.js',
     './map/segment-dialog.js',
     './map/distance-calc.js',
     './map/ui-actions.js',

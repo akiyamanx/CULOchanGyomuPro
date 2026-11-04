@@ -185,7 +185,7 @@ const RouteOrder = (() => {
             if (!fromC || !toC) continue;
 
             const segKey = `${order[i]}_${order[i + 1]}`;
-            const currentType = routeSegments[segKey] || 'general';
+            const currentType = window.HighwaySegments ? HighwaySegments.normalize(routeSegments[segKey]).type : (routeSegments[segKey] || 'general');
             const fromName = (fromC.company || '不明').substring(0, 10);
             const toName = (toC.company || '不明').substring(0, 10);
 
@@ -196,7 +196,9 @@ const RouteOrder = (() => {
             html += `onclick="RouteOrder.setSegType(${ExpenseImport.escapeHtml(JSON.stringify(segKey))},'general',this)">🚗 下道</button>`;
             html += `<button class="seg-btn ${currentType === 'highway' ? 'seg-btn-active' : ''}" `;
             html += `onclick="RouteOrder.setSegType(${ExpenseImport.escapeHtml(JSON.stringify(segKey))},'highway',this)">🛣️ 高速</button>`;
-            html += `</div></div>`;
+            html += `</div>`;
+            if (currentType === 'hwFrom' || currentType === 'hwUntil') html += `<div class="seg-label">${ExpenseImport.escapeHtml(HighwaySegments.label(routeSegments[segKey]))}（ICの変更は📏距離計算の画面で）</div>`;
+            html += `</div>`;
         }
 
         html += '</div>';

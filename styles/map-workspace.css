@@ -101,3 +101,45 @@ body.map-focus .workflow-toast { z-index:14000; }
     .visit-heading-actions { width:100%; }
     .visit-heading-actions>.btn { width:100%; }
 }
+
+.visit-call-info { flex:1 1 128px;min-width:0;align-self:stretch;display:flex;flex-direction:column;justify-content:center;gap:2px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:#f6f9fc;font-size:14px;line-height:1.45;overflow-wrap:anywhere; }
+.visit-call-info[hidden] { display:none; }
+.visit-call-info p { margin:0; }
+#visitPhoneActions { flex:0 1 auto;max-width:100%; }
+#visitPhoneActions .visit-call { width:auto; }
+.visit-filter-info { flex:1 1 100%;margin:8px 0;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:#f6f9fc;font-size:14px;line-height:1.5;white-space:normal;overflow-wrap:anywhere; }
+.visit-filter-info[hidden] { display:none; }
+
+/* 区間別 道路選択（途中から／途中まで高速） */
+.seg-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:10000}
+.seg-dialog{background:#1c2d3f;color:#e8edf2;border-radius:12px;padding:16px;width:94%;max-width:420px;max-height:86vh;display:flex;flex-direction:column;box-shadow:0 4px 20px rgba(0,0,0,.5)}
+.seg-body{display:flex;flex-direction:column;min-height:0;flex:1}
+.seg-title{font-size:18px;font-weight:bold;margin-bottom:4px}
+.seg-hint{font-size:13px;color:#8fa3b8;margin-bottom:10px}
+.seg-list{overflow-y:auto;flex:1;margin-bottom:12px;min-height:0}
+.seg-row{border:2px solid #4CAF50;background:rgba(76,175,80,.12);border-radius:8px;padding:8px 10px;margin-bottom:8px}
+.seg-row.seg-highway{border-color:#2196F3;background:rgba(33,150,243,.13)}
+.seg-row.seg-hwFrom,.seg-row.seg-hwUntil{border-color:#FFB300;background:rgba(255,179,0,.11)}
+.seg-route{display:flex;flex-direction:column;font-size:13px;margin-bottom:6px}
+.seg-route b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.seg-route span{font-size:11px;color:#8fa3b8}
+.seg-types{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.seg-type{min-height:40px;padding:4px 2px;border:1px solid #2a3f55;border-radius:6px;background:#162230;color:#c9d6e3;font-size:12px;cursor:pointer}
+.seg-type.on{background:#1976D2;border-color:#64b5f6;color:#fff;font-weight:bold}
+.seg-ic{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:13px;flex-wrap:wrap}
+.seg-ic b{color:#ffe082}
+.seg-warn{color:#ffb74d}
+.seg-ic-btn{margin-left:auto;min-height:36px;padding:6px 12px;border:1px solid #FFB300;border-radius:6px;background:transparent;color:#ffe082;font-size:13px;cursor:pointer}
+.seg-actions{display:flex;gap:8px}
+.seg-cancel{flex:1;padding:12px;border:1px solid #2a3f55;border-radius:8px;background:#162230;font-size:14px;color:#8fa3b8;cursor:pointer}
+.seg-calc{flex:2;padding:12px;border:none;border-radius:8px;background:#1976D2;color:#fff;font-size:16px;font-weight:bold;cursor:pointer}
+.ic-search{width:100%;box-sizing:border-box;padding:10px;border-radius:8px;border:1px solid #2a3f55;background:#0f1a26;color:#e8edf2;font-size:16px}
+.ic-sec{font-size:13px;font-weight:bold;margin:12px 0 6px;color:#b0c4d8}
+.ic-chips{display:flex;flex-wrap:wrap;gap:6px}
+.ic-chip{display:flex;flex-direction:column;align-items:flex-start;min-height:44px;padding:6px 10px;border:1px solid #2a3f55;border-radius:8px;background:#162230;color:#e8edf2;font-size:13px;cursor:pointer;text-align:left;max-width:100%}
+.ic-chip small{font-size:11px;color:#8fa3b8}
+.ic-none{font-size:12px;color:#8fa3b8}
+.ic-map{width:100%;min-height:44px;border:1px solid #2196F3;border-radius:8px;background:rgba(33,150,243,.15);color:#e8edf2;font-size:14px;cursor:pointer}
+.ic-map:disabled{opacity:.45;cursor:not-allowed}
+.ic-map-bar{position:fixed;left:8px;right:8px;top:calc(env(safe-area-inset-top,0px) + 8px);z-index:10001;display:flex;gap:8px;align-items:center;background:#1c2d3f;color:#e8edf2;border:2px solid #FFB300;border-radius:10px;padding:10px 12px;font-size:14px;box-shadow:0 4px 14px rgba(0,0,0,.5)}
+.ic-map-bar button{margin-left:auto;min-height:36px;padding:6px 12px;border-radius:6px;border:1px solid #8fa3b8;background:#162230;color:#e8edf2}

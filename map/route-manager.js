@@ -43,7 +43,7 @@ const RouteManager = (() => {
             if (members.length > 0) {
                 html += `<div class="route-stops">`;
                 members.forEach((m, idx) => {
-                    html += `<div class="route-stop" onclick="MapCore.focusMarker(${jsArg(m.id)})">`;
+                    html += `<div class="route-stop" data-stop-id="${esc(m.id)}" onclick="MapCore.focusMarker(${jsArg(m.id)})">`;
                     html += `<span class="stop-number">${idx + 1}</span>`;
                     html += `<span>${esc(m.company || '不明')}`;
                     if (m.unitCount > 1) html += ` (${m.unitCount}台)`;
@@ -64,7 +64,7 @@ const RouteManager = (() => {
             html += `</div>`;
             html += `<div class="route-stops">`;
             unassigned.forEach((m, idx) => {
-                html += `<div class="route-stop" onclick="MapCore.focusMarker(${jsArg(m.id)})">`;
+                html += `<div class="route-stop" data-stop-id="${esc(m.id)}" onclick="MapCore.focusMarker(${jsArg(m.id)})">`;
                 html += `<span class="stop-number">-</span>`;
                 html += `<span>${esc(m.company || '不明')}</span>`;
                 html += `</div>`;
@@ -230,10 +230,11 @@ const RouteManager = (() => {
         const settings = DataStorage.getSettings();
         if (!settings.homeAddress) { alert('設定で会社住所（出発・帰着）を登録してください'); return; }
 
+        const home = (DataStorage.getGeoCache && DataStorage.getGeoCache()[settings.homeAddress]) || {};
         const points = [];
-        points.push({ id: 'home_start', address: settings.homeAddress, label: '🏢 会社（出発）' });
-        ordered.forEach(m => { points.push({ id: m.id, address: m.address, label: (m.company || '不明').substring(0, 15) }); });
-        points.push({ id: 'home_end', address: settings.homeAddress, label: '🏢 会社（帰着）' });
+        points.push({ id: 'home_start', address: settings.homeAddress, label: '🏢 会社（出発）', lat: home.lat, lng: home.lng });
+        ordered.forEach(m => { points.push({ id: m.id, address: m.address, label: (m.company || '不明').substring(0, 15), lat: m.lat, lng: m.lng }); });
+        points.push({ id: 'home_end', address: settings.homeAddress, label: '🏢 会社（帰着）', lat: home.lat, lng: home.lng });
 
         const workspace = DataStorage.getCurrentWorkspaceId();
         const signature = distanceSignature(routeId, date);
@@ -275,8 +276,9 @@ const RouteManager = (() => {
             let msg = `📏 ${route.name} の走行距離\n\n`;
             msg += `総距離: ${result.totalKm}km\n  🚗 下道: ${result.generalKm}km\n  🛣️ 高速: ${result.highwayKm}km\n\n--- 区間詳細 ---\n`;
             result.segments.forEach((s, i) => {
-                const icon = s.type === 'highway' ? '🛣️' : '🚗';
+                const icon = (window.HighwaySegments && HighwaySegments.ICONS[s.type]) || (s.type === 'highway' ? '🛣️' : '🚗');
                 msg += `${i + 1}. ${icon} ${s.km}km (${s.duration})\n   ${s.from} → ${s.to}\n`;
+                if (s.breakdown) msg += `   ${s.breakdown}\n`;
             });
             msg += `\n精算書に反映しますか？`;
             if (confirm(msg)) {
