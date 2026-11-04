@@ -34,7 +34,12 @@ const ExpenseImport = (() => {
     }
 
     function parseEtcCsv(text) {
-        const rows = parseCsv(text);
+        return parseEtcRows(parseCsv(text));
+    }
+
+    // 行の配列（CSVでもExcelでも同じ形: 文字列の配列の配列）からETC明細を作る
+    function parseEtcRows(input) {
+        const rows = (input || []).map(r => (r || []).map(c => c == null ? '' : String(c).trim())).filter(r => r.some(v => v));
         let start = -1, dateCol = -1, amountCol = -1, entryCol = -1, exitCol = -1;
         for (let i = 0; i < rows.length; i++) {
             const headers = rows[i].map(c => c.normalize('NFKC').replace(/\s/g, ''));
@@ -52,7 +57,9 @@ const ExpenseImport = (() => {
         const occurrences = new Map();
         const result = [];
         for (const row of rows.slice(start)) {
-            const date = normalizeDate(row[dateCol]);
+            // 「26/11/05」のような2桁の年も読む
+            const rawDate = String(row[dateCol] || '').normalize('NFKC').replace(/^(\d{2})([\/-]\d{1,2}[\/-]\d{1,2})/, '20$1$2');
+            const date = normalizeDate(rawDate);
             const value = String(row[amountCol] || '').normalize('NFKC').replace(/[¥￥円,\s]/g, '');
             if (!date || !/^\d+$/.test(value)) continue;
             const amount = Number(value);
@@ -74,7 +81,7 @@ const ExpenseImport = (() => {
             .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
-    return { normalizeDate, parseCsv, parseEtcCsv, escapeHtml };
+    return { normalizeDate, parseCsv, parseEtcCsv, parseEtcRows, escapeHtml };
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = ExpenseImport;

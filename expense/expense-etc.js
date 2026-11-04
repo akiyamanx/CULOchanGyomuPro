@@ -18,7 +18,16 @@ const ExpenseEtc = (() => {
         const file = event.target.files[0];
         if (!file) return;
         const reader = new FileReader();
-        reader.onload = e => {
+        const excel = typeof XlsxLite !== 'undefined' && XlsxLite.isXlsx(file);
+        reader.onload = async e => {
+            if (excel) {
+                try {
+                    const records = ExpenseImport.parseEtcRows(await XlsxLite.readFirstSheet(e.target.result));
+                    if (!records.length) throw new Error('ETC明細がありません。利用日と料金を確認してください');
+                    _showEtcModal(records);
+                } catch (error) { alert('Excelファイルを読み込めません\n' + error.message); }
+                return;
+            }
             try {
                 let text;
                 try { text = new TextDecoder('utf-8', { fatal: true }).decode(e.target.result); }

@@ -118,7 +118,7 @@
                 <h3 class="section-title" id="importTitle"><span>1</span> 経費を取り込む</h3>
                 <p class="section-desc">必要なものだけ取り込めます。明細に直接入力しても大丈夫です。</p>
                 <details class="panel-card fold-card" id="routeImport"><summary><span>訪問ルート・走行距離</span><span class="summary-note">日付とルートを選択</span></summary><div class="fold-body" id="tabExpense"></div></details>
-                <div class="panel-card import-etc"><div><h4>高速道路の料金</h4><p class="section-desc">ETCのCSVから利用日ごとに取り込みます。</p></div><label class="btn btn-secondary file-control">ETC CSVを選択<input type="file" accept=".csv" onchange="ExpenseEtc.handleFile(event)" class="file-input"></label><a href="https://www.etc-meisai.jp/" target="_blank" rel="noopener" class="text-link">ETC利用照会を開く ↗</a></div>
+                <div class="panel-card import-etc"><div><h4>高速道路の料金</h4><p class="section-desc">ETC利用照会のCSV・Excel（.xlsx）から利用日ごとに取り込みます。</p></div><label class="btn btn-secondary file-control">ETCファイルを選択（CSV・Excel）<input type="file" accept=".csv,text/csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" onchange="ExpenseEtc.handleFile(event)" class="file-input"></label><a href="https://www.etc-meisai.jp/" target="_blank" rel="noopener" class="text-link">ETC利用照会を開く ↗</a></div>
             <details class="panel-card fold-card" id="etcSection"><summary><span>ETC PDF・寄り道</span><span class="summary-note">月まとめ取込 → 日別に確認</span></summary><div class="fold-body" id="etcWorkflow"></div></details>
             <details class="panel-card parking-section fold-card" id="parkingSection">
                 <summary><span>駐車場代を取り込む・記録する</span><span class="summary-note">レシート・手入力</span></summary><div class="fold-body">
@@ -363,13 +363,14 @@
     <script src="receipt/receipt-scanner.js?v=20261019-15"></script>
     <script src="receipt/receipt-photo-geometry.js?v=20261014-3"></script>
     <script src="receipt/receipt-photo.js?v=20261014-3"></script>
-    <script src="expense/expense-import.js"></script>
+    <script src="expense/expense-import.js?v=20261105-4"></script>
+    <script src="expense/xlsx-lite.js?v=20261105-4"></script>
     <script src="shared/pdf-renderer.js"></script>
     <script src="expense/expense-draft-store.js?v=20261019-15"></script>
     <script src="expense/expense-draft-receipts.js?v=20261019-2"></script>
     <script src="expense/expense-manager.js?v=20261031-1"></script>
     <script src="expense/expense-pdf.js?v=20261019-7"></script>
-    <script src="expense/expense-etc.js"></script>
+    <script src="expense/expense-etc.js?v=20261105-4"></script>
     <!-- v1.3追加 - Phase I: 駐車場明細IndexedDB管理 -->
     <script src="expense/parking-idb.js?v=20261019-15"></script>
     <script src="expense/parking-document.js?v=20261014-3"></script>
