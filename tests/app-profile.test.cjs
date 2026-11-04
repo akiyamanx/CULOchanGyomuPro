@@ -54,7 +54,7 @@ test('SW: 本番キャッシュ名は新しい版で、お試し版のキャッ�
     const ctx = { self: { location: { pathname: '/CULOchanGyomuPro/sw.js', origin: 'https://akiyamanx.github.io' }, addEventListener() {} } };
     vm.createContext(ctx);
     vm.runInContext(sw + '\nthis.CACHE_NAME=CACHE_NAME;this.ownCache=ownCache;', ctx);
-    assert.equal(ctx.CACHE_NAME, 'gyomupro-v70');
+    assert.equal(ctx.CACHE_NAME, 'gyomupro-v72');
     assert.equal(ctx.ownCache('gyomupro-v44'), true);
     assert.equal(ctx.ownCache('gyomupro-stg-v60'), false);
     assert.doesNotMatch(sw, /caches\.match\(/);

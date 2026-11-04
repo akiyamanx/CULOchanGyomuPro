@@ -164,7 +164,7 @@ const MapCore = (() => {
         RouteManager.updateRoutePanel();
     }
 
-    function geocodeAddressAsync(address) {
+    function geocodeOnce(address) {
         return new Promise((resolve, reject) => {
             geocoder.geocode({ address: address }, (results, status) => {
                 if (status === 'OK' && results[0]) { resolve(results[0].geometry.location); }
@@ -174,6 +174,15 @@ const MapCore = (() => {
                 }
             });
         });
+    }
+    // 見つからない(ZERO_RESULTS)ときだけ、全角→半角・建物名を外した住所でも試す
+    async function geocodeAddressAsync(address) {
+        let last = 'ZERO_RESULTS';
+        for (const v of GeocodeGuard.addressVariants(address)) {
+            try { return await geocodeOnce(v); }
+            catch (st) { last = st; if (st !== 'ZERO_RESULTS') break; }
+        }
+        throw last;
     }
 
     function geocodeAddress(address, callback) {
@@ -378,18 +387,27 @@ const MapCore = (() => {
         } else {
             // 地図が無い/位置が無いときは編集を開かず、地図の場所に簡単な情報カードを出す
             revealMap();
-            showPickCard(customerId);
+            const c = DataStorage.getCustomers().find(x => x.id === customerId);
+            if (map && geocoder && c && c.address && !hasPosition(c) && !guard.failed()) locateAndFocus(customerId);
+            else showPickCard(customerId);
         }
     }
 
-    function showPickCard(customerId) {
+    function showPickCard(customerId, state) {
         const customer = DataStorage.getCustomers().find(c => c.id === customerId);
         const host = document.querySelector('.map-canvas');
         if (!customer || !host) return;
         const esc = ExpenseImport.escapeHtml;
         const statusText = { pending: '未アポ', appointed: 'アポ済み', completed: '完了' };
         const route = DataStorage.getRoutes().find(r => r.id === customer.routeId);
-        const why = (typeof google === 'undefined' || !map) ? '地図を表示できないため、位置は出せません。' : 'この訪問先はまだ地図の位置がありません。';
+        const noMap = typeof google === 'undefined' || !map || !geocoder;
+        const msgs = {
+            busy: '📍 住所から地図の位置を探しています…',
+            none: '地図の位置が見つかりませんでした。通信が不安定なら「📍 地図の位置を取得」をもう一度、続くときは住所の書き方（番地・建物名）を編集で確かめてください。',
+            nomap: '地図を表示できないため、位置は出せません。'
+        };
+        const why = noMap ? msgs.nomap : (msgs[state] || 'この訪問先はまだ地図の位置がありません。');
+        const canLocate = !noMap && state !== 'busy' && !guard.failed() && customer.address;
         let card = document.getElementById('listPickCard');
         if (!card) { card = document.createElement('div'); card.id = 'listPickCard'; card.className = 'list-pick-card'; card.setAttribute('role', 'status'); host.appendChild(card); }
         card.innerHTML = `<button type="button" class="list-pick-close" aria-label="閉じる" onclick="this.parentNode.remove()">×</button>`
@@ -398,6 +416,7 @@ const MapCore = (() => {
             + (route ? `<div>🗺️ ${esc(route.name || '')}</div>` : '')
             + `<div>${esc(statusText[customer.status] || '')}</div>`
             + `<div class="list-pick-note">${why}</div>`
+            + (canLocate ? `<button type="button" class="info-btn info-btn-locate" onclick="MapCore.locateAndFocus(${esc(JSON.stringify(customer.id))})">📍 地図の位置を取得</button>` : '')
             + `<button type="button" class="info-btn info-btn-edit" onclick="MapCore.openEdit(${esc(JSON.stringify(customer.id))})">日時・備考を編集</button>`;
     }
 
@@ -437,14 +456,72 @@ const MapCore = (() => {
         }
         updateCountBadge();
         updateCustomerList();
+        // Gmail取り込み・同期・月切替の後も、位置が無い訪問先は裏で位置を取る
+        locateMissing(customers);
     }
 
     function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
+    // --- 位置が無い訪問先の位置取り（Gmail取り込み・同期・月切替の後でも付ける） ---
+    const locateTried = new Set();   // この起動中に試して見つからなかった住所（何度も呼ばない）
+    const locating = new Set();
+    let locateRunning = null;
+    function hasPosition(c) {
+        const cache = DataStorage.getGeoCache();
+        return !!(cache[c.address] || (c.lat && c.lng));
+    }
+    function missingPosition(customers) {
+        return (customers || []).filter(c => c && c.address && !hasPosition(c));
+    }
+    // 1件の位置を取って保存する。戻り値: 'ok' | 'none'(見つからない・時間切れ) | 'nomap'
+    async function locateOne(customer) {
+        if (!map || !geocoder || guard.failed()) return 'nomap';
+        if (hasPosition(customer)) return 'ok';
+        const latLng = await guard.run(() => geocodeAddressAsync(customer.address));
+        if (!latLng) { if (guard.failed()) return 'nomap'; locateTried.add(customer.address); return 'none'; }
+        DataStorage.setGeoCache(customer.address, { lat: latLng.lat(), lng: latLng.lng() });
+        DataStorage.updateCustomer(customer.id, { lat: latLng.lat(), lng: latLng.lng() });
+        if (!markers.some(m => m.customData && m.customData.id === customer.id)) createMarker({ ...customer, lat: latLng.lat(), lng: latLng.lng() }, latLng);
+        return 'ok';
+    }
+    // まとめて取る（画面は止めない）。試して見つからなかった住所はこの起動中は飛ばす
+    function locateMissing(customers, { retry = false } = {}) {
+        const list = missingPosition(customers || DataStorage.getCustomers())
+            .filter(c => (retry || !locateTried.has(c.address)) && !locating.has(c.id));
+        if (!list.length || !map || !geocoder) return locateRunning || Promise.resolve({ ok: 0, none: 0 });
+        list.forEach(c => locating.add(c.id));
+        const prev = locateRunning || Promise.resolve();
+        const run = prev.then(async () => {
+            const res = { ok: 0, none: 0 };
+            for (const c of list) {
+                const r = await locateOne(c);
+                locating.delete(c.id);
+                if (r === 'ok') res.ok++; else res.none++;
+                if (r === 'nomap') break;
+                await sleep(200);
+            }
+            list.forEach(c => locating.delete(c.id));
+            if (res.ok) { updateCountBadge(); updateCustomerList(); }
+            return res;
+        });
+        locateRunning = run.finally(() => { if (locateRunning === run) locateRunning = null; });
+        return run;
+    }
+    // 情報カードの「📍 地図の位置を取得」
+    async function locateAndFocus(customerId) {
+        const customer = DataStorage.getCustomers().find(c => c.id === customerId);
+        if (!customer) return;
+        showPickCard(customerId, 'busy');
+        const r = await locateOne(customer);
+        const marker = markers.find(m => m.customData && m.customData.id === customerId);
+        if (r === 'ok' && marker) { updateCountBadge(); updateCustomerList(); focusMarker(customerId); }
+        else showPickCard(customerId, r);
+    }
+
     return {
         initMap, mapFailed, geocodeAndPlot, plotAllMarkers, clearMarkers,
         createMarker, updateMarkerColor, focusMarker,
-        openEdit, refreshAllMarkers,
+        openEdit, refreshAllMarkers, locateMissing, locateAndFocus,
         updateCountBadge, updateCustomerList,
         getCurrentEditId: () => currentEditId,
         getMap: () => map, getMarkers: () => markers

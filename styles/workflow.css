@@ -255,4 +255,5 @@ button:focus-visible, a:focus-visible, summary:focus-visible, input:focus-visibl
 .list-pick-note { color:#6b7785; font-size:12px; margin:4px 0 8px; }
 .list-pick-close { position:absolute; top:6px; right:8px; border:0; background:none; font-size:20px; line-height:1; cursor:pointer; color:#555; }
 .list-pick-card .info-btn-edit { border:0; border-radius:8px; padding:8px 14px; background:#1f6fb2; color:#fff; font-weight:700; font-size:14px; }
+.list-pick-card .info-btn-locate { border:1px solid #1f6fb2; border-radius:8px; padding:8px 14px; margin:0 8px 6px 0; background:#fff; color:#1f6fb2; font-weight:700; font-size:14px; min-height:44px; }
 .list-pick-card p { margin:0; }

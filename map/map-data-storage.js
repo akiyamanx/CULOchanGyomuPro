@@ -317,7 +317,12 @@ const DataStorage = (() => {
         const customers = getCustomers();
         const idx = customers.findIndex(c => c.id === id);
         if (idx !== -1) {
-            customers[idx] = { ...customers[idx], ...updates };
+            const prev = customers[idx];
+            customers[idx] = { ...prev, ...updates };
+            // 住所が変わったら古い位置を捨てる（新しい住所で取り直す）
+            if (typeof updates.address === 'string' && updates.address !== prev.address && !('lat' in updates)) {
+                customers[idx].lat = null; customers[idx].lng = null;
+            }
             if (!saveCustomers(customers)) return null;
             return customers[idx];
         }
