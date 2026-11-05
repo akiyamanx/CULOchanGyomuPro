@@ -157,6 +157,7 @@
                     </div>
                     <div class="exp-fg"><label for="expDestCompany">行先（会社名）</label><textarea class="exp-textarea" id="expDestCompany" rows="2" placeholder="○○㈱ → △△㈱ → □□㈱○○店"></textarea></div>
                     <div class="exp-fg"><label for="expDestAddress">行先（住所）</label><textarea class="exp-textarea" id="expDestAddress" rows="2" placeholder="千葉県袖ケ浦市 → 東京都足立区 → 千葉県千葉市美浜区"></textarea></div>
+                    <button type="button" class="btn btn-secondary" id="expPickVisits" onclick="ExpenseManager.openVisitPicker()">✅ 完了した訪問から行先を入れる（作業日で選ぶ）</button>
                     <div class="exp-fg"><label for="expEmployeeName">氏名</label><input type="text" class="exp-input" id="expEmployeeName" value="小出晃也"></div>
                 </div>
             </section>
@@ -368,7 +369,8 @@
     <script src="shared/pdf-renderer.js"></script>
     <script src="expense/expense-draft-store.js?v=20261019-15"></script>
     <script src="expense/expense-draft-receipts.js?v=20261019-2"></script>
-    <script src="expense/expense-manager.js?v=20261031-1"></script>
+    <script src="expense/visit-picker.js?v=20261105-6"></script>
+    <script src="expense/expense-manager.js?v=20261105-5"></script>
     <script src="expense/expense-pdf.js?v=20261019-7"></script>
     <script src="expense/expense-etc.js?v=20261105-4"></script>
     <!-- v1.3追加 - Phase I: 駐車場明細IndexedDB管理 -->
@@ -402,7 +404,7 @@
     <script src="map/map-workspace.js?v=20261019-11"></script>
     <script src="map/route-list-pdf.js"></script>
     <script src="map/result-map.js?v=20261105-3"></script>
-    <script src="map/route-manager.js?v=20261105-3"></script>
+    <script src="map/route-manager.js?v=20261105-6"></script>
     <script src="map/map-expense-form.js"></script>
     <script src="map/route-order.js?v=20261104-1"></script>
     <script src="map/ic-kanto.js?v=20261104-1"></script>

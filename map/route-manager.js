@@ -220,6 +220,16 @@ const RouteManager = (() => {
     }
 
     // v2.0修正 - 会社名と住所を1対1で並べる、住所は町名レベルまで
+    // v79: 精算書へ反映した日の訪問を「完了」にするか聞く（キャンセルなら何も変えない）
+    function offerMarkDone(ordered, date) {
+        if (typeof VisitPicker === 'undefined') return 0;
+        const todo = VisitPicker.notDone(ordered);
+        if (!todo.length || !confirm('この日の訪問 ' + todo.length + '件を「完了」にしますか？\n（' + date + '・精算書の行先選びで使います）')) return 0;
+        todo.forEach(c => DataStorage.updateCustomer(c.id, { status: 'completed' }));
+        try { MapCore.refreshAllMarkers(); MapCore.updateCustomerList(); } catch (e) { /* 地図が無くても保存は済んでいる */ }
+        return todo.length;
+    }
+
     function buildDestinationText(orderedCustomers) {
         const companies = [];
         const areas = [];
@@ -311,6 +321,7 @@ const RouteManager = (() => {
                 const dest = buildDestinationText(ordered);
                 ExpenseManager.applyRoute(date, result.totalKm, dest);
                 ExpenseManager.syncParking(date);
+                offerMarkDone(ordered, date);
                 AppCore.switchTab('expense');
             }
         } catch (err) {
@@ -381,7 +392,7 @@ const RouteManager = (() => {
         return result && result.signature === distanceSignature(routeId, date) ? result : null;
     }
 
-    return {
+    return { offerMarkDone,
         updateRoutePanel, toggleRouteSection,
         drawRouteLines, exportPDF, updateSummary,
         calcDistance, getDistance, distanceSignature, buildDestinationText,

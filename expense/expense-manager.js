@@ -20,7 +20,6 @@ const ExpenseManager = (() => {
         const dateInput = document.getElementById('expSubmitDate');
         if (dateInput) {
             dateInput.value = new Date().toLocaleDateString('sv-SE');
-            dateInput.addEventListener('change', _onSubmitDateChange);
         }
         addRow();
         renderDraftList();
@@ -330,9 +329,7 @@ const ExpenseManager = (() => {
             onDistanceChange(input);
         }
         if (!row.querySelector('.exp-transport').value) row.querySelector('.exp-transport').value = '自家用車';
-        const data = getRowsData().filter(item => item.destCompany || item.destAddress);
-        _setVal('expDestCompany', data.map(item => item.month + '/' + item.day + ' ' + item.destCompany).join('\n'));
-        _setVal('expDestAddress', data.map(item => item.month + '/' + item.day + ' ' + item.destAddress).join('\n'));
+        _refreshHeaderDestinations();
         recalculate();
     }
 
@@ -490,15 +487,12 @@ const ExpenseManager = (() => {
     // ==========================================
     // v1.1 マップ顧客連携 / v1.2 2フィールド対応
     // ==========================================
-    function _onSubmitDateChange() {
-        const dateInput = document.getElementById('expSubmitDate');
-        if (!dateInput || !dateInput.value) return;
-        const ym = dateInput.value.substring(0, 7);
-        const customers = _getMapCustomers(ym);
-        if (customers.length === 0) return;
-        const appointed = customers.filter(c => c.status === 'appointed' && c.appoDate);
-        if (appointed.length === 0) return;
-        _showCustomerPicker(appointed, ym);
+    // v78: 提出日では訪問を選ばない。作業日を選んで「完了」の訪問から行先を入れる。
+    let _pickerDay = '';
+    function openVisitPicker(day) {
+        const dates = Array.from(document.querySelectorAll('#expenseRows .exp-row')).map(row => { try { return _rowDate(row); } catch (e) { return ''; } });
+        _pickerDay = ExpenseImport.normalizeDate(day) || VisitPicker.defaultDay(dates, new Date().toLocaleDateString('sv-SE'));
+        _showCustomerPicker(_getMapCustomers(_pickerDay.slice(0, 7)), _pickerDay);
     }
 
     function _getMapCustomers(yearMonth) {
@@ -519,40 +513,30 @@ const ExpenseManager = (() => {
         return match ? match[1] : address;
     }
 
-    function _showCustomerPicker(customers, yearMonth) {
-        const byDate = {};
-        customers.forEach(c => {
-            const d = ExpenseImport.normalizeDate(c.appoDate) || '日付なし';
-            if (!byDate[d]) byDate[d] = [];
-            byDate[d].push(c);
-        });
-        const sortedDates = Object.keys(byDate).sort();
-        let html = '<div class="exp-picker-header">'
-            + '<h3>📍 ' + _escHtml(yearMonth) + ' のアポ済みお客様</h3>'
-            + '<p>チェックしたお客様を行先に反映します</p>'
-            + '<button class="exp-picker-select-all" onclick="ExpenseManager.togglePickerAll()">全選択/解除</button>'
-            + '</div><div class="exp-picker-list">';
-        sortedDates.forEach(date => {
-            html += '<div class="exp-picker-date-group">'
-                + '<div class="exp-picker-date-label">📅 ' + _escHtml(date) + '</div>';
-            byDate[date].forEach(c => {
-                const label = (c.company || '') + ' ' + (c.address || '');
-                const purpose = c.purpose ? '（' + _escHtml(c.purpose) + '）' : '';
-                html += '<label class="exp-picker-item">'
-                    + '<input type="checkbox" class="exp-picker-cb" '
-                    + 'data-company="' + _escAttr(c.company || '') + '" '
-                    + 'data-address="' + _escAttr(c.address || '') + '" '
-                    + 'data-purpose="' + _escAttr(c.purpose || '') + '" '
-                    + 'data-date="' + _escAttr(date) + '" checked>'
-                    + '<span class="exp-picker-label">' + _escHtml(label.trim()) + purpose + '</span>'
-                    + '</label>';
-            });
-            html += '</div>';
-        });
+    function _pickerItem(c, checked, date) {
+        const purpose = c.purpose ? '（' + _escHtml(c.purpose) + '）' : '';
+        return '<label class="exp-picker-item"><input type="checkbox" class="exp-picker-cb" '
+            + 'data-company="' + _escAttr(c.company || '') + '" data-address="' + _escAttr(c.address || '') + '" data-date="' + _escAttr(date) + '"' + (checked ? ' checked' : '') + '>'
+            + '<span class="exp-picker-label">' + _escHtml(((c.company || '') + ' ' + _trimToCity(c.address || '')).trim()) + purpose + '</span></label>';
+    }
+
+    function _showCustomerPicker(customers, day) {
+        const g = VisitPicker.groupForDay(customers, day);
+        let html = '<div class="exp-picker-header"><h3>📍 完了した訪問から行先を入れる</h3>'
+            + '<div class="exp-fg"><label for="expPickerDay">作業日（アポ日）</label><input type="date" class="exp-input" id="expPickerDay" value="' + _escAttr(day) + '" onchange="ExpenseManager.openVisitPicker(this.value)"></div>'
+            + '<p>この日に「完了」にした訪問を、この日の明細の行先に入れます（提出日とは別です）。</p></div><div class="exp-picker-list">';
+        html += '<div class="exp-picker-date-group" id="expPickerDone"><div class="exp-picker-date-label">✅ ' + _escHtml(day) + ' に完了（' + g.done.length + '件）</div>'
+            + (g.done.length ? g.done.map(c => _pickerItem(c, true, day)).join('') : '<p class="summary-note">この日に完了の訪問はありません。マップの編集画面で「完了」にしてください。</p>') + '</div>';
+        if (g.forgot.length) html += '<div class="exp-picker-date-group" id="expPickerForgot"><div class="exp-picker-date-label">🤔 完了にし忘れ？（アポ済み・この日）</div>' + g.forgot.map(c => _pickerItem(c, false, day)).join('') + '</div>';
+        if (g.others.length) {
+            html += '<details class="exp-picker-date-group" id="expPickerOthers"><summary>ほかの日を表示（' + g.others.length + '件）</summary>';
+            let last = '';
+            g.others.forEach(c => { if (c._day !== last) { last = c._day; html += '<div class="exp-picker-date-label">📅 ' + _escHtml(last) + '</div>'; } html += _pickerItem(c, false, c._day); });
+            html += '</details>';
+        }
         html += '</div><div class="exp-picker-actions">'
-            + '<button class="btn btn-primary" onclick="ExpenseManager.applyPicker()">✅ 行先に反映</button>'
-            + '<button class="btn btn-secondary" onclick="ExpenseManager.closePicker()">キャンセル</button>'
-            + '</div>';
+            + '<button class="btn btn-primary" onclick="ExpenseManager.applyPicker()">✅ この日の行先にする</button>'
+            + '<button class="btn btn-secondary" onclick="ExpenseManager.closePicker()">キャンセル</button></div>';
         let modal = document.getElementById('expCustomerPicker');
         if (!modal) {
             modal = document.createElement('div');
@@ -570,33 +554,23 @@ const ExpenseManager = (() => {
         cbs.forEach(cb => { cb.checked = !allChecked; });
     }
 
-    // v1.2改修 - 会社名行と住所行を分けて反映（住所は市区町村切り詰め）
+    // v78: 選んだ訪問で作業日の明細の行先を置き換え、上の行先欄も明細から作り直す（追記しない）
     function applyPicker() {
-        const cbs = document.querySelectorAll('.exp-picker-cb:checked');
-        if (cbs.length === 0) { alert('お客様を1件以上選択してください'); return; }
-        const companies = [];
-        const addresses = [];
-        cbs.forEach(cb => {
-            if (cb.dataset.company) companies.push(cb.dataset.company);
-            if (cb.dataset.address) addresses.push(_trimToCity(cb.dataset.address));
-        });
-        const companyLine = companies.join(' → ');
-        const addressLine = addresses.join(' → ');
-        const destC = document.getElementById('expDestCompany');
-        const destA = document.getElementById('expDestAddress');
-        if (destC) {
-            if (destC.value.trim()) {
-                destC.value = confirm('既存の会社名に上書き？\nキャンセルで追記')
-                    ? companyLine : destC.value.trim() + ' → ' + companyLine;
-            } else { destC.value = companyLine; }
-        }
-        if (destA) {
-            if (destA.value.trim()) {
-                destA.value = confirm('既存の住所に上書き？\nキャンセルで追記')
-                    ? addressLine : destA.value.trim() + ' → ' + addressLine;
-            } else { destA.value = addressLine; }
-        }
+        const cbs = Array.from(document.querySelectorAll('.exp-picker-cb:checked'));
+        if (cbs.length === 0) { alert('訪問を1件以上選択してください'); return; }
+        const day = _pickerDay;
+        const row = getOrCreateDateRow(day);
+        row.querySelector('.exp-dest-company').value = cbs.map(cb => cb.dataset.company).filter(Boolean).join(' → ');
+        row.querySelector('.exp-dest-address').value = cbs.map(cb => _trimToCity(cb.dataset.address)).filter(Boolean).join(' → ');
+        _refreshHeaderDestinations();
+        recalculate();
         closePicker();
+    }
+
+    function _refreshHeaderDestinations() {
+        const data = getRowsData().filter(item => item.destCompany || item.destAddress);
+        _setVal('expDestCompany', data.map(item => item.month + '/' + item.day + ' ' + item.destCompany).join('\n'));
+        _setVal('expDestAddress', data.map(item => item.month + '/' + item.day + ' ' + item.destAddress).join('\n'));
     }
 
     function closePicker() {
@@ -618,7 +592,7 @@ const ExpenseManager = (() => {
         getHeaderData, getRowsData, parseHighway, calcGasCost,
         saveDraft, loadDraft, deleteDraft, renderDraftList, previewDraftReceipts, clearAll,
         trimToCity: _trimToCity,
-        togglePickerAll, applyPicker, closePicker
+        togglePickerAll, applyPicker, closePicker, openVisitPicker
     };
 })();
 

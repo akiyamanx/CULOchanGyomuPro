@@ -11,7 +11,7 @@
 
 // v6.1 2026-10-31 - 本番リリース(release-20261031)。旧本番 gyomupro-v44 は有効化時に削除される
 // v7.0 2026-11-04 - 本番リリース(release-20261104)。リストタップで地図へ、地図なし情報カード、担当者・フィルター表示、途中から/途中まで高速(IC指定)
-const CACHE_NAME = 'gyomupro-v77';
+const CACHE_NAME = 'gyomupro-v79';
 // 本番の古いキャッシュだけ消す。同じオリジンのお試し版のキャッシュ(gyomupro-stg-)は消さない
 function ownCache(name) {
     return name.startsWith('gyomupro-') && !name.startsWith('gyomupro-stg-');
@@ -49,6 +49,7 @@ const ASSETS = [
     './shared/pdf-renderer.js',
     './expense/expense-draft-store.js',
     './expense/expense-draft-receipts.js',
+    './expense/visit-picker.js',
     './expense/expense-manager.js',
     './expense/expense-pdf.js',
     './expense/expense-etc.js',
