@@ -101,6 +101,8 @@
     font-size: 15px;
     font-weight: 600;
     color: #e8edf2;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .ws-menu-sub {
@@ -109,6 +111,8 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    flex: 1;
+    min-width: 0;
 }
 
 .ws-menu-count {

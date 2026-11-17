@@ -94,3 +94,13 @@ body.mailbox-open #migrationNotice { display: none; }
    縮むのは一覧(.mailbox-body)だけにする。 */
 .mailbox-sheet > :not(.mailbox-body) { flex-shrink: 0; }
 .mailbox-body { min-height: 0; }
+
+.mailbox-senders { margin: 8px 0 4px; }
+.mailbox-sender-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 8px; }
+.mailbox-sender-chip { display: inline-flex; align-items: center; gap: 2px; min-height: 44px; padding: 0 4px 0 12px; border-radius: 22px; background: #e8f0f6; color: #1c2a36; font-size: 15px; }
+.mailbox-sender-name { line-height: 1.2; }
+.mailbox-sender-remove { min-width: 44px; min-height: 44px; margin: 0; padding: 0; border: 0; background: transparent; color: #3b4a58; font-size: 22px; line-height: 1; cursor: pointer; }
+.mailbox-sender-remove:disabled { opacity: .5; cursor: default; }
+.mailbox-sender-add { display: flex; gap: 8px; align-items: center; }
+.mailbox-sender-add .mailbox-input { flex: 1; min-width: 0; }
+.mailbox-google .mailbox-actions { flex-wrap: wrap; }

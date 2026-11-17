@@ -16,6 +16,8 @@ const MapCore = (() => {
     let currentEditId = null;
     // 地図のキーが無効・未設定だと geocode の返事が来ず「処理中」が回り続けたため、見張り役を通す。
     const guard = GeocodeGuard.create({ timeoutMs: 8000 });
+    const viewCustomers = () => (typeof DataStorage.getViewCustomers === "function" ? DataStorage.getViewCustomers() : DataStorage.getCustomers());
+    const findView = id => (DataStorage.findCustomer ? DataStorage.findCustomer(id) : null) || viewCustomers().find(c => c.id === id);
     function showMapNotice() {
         const setup = document.getElementById('mapSetup');
         const msg = document.getElementById('mapSetupMessage');
@@ -53,7 +55,7 @@ const MapCore = (() => {
         const setup = document.getElementById('mapSetup');
         if (setup) setup.hidden = true;
 
-        const customers = DataStorage.getCustomers();
+        const customers = viewCustomers();
         if (customers.length > 0) {
             plotAllMarkers(customers);
         }
@@ -291,7 +293,7 @@ const MapCore = (() => {
     function clearMarkers() { markers.forEach(m => m.setMap(null)); markers = []; }
 
     function updateMarkerColor(customerId) {
-        const customer = DataStorage.getCustomers().find(c => c.id === customerId);
+        const customer = findView(customerId);
         if (!customer) return;
         const marker = markers.find(m => m.customData && m.customData.id === customerId);
         if (!marker) return;
@@ -307,24 +309,28 @@ const MapCore = (() => {
     }
 
     function updateCountBadge() {
-        const customers = DataStorage.getCustomers();
+        const customers = viewCustomers();
         document.getElementById('countBadge').textContent = `${customers.length}件`;
     }
 
     function updateCustomerList() {
-        const customers = DataStorage.getCustomers();
+        const customers = viewCustomers();
         const routes = DataStorage.getRoutes();
         const listEl = document.getElementById('customerList');
+        const combined = typeof DataStorage.isUndatedCombinedView === 'function' && DataStorage.isUndatedCombinedView();
         if (customers.length === 0) {
-            listEl.innerHTML = '<div class="empty-msg"><strong>この月の訪問先はまだありません</strong><br>「訪問先を追加」か「Excel・依頼書を取り込む」で<br>準備を始めましょう。</div>';
+            listEl.innerHTML = combined
+                ? '<div class="empty-msg"><strong>日付が決まっていない訪問はありません</strong><br>各月で訪問日が入っているものは、その月を開くと見られます。</div>'
+                : '<div class="empty-msg"><strong>この月の訪問先はまだありません</strong><br>「訪問先を追加」か「Excel・依頼書を取り込む」で<br>準備を始めましょう。</div>';
             return;
         }
         const esc = ExpenseImport.escapeHtml;
         const statuses = { pending: '未アポ', appointed: 'アポ済み', completed: '訪問完了' };
-        let html = '';
+        let html = combined ? '<p class="summary-note">日付が決まっていない訪問を、全部の月から表示しています（完了は除く）。元の月からは動かしていません。</p>' : '';
         for (const c of customers) {
-            const route = routes.find(r => r.id === c.routeId);
+            const route = combined ? null : routes.find(r => r.id === c.routeId);
             const status = statuses[c.status] ? c.status : 'pending';
+            const undated = typeof DataStorage.hasVisitDate === 'function' ? !DataStorage.hasVisitDate(c) : !c.appoDate;
             html += `<button type="button" class="customer-item" data-customer-id="${esc(c.id)}">`;
             html += `<span class="customer-status status-${status}" aria-hidden="true"></span>`;
             html += `<span class="customer-info">`;
@@ -333,7 +339,10 @@ const MapCore = (() => {
             html += `</span>`;
             html += `<span class="customer-address">${esc(c.address || '')}`;
             if (c.floors && c.floors.length > 0) html += ` · ${esc(c.floors.join(','))}`;
-            html += `</span><span class="customer-meta">${statuses[status]} · ${esc(route ? route.name : 'ルート未割当')}</span></span>`;
+            html += `</span><span class="customer-meta">${statuses[status]} · ${esc(route ? route.name : 'ルート未割当')}`;
+            if (combined && c.workspaceId && DataStorage.workspaceTag) html += ` · <span class="visit-ws-tag">${esc(DataStorage.workspaceTag(c.workspaceId))}</span>`;
+            else if (!combined && undated) html += ` · <span class="visit-undated-tag">日付未定</span>`;
+            html += `</span></span>`;
             if (c.unitCount > 1) html += `<span class="customer-count">${c.unitCount}台</span>`;
             html += `</button>`;
         }
@@ -387,14 +396,14 @@ const MapCore = (() => {
         } else {
             // 地図が無い/位置が無いときは編集を開かず、地図の場所に簡単な情報カードを出す
             revealMap();
-            const c = DataStorage.getCustomers().find(x => x.id === customerId);
+            const c = findView(customerId);
             if (map && geocoder && c && c.address && !hasPosition(c) && !guard.failed()) locateAndFocus(customerId);
             else showPickCard(customerId);
         }
     }
 
     function showPickCard(customerId, state) {
-        const customer = DataStorage.getCustomers().find(c => c.id === customerId);
+        const customer = findView(customerId);
         const host = document.querySelector('.map-canvas');
         if (!customer || !host) return;
         const esc = ExpenseImport.escapeHtml;
@@ -421,7 +430,7 @@ const MapCore = (() => {
     }
 
     function openEdit(customerId) {
-        const customer = DataStorage.getCustomers().find(c => c.id === customerId);
+        const customer = findView(customerId);
         if (!customer) return;
         if (typeof restoreEditButtons === 'function') restoreEditButtons();
         currentEditId = customerId;
@@ -435,17 +444,27 @@ const MapCore = (() => {
         document.getElementById('editPurpose').value = customer.purpose || '';
         const routes = DataStorage.getRoutes();
         const routeSelect = document.getElementById('editRoute');
-        routeSelect.innerHTML = '<option value="">未割当</option>';
-        routes.forEach(r => {
-            routeSelect.innerHTML += `<option value="${ExpenseImport.escapeHtml(r.id)}" ${customer.routeId === r.id ? 'selected' : ''}>${ExpenseImport.escapeHtml(r.name)}</option>`;
-        });
+        const routeRow = routeSelect && routeSelect.closest('.modal-row');
+        const combined = typeof DataStorage.isUndatedCombinedView === 'function' && DataStorage.isUndatedCombinedView();
+        if (combined) {
+            routeSelect.innerHTML = '<option value="">（この一覧ではルートは変えられません）</option>';
+            routeSelect.disabled = true;
+            if (routeRow) routeRow.hidden = true;
+        } else {
+            routeSelect.disabled = false;
+            if (routeRow) routeRow.hidden = false;
+            routeSelect.innerHTML = '<option value="">未割当</option>';
+            routes.forEach(r => {
+                routeSelect.innerHTML += `<option value="${ExpenseImport.escapeHtml(r.id)}" ${customer.routeId === r.id ? 'selected' : ''}>${ExpenseImport.escapeHtml(r.name)}</option>`;
+            });
+        }
         if (typeof VisitPlanner !== 'undefined') VisitPlanner.begin(customer);
         document.getElementById('editModal').style.display = 'flex';
         if (infoWindow) infoWindow.close();
     }
 
     function refreshAllMarkers() {
-        const customers = DataStorage.getCustomers();
+        const customers = viewCustomers();
         clearMarkers();
         if (!map) { updateCountBadge(); updateCustomerList(); return; }
         const cache = DataStorage.getGeoCache();
@@ -486,7 +505,7 @@ const MapCore = (() => {
     }
     // まとめて取る（画面は止めない）。試して見つからなかった住所はこの起動中は飛ばす
     function locateMissing(customers, { retry = false } = {}) {
-        const list = missingPosition(customers || DataStorage.getCustomers())
+        const list = missingPosition(customers || viewCustomers())
             .filter(c => (retry || !locateTried.has(c.address)) && !locating.has(c.id));
         if (!list.length || !map || !geocoder) return locateRunning || Promise.resolve({ ok: 0, none: 0 });
         list.forEach(c => locating.add(c.id));
@@ -509,7 +528,7 @@ const MapCore = (() => {
     }
     // 情報カードの「📍 地図の位置を取得」
     async function locateAndFocus(customerId) {
-        const customer = DataStorage.getCustomers().find(c => c.id === customerId);
+        const customer = findView(customerId);
         if (!customer) return;
         showPickCard(customerId, 'busy');
         const r = await locateOne(customer);

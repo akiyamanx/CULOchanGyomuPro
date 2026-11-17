@@ -34,7 +34,12 @@ const BackupFormat = (() => {
             let value; try { value = JSON.parse(raw); } catch (_) { bad(key + 'を読み込めません。'); }
             inspect(value);
             if (key === 'mm_settings') {
-                if (!object(value) || Object.keys(value).some(k => k !== 'homeAddress') || typeof value.homeAddress !== 'string') bad();
+                if (!object(value) || typeof value.homeAddress !== 'string') bad();
+                if (Object.keys(value).some(k => k !== 'homeAddress' && k !== 'gmailSenders')) bad();
+                if ('gmailSenders' in value) {
+                    if (!Array.isArray(value.gmailSenders) || value.gmailSenders.length > 10) bad();
+                    if (value.gmailSenders.some(term => typeof term !== 'string' || term.length > 80)) bad();
+                }
             } else if (/^mm_(segments|geocache)/.test(key)) {
                 if (!object(value) && !Array.isArray(value)) bad();
             } else if (!Array.isArray(value)) bad(key + 'が一覧形式ではありません。');

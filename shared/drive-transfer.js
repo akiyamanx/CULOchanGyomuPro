@@ -46,6 +46,28 @@ const DriveTransfer = (() => {
         if (typeof url!=='string' || !appdataUrl.test(url) || ['GET','POST','PATCH'].indexOf(method)<0) return Promise.reject(coded('許可されていない通信先です。','bad_url'));
         return request(url,options,consume);
     }
+    function applyDriveToken(response, need) {
+        const id=configured();
+        if (!/^\d+-[\w-]+\.apps\.googleusercontent\.com$/.test(id)) return Promise.reject(new Error('先に「Googleカレンダー」の初回設定で、この端末にも同じOAuthクライアントIDを保存してください。'));
+        const want=need||scope;
+        const g=window.google&&window.google.accounts&&window.google.accounts.oauth2;
+        if(!response||response.error||!response.access_token)return Promise.reject(new Error('共有の許可が完了していません。データは送っていません。'));
+        if(g&&typeof g.hasGrantedAllScopes==='function'&&!g.hasGrantedAllScopes(response,want))return Promise.reject(new Error('アプリ専用領域へのアクセスを許可してください。'));
+        clientId=id;
+        const own=generation;
+        token=response.access_token;expiry=Date.now()+Math.max(0,Number(response.expires_in||0)-60)*1000;
+        account=null;
+        return request(api+'about?fields=user(permissionId,emailAddress)',{},r=>r.json()).then(about=>{
+            if(own!==generation)throw new Error('接続操作を中止しました。');
+            if(!about.user?.permissionId || !about.user?.emailAddress)throw new Error('Googleアカウントを確認できません。');
+            account=about.user;
+            return state();
+        }).catch(error=>{if(own===generation)disconnect();throw error;});
+    }
+    function acceptToken(response, opts) {
+        disconnect();
+        return applyDriveToken(response, opts && opts.scope);
+    }
     function connect() {
         const id=configured();
         if (!/^\d+-[\w-]+\.apps\.googleusercontent\.com$/.test(id)) return Promise.reject(new Error('先に「Googleカレンダー」の初回設定で、この端末にも同じOAuthクライアントIDを保存してください。'));
@@ -59,15 +81,8 @@ const DriveTransfer = (() => {
                 callback:async response=>{
                     if(finished)return;
                     if(own!==generation)return end(new Error('接続操作を中止しました。'));
-                    if(response.error || !response.access_token)return end(new Error('共有の許可が完了していません。データは送っていません。'));
-                    if(!google.accounts.oauth2.hasGrantedAllScopes(response,scope))return end(new Error('アプリ専用領域へのアクセスを許可してください。'));
-                    token=response.access_token;expiry=Date.now()+Math.max(0,Number(response.expires_in||0)-60)*1000;
-                    try {
-                        const about=await request(api+'about?fields=user(permissionId,emailAddress)',{},response=>response.json());
-                        if(own!==generation)throw new Error('接続操作を中止しました。');
-                        if(!about.user?.permissionId || !about.user?.emailAddress)throw new Error('Googleアカウントを確認できません。');
-                        account=about.user;end();
-                    } catch(error) {if(own===generation)disconnect();end(error);}
+                    try { await applyDriveToken(response, scope); end(); }
+                    catch(error) {end(error);}
                 },error_callback:()=>end(new Error('接続画面を閉じました。必要なときに再接続してください。'))});
             try {client.requestAccessToken({prompt:'select_account'});} catch(error) {end(error);}
         });
@@ -130,5 +145,5 @@ const DriveTransfer = (() => {
         });
     }
     window.addEventListener('pagehide',disconnect);
-    return {prepare,connect,disconnect,state,list,send,receive,acknowledge,appdataRequest};
+    return {prepare,connect,acceptToken,disconnect,state,list,send,receive,acknowledge,appdataRequest};
 })();

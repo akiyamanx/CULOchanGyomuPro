@@ -27,12 +27,19 @@ const BackupStore = (() => {
         const storage = AppStorage;
         return typeof storage.keys === 'function' ? storage.keys() : Array.from({ length:storage.length }, (_,i) => storage.key(i));
     }
+    function settingsSlice(raw) {
+        let s = {};
+        try { s = JSON.parse(raw || '{}') || {}; } catch (_) { s = {}; }
+        const out = { homeAddress: typeof s.homeAddress === 'string' ? s.homeAddress : '' };
+        if (Array.isArray(s.gmailSenders)) out.gmailSenders = s.gmailSenders;
+        return JSON.stringify(out);
+    }
     async function capture() {
         const local = {};
         for (const key of keys().filter(BackupFormat.allowedKey).sort()) {
             const value = AppStorage.getItem(key);
             if (value === null) continue;
-            local[key] = key === 'mm_settings' ? JSON.stringify({homeAddress:JSON.parse(value).homeAddress || ''}) : value;
+            local[key] = key === 'mm_settings' ? settingsSlice(value) : value;
         }
         if (!local.mm_settings) local.mm_settings = JSON.stringify({homeAddress:''});
         const [parking,drafts,etc] = await Promise.all([ParkingIDB.getAll(),ExpenseDraftStore.exportAll(),EtcStore.read()]);
@@ -48,7 +55,10 @@ const BackupStore = (() => {
             if (key !== 'mm_settings' && !Object.hasOwn(payload.local, key)) AppStorage.removeItem(key);
         }
         const settings = JSON.parse(AppStorage.getItem('mm_settings') || '{}');
-        settings.homeAddress = JSON.parse(payload.local.mm_settings || '{}').homeAddress || '';
+        const incoming = JSON.parse(payload.local.mm_settings || '{}');
+        settings.homeAddress = incoming.homeAddress || '';
+        if (Array.isArray(incoming.gmailSenders)) settings.gmailSenders = incoming.gmailSenders;
+        else delete settings.gmailSenders;
         AppStorage.setItem('mm_settings', JSON.stringify(settings));
         for (const [key,value] of Object.entries(payload.local)) if (key !== 'mm_settings') AppStorage.setItem(key,value);
     }
@@ -96,7 +106,7 @@ const BackupStore = (() => {
             await write(bundle.payload);
             const written=await capture();
             // Missing optional map settings are normalized when restored.
-            const expected={...bundle.payload,local:{...bundle.payload.local,mm_settings:JSON.stringify({homeAddress:JSON.parse(bundle.payload.local.mm_settings||'{}').homeAddress||''})}};
+            const expected={...bundle.payload,local:{...bundle.payload.local,mm_settings:settingsSlice(bundle.payload.local.mm_settings)}};
             if (written.sha256 !== await BackupFormat.hash(expected)) throw new Error('復元後の内容が一致しません。');
             await recovery(store=>store.delete('journal'));
         } catch (error) {

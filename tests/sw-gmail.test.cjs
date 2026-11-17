@@ -12,9 +12,11 @@ test('SWはGoogle APIと認証つきリクエストをキャッシュしない',
     assert.match(sw, /request\.method !== 'GET'/);
 });
 test('Gmail用ファイルがSWの事前キャッシュに入っている', () => {
-    for (const f of ['gmail-transport', 'gmail-source', 'gmail-import']) assert.ok(sw.includes('./map/' + f + '.js'), f);
+    for (const f of ['gmail-transport', 'gmail-source', 'gmail-import', 'gmail-senders']) assert.ok(sw.includes('./map/' + f + '.js'), f);
+    assert.ok(sw.includes('./shared/google-connect.js'));
 });
 test('index.htmlはGmail層をUIより先に読む', () => {
     const at = f => html.indexOf('map/' + f + '.js');
-    for (const f of ['gmail-transport', 'gmail-source', 'gmail-import']) assert.ok(at(f) > 0 && at(f) < at('mail-box-ui'), f);
+    for (const f of ['gmail-transport', 'gmail-source', 'gmail-import', 'gmail-senders']) assert.ok(at(f) > 0 && at(f) < at('mail-box-ui'), f);
+    assert.ok(html.indexOf('shared/google-connect.js') > 0 && html.indexOf('shared/google-connect.js') < html.indexOf('map/mail-box-ui.js'));
 });

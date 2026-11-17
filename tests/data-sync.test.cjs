@@ -270,3 +270,16 @@ test('remoteSignature: 自分のファイルは見ず、他の端末が送ると
     A.tick(2); A.edit('2026-10', 'c1', { note: 'A' }); await A.sync();
     assert.notEqual((await B.sig()).sig, s1.sig);
 });
+
+test('差出人一覧(gmailSenders)は設定の同期で届く。APIキーは乗らない', async () => {
+    const drive = makeDrive();
+    const A = device(ID_A, drive, seedOf({ '2026-10': [cust('c1')] }, { mm_settings: JSON.stringify({ homeAddress: '東京都架空区本社', apiKey: 'KEY-架空-ローカル', gmailSenders: ['甲野'] }) }));
+    const B = device(ID_B, drive, { ...seedOf({}), mm_settings: JSON.stringify({ homeAddress: '', apiKey: 'B-KEY-架空' }), mm_workspace_current: '2026-11' });
+    await settle(A, B);
+    A.tick(1); A.put('mm_settings', { homeAddress: '東京都架空区本社', apiKey: 'KEY-架空-ローカル', gmailSenders: ['甲野', '乙川'] });
+    await settle(A, B);
+    assert.deepEqual(B.get('mm_settings').gmailSenders, ['甲野', '乙川']);
+    assert.equal(B.get('mm_settings').apiKey, 'B-KEY-架空');
+    assert.equal(B.store.get('culo_mail_gmail_senders'), '甲野,乙川');
+    assert.equal(JSON.stringify([...drive.files.values()]).includes('KEY-架空'), false);
+});

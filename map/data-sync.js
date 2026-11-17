@@ -44,7 +44,7 @@ const DataSync = (() => {
     }
     const tsOk = (t, now) => Number.isInteger(t) && t >= 0 && t <= now + FUTURE_MS;
     const keyOk = (coll, key) => typeof key === 'string' && KEY_RE.test(key) && !BAD_FIELD.test(key)
-        && (coll === 'ws' || coll === 'seg' ? WS_RE.test(key) : coll === 'route' || coll === 'exp' ? WS_RE.test(key.split('|')[0]) && key.indexOf('|') > 0 : coll === 'set' ? key === 'homeAddress' : true);
+        && (coll === 'ws' || coll === 'seg' ? WS_RE.test(key) : coll === 'route' || coll === 'exp' ? WS_RE.test(key.split('|')[0]) && key.indexOf('|') > 0 : coll === 'set' ? (key === 'homeAddress' || key === 'gmailSenders') : true);
 
     // ファイル → {ok, deviceId, recs, dropped} / {ok:false, code}
     function parseDoc(text, expectedDeviceId, now) {
@@ -137,6 +137,7 @@ const DataSync = (() => {
             }
             const settings = readJson('mm_settings', {});
             if (isObj(settings) && typeof settings.homeAddress === 'string') out.set.set('homeAddress', { v: settings.homeAddress });
+            if (isObj(settings) && Array.isArray(settings.gmailSenders)) out.set.set('gmailSenders', { v: settings.gmailSenders });
             return { out, order, fixIds, wsIds };
         }
         // IDの無い・重複した訪問先にIDを付ける(1回だけ。以後はそのIDで追う)
@@ -277,9 +278,22 @@ const DataSync = (() => {
             const cur = S.getItem('mm_workspace_current');
             if (cur && !aliveWs.has(cur) && wsIds.length) { S.setItem('mm_workspace_current', wsIds.find(id => id !== UNSCH) || wsIds[0]); writes++; }
             const ha = view.set.get('homeAddress');
-            if (ha && alive(ha) && ha.f.v && typeof ha.f.v.v === 'string') {
+            const gs = view.set.get('gmailSenders');
+            const needHa = ha && alive(ha) && ha.f.v && typeof ha.f.v.v === 'string';
+            const needGs = gs && alive(gs) && gs.f.v && Array.isArray(gs.f.v.v);
+            if (needHa || needGs) {
                 let st = {}; try { st = JSON.parse(S.getItem('mm_settings') || '{}'); } catch (e) { st = null; }
-                if (isObj(st) && st.homeAddress !== ha.f.v.v) { st.homeAddress = ha.f.v.v; S.setItem('mm_settings', JSON.stringify(st)); writes++; }
+                if (isObj(st)) {
+                    let changed = false;
+                    if (needHa && st.homeAddress !== ha.f.v.v) { st.homeAddress = ha.f.v.v; changed = true; }
+                    if (needGs) {
+                        const next = gs.f.v.v;
+                        if (JSON.stringify(st.gmailSenders || null) !== JSON.stringify(next)) { st.gmailSenders = next; changed = true; }
+                        const csv = Array.isArray(next) ? next.join(',') : '';
+                        try { if (S.getItem('culo_mail_gmail_senders') !== csv) { S.setItem('culo_mail_gmail_senders', csv); writes++; } } catch (e) { /* 片方でも残す */ }
+                    }
+                    if (changed) { S.setItem('mm_settings', JSON.stringify(st)); writes++; }
+                }
             }
             return writes;
         }

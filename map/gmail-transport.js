@@ -1,6 +1,6 @@
 // [Gmail 通信層] Google への接続(gmail.readonly のみ)と、Gmail API v1 への「読み取りだけ」の通信。仕様書 §20。
 //   ・トークンはこの関数の中(メモリ)にだけ置く。保存しない・ログに出さない・外へ渡さない。ページを離れる/切断/期限で消える。
-//   ・Drive の接続とは別のトークン(include_granted_scopes:false)。クライアントIDは Drive/カレンダーと同じ設定を使う。
+//   ・単独接続は Drive と別トークン(include_granted_scopes:false)。同じクライアントIDで両方の許可を一度に求めたときは、受け取ったトークンをメモリ上の各接続へ渡す（保存はしない）。
 //   ・通信先は gmail.googleapis.com/gmail/v1/users/me/messages 系と users/me/profile(接続中アドレスを「Gmailで開く」に使う・メモリだけ)の GET だけ(送信・削除・ラベル変更などは通信前に拒否)。
 //   ・失敗は Error に .code(と .status/.retryAfterMs)だけを付ける。Googleの文言・URL・トークンは持ち越さない。
 //   ※ 実際のGoogleに対する動作は未確認(テストは偽のGoogle/fetchで、形だけ確認)。
@@ -45,6 +45,19 @@ const GmailTransport = (() => {
                 doc.head.appendChild(script);
             });
             return preparing;
+        }
+        function acceptToken(response, opts) {
+            const id = configured();
+            if (!CLIENT_RE.test(id)) return { ok: false, code: 'not_configured' };
+            if (!response || response.error || !response.access_token) return { ok: false, code: 'consent_denied' };
+            const need = (opts && opts.scope) || SCOPE;
+            const g = win.google && win.google.accounts && win.google.accounts.oauth2;
+            if (g && typeof g.hasGrantedAllScopes === 'function' && !g.hasGrantedAllScopes(response, need)) return { ok: false, code: 'scope_missing' };
+            disconnect();
+            clientId = id;
+            token = response.access_token;
+            expiry = now() + Math.max(0, Number(response.expires_in || 0) - 60) * 1000;
+            return { ok: true };
         }
         function connect() {
             const id = configured();
@@ -129,7 +142,7 @@ const GmailTransport = (() => {
             } finally { clearTimeout(timer); inflight.delete(controller); if (outer) outer.removeEventListener('abort', onAbort); }
         }
         if (typeof win.addEventListener === 'function') win.addEventListener('pagehide', disconnect);
-        return { prepare, connect, disconnect, state, request };
+        return { prepare, connect, acceptToken, disconnect, state, request };
     }
     return { create, SCOPE, URL_RE };
 })();

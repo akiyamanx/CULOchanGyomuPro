@@ -9,6 +9,7 @@ const MailBoxUI = (() => {
     const confirming = new Set();     // 取り消しの確認待ちの行
     let note = { text: '', kind: '' };
     let gNote = null;                 // Gmail取り込みの直近の結果 {lines, kind}
+    let cNote = null;                 // Google接続の直近の結果 {lines, kind}
 
     const h = (tag, attrs, ...kids) => {
         const el = document.createElement(tag);
@@ -120,7 +121,7 @@ const MailBoxUI = (() => {
         bad_response: 'Googleから想定外の返事が返りました。取り込みを止めました。',
         http_error: 'Googleからエラーが返りました。取り込みを止めました。',
         aborted: '取り込みを中止しました。',
-        no_senders: '差出人が入っていません。上の「差出人」に、名前やメールアドレスの一部を入れてください。',
+        no_senders: '差出人が入っていません。上の欄に名前を入れて「追加」してから、「読み込む」を押してください。',
         bad_terms: '差出人に使えない文字(スペース・かっこ・引用符など)が入っています。',
         busy: 'すでに取り込み中です。',
         ledger_save_failed: 'BOXへの保存に失敗しました。',
@@ -128,9 +129,48 @@ const MailBoxUI = (() => {
     };
     const gErrText = code => GMAIL_MSG[code] || '取り込みを完了できませんでした。';
     function readTerms() {
+        if (typeof GmailSenders !== 'undefined') {
+            const list = GmailSenders.read(typeof AppStorage !== 'undefined' ? AppStorage : null);
+            if (list.length) return list;
+            if (typeof MailBoxDemo !== 'undefined' && MailBoxDemo.gmail && gMock()) return MailBoxDemo.defaultTerms;
+            return list;
+        }
         let raw = ''; try { raw = String(AppStorage.getItem(SENDERS_KEY) || ''); } catch (e) { raw = ''; }
         if (!raw && typeof MailBoxDemo !== 'undefined' && MailBoxDemo.gmail && gMock()) return MailBoxDemo.defaultTerms;
         return raw.split(/[,、，\n]+/).map(x => x.trim()).filter(Boolean);
+    }
+    function writeTerms(list) {
+        if (typeof GmailSenders !== 'undefined') return GmailSenders.write(typeof AppStorage !== 'undefined' ? AppStorage : null, list);
+        try { AppStorage.setItem(SENDERS_KEY, (list || []).join(',')); } catch (e) { /* 保存できなくても今回の取り込みには使う */ }
+        return list || [];
+    }
+    function addSenderFromInput() {
+        const el = document.getElementById('mailGmailSenderAdd');
+        const raw = el ? String(el.value || '') : '';
+        const parts = raw.split(/[,、，\n]+/).map(s => s.trim()).filter(Boolean);
+        if (!parts.length) { sayAll('追加する名前を入れてください。', 'warn'); return; }
+        let list = readTerms();
+        const add = typeof GmailSenders !== 'undefined' ? GmailSenders.add : (cur, term) => {
+            const next = cur.concat([term]); return { ok: true, terms: next };
+        };
+        for (const part of parts) {
+            const r = add(list, part);
+            if (!r.ok) {
+                writeTerms(list);
+                sayAll(r.reason === 'too_many' ? '差出人は10人までです。不要な人を外してから追加してください。' : '差出人に使えない文字(スペース・かっこ・引用符など)が入っています。', 'warn');
+                render();
+                return;
+            }
+            list = r.terms;
+        }
+        writeTerms(list);
+        if (el) el.value = '';
+        render();
+    }
+    function removeSender(term) {
+        const next = typeof GmailSenders !== 'undefined' ? GmailSenders.remove(readTerms(), term) : readTerms().filter(t => t !== term);
+        writeTerms(next);
+        render();
     }
     const gMock = () => dev() && /[?&]mockGmail=1(&|$)/.test(location.search);
     function gmailSummary(r) {
@@ -160,12 +200,58 @@ const MailBoxUI = (() => {
     }
     async function connectGmail() {
         if (!gTransport || gRunning) return;
-        gNote = { lines: ['Googleの画面で許可してください…'], kind: '' }; render();
+        cNote = { lines: ['Googleの画面で許可してください…'], kind: '' }; render();
         try {
-            await gTransport.connect(); gNote = { lines: ['つながりました。「Gmailから取り込む」を押してください。'], kind: 'ok' };
+            await gTransport.connect(); cNote = { lines: ['Gmailにつながりました。「読み込む」を押してください。'], kind: 'ok' };
             gAccount = gSource && gSource.getProfile ? await gSource.getProfile() : '';   // メモリだけ(保存しない)
         }
-        catch (e) { gNote = { lines: [gErrText(e && e.code)], kind: 'error' }; }
+        catch (e) { cNote = { lines: [gErrText(e && e.code)], kind: 'error' }; }
+        render();
+    }
+    async function connectGoogle() {
+        if (gRunning || syncing) return;
+        const configured = gTransport ? gTransport.state().configured : false;
+        if (!configured) { cNote = { lines: [gErrText('not_configured')], kind: 'error' }; render(); return; }
+        if (typeof GoogleConnect === 'undefined') { cNote = { lines: [gErrText('google_not_ready')], kind: 'error' }; render(); return; }
+        cNote = { lines: ['Googleの画面で許可してください（Gmailの読み取りと、端末間の同期）…'], kind: '' }; render();
+        const gc = GoogleConnect.create();
+        let granted;
+        try {
+            // requestAccessToken はタップの直後に呼ぶ(await prepare を挟むと許可画面が開かないことがある)
+            granted = await gc.connectBoth({
+                gmail: gTransport,
+                drive: typeof DriveTransfer !== 'undefined' ? DriveTransfer : null
+            });
+        } catch (e) {
+            cNote = { lines: [gErrText(e && e.code)], kind: 'error' }; render(); return;
+        }
+        const lines = [];
+        let kind = 'ok';
+        if (granted.gmail) {
+            try { gAccount = gSource && gSource.getProfile ? await gSource.getProfile() : ''; } catch (e) { gAccount = ''; }
+            lines.push('Gmailにつながりました。');
+        } else {
+            lines.push('Gmailの読み取りはまだ許可されていません。「Gmailだけもう一度許可」を押してください。');
+            kind = 'warn';
+        }
+        const driveOk = !!(typeof DriveTransfer !== 'undefined' && DriveTransfer.state && DriveTransfer.state().connected);
+        if (driveOk) lines.push('ドライブにつながりました。同期を始めます。');
+        else if (granted.driveGranted && !driveOk) {
+            lines.push('ドライブの許可は取れましたが、アカウントの確認に失敗しました。「ドライブだけもう一度許可」を押してください。');
+            kind = 'warn';
+        } else {
+            lines.push('ドライブの同期はまだ許可されていません。「ドライブだけもう一度許可」を押してください。');
+            kind = 'warn';
+        }
+        cNote = { lines, kind };
+        render();
+        if (driveOk) await syncNow(true);
+    }
+    function disconnectGoogle() {
+        try { if (gTransport) gTransport.disconnect(); } catch (e) { /* 片方でも切る */ }
+        try { if (typeof DriveTransfer !== 'undefined') DriveTransfer.disconnect(); } catch (e) { /* 片方でも切る */ }
+        gAccount = '';
+        cNote = { lines: ['Googleとの接続を切りました。'], kind: '' };
         render();
     }
     async function importGmail() {
@@ -185,32 +271,68 @@ const MailBoxUI = (() => {
         if (r.ingest && r.ingest.registered) tab = 'request'; else if (r.ingest && r.ingest.unreadable) tab = 'unreadable';
         afterChange(true);
     }
+    function senderListUi() {
+        const terms = readTerms();
+        const chips = terms.map(term => h('span', { class: 'mailbox-sender-chip' },
+            h('span', { class: 'mailbox-sender-name' }, term),
+            h('button', { type: 'button', class: 'mailbox-sender-remove', 'aria-label': term + 'を外す', disabled: gRunning, onclick: () => removeSender(term) }, '×')));
+        const addInput = h('input', { type: 'text', id: 'mailGmailSenderAdd', class: 'mailbox-input', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', disabled: gRunning, placeholder: '名前やアドレスの一部',
+            onkeydown: ev => { if (ev.key === 'Enter') { ev.preventDefault(); addSenderFromInput(); } } });
+        const addBtn = h('button', { type: 'button', class: 'btn btn-secondary mailbox-btn-s', disabled: gRunning, onclick: addSenderFromInput }, '追加');
+        return h('div', { class: 'mailbox-senders' },
+            h('p', { class: 'mailbox-field' }, h('span', {}, '差出人（登録した人をまとめて読み込みます）')),
+            terms.length ? h('div', { class: 'mailbox-sender-list', 'aria-label': '登録した差出人' }, ...chips)
+                : h('p', { class: 'mailbox-hint-s' }, 'まだ登録がありません。下に名前を入れて「追加」してください。以前使った名前があれば、ここに残しています。'),
+            h('div', { class: 'mailbox-sender-add' }, addInput, addBtn),
+            h('p', { class: 'mailbox-hint-s' }, '「読み込む」を1回押すと、登録した差出人すべてのメールを一度に取り込みます。'));
+    }
+    function googleCard() {
+        if (!gTransport && typeof DriveTransfer === 'undefined') return null;
+        const gSt = gTransport ? gTransport.state() : { connected: false, configured: false };
+        const dSt = (typeof DriveTransfer !== 'undefined' && DriveTransfer.state) ? DriveTransfer.state() : { connected: false };
+        const both = !!(gSt.connected && dSt.connected);
+        const some = !!(gSt.connected || dSt.connected);
+        const label = both ? '接続済み' : some ? '一部つながった' : gSt.configured ? '未接続' : '設定が必要';
+        const kind = both ? 'ok' : 'warn';
+        const parts = (gTransport ? (gSt.connected ? 'Gmail: つながった' : 'Gmail: 未接続') : null);
+        const dPart = (typeof DriveTransfer !== 'undefined') ? (dSt.connected ? 'ドライブ: つながった' : 'ドライブ: 未接続') : null;
+        const card = h('section', { class: 'mailbox-sync mailbox-google', 'aria-label': 'Googleに接続' },
+            h('div', { class: 'mailbox-card-head' }, h('strong', {}, 'Googleに接続'), chip(label, kind)),
+            h('p', { class: 'mailbox-sync-msg' }, '1回の許可で、Gmailの読み取りと端末間の同期（ドライブのアプリ専用領域）の両方につながります。'),
+            h('p', { class: 'mailbox-hint-s' }, 'つなぐのはアプリを開くたびに、このボタンを1回押してください（許可の情報を端末に保存しないため）。許可の画面で「このアプリは確認されていません」と出ることがあります。進み方は手順書にあります。'),
+            h('p', { class: 'mailbox-hint-s' }, [parts, dPart].filter(Boolean).join(' / ')));
+        const actions = [];
+        if (!both) actions.push(h('button', { type: 'button', class: 'btn btn-primary mailbox-btn-s', disabled: gRunning || syncing || !gSt.configured, onclick: connectGoogle }, 'Googleにつなぐ'));
+        if (!both && (some || (cNote && cNote.kind === 'warn'))) {
+            if (gTransport && !gSt.connected) actions.push(h('button', { type: 'button', class: 'btn btn-secondary mailbox-btn-s', disabled: gRunning || syncing, onclick: connectGmail }, 'Gmailだけもう一度許可'));
+            if (typeof DriveTransfer !== 'undefined' && !dSt.connected) actions.push(h('button', { type: 'button', class: 'btn btn-secondary mailbox-btn-s', disabled: gRunning || syncing, onclick: connectDrive }, 'ドライブだけもう一度許可'));
+        }
+        if (some && !gRunning && !syncing) actions.push(h('button', { type: 'button', class: 'btn btn-secondary mailbox-btn-s', onclick: disconnectGoogle }, '接続を切る'));
+        if (actions.length) card.append(h('div', { class: 'mailbox-actions' }, ...actions));
+        if (cNote && cNote.lines.length) card.append(h('div', { class: 'mailbox-note mailbox-gmail-result', 'data-kind': cNote.kind, role: cNote.kind === 'error' ? 'alert' : 'status' }, cNote.lines.map(txt => h('p', {}, txt))));
+        return card;
+    }
     function gmailCard() {
         if (!gTransport || !gImport) return null;
         const st = gTransport.state();
         const label = gRunning ? '取り込み中…' : st.connected ? '接続済み' : st.configured ? '未接続' : '設定が必要';
         const kind = gRunning ? '' : st.connected ? 'ok' : 'warn';
         gProgressEl = h('p', { class: 'mailbox-hint-s', role: 'status', 'aria-live': 'polite' }, gRunning ? 'メールを探しています…' : '');
-        const input = h('input', { type: 'text', id: 'mailGmailSenders', class: 'mailbox-input', value: readTerms().join(', '), autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', disabled: gRunning, placeholder: '名前やアドレスの一部(カンマ区切り)',
-            onchange: ev => { const v = ev.target.value.split(/[,、，\n]+/).map(x => x.trim()).filter(Boolean).join(','); try { AppStorage.setItem(SENDERS_KEY, v); } catch (e) { /* 保存できなくても今回の取り込みには使う */ } } });
         const card = h('section', { class: 'mailbox-sync mailbox-gmail', 'aria-label': 'Gmailから取り込み' },
             h('div', { class: 'mailbox-card-head' }, h('strong', {}, 'Gmailから取り込み'), chip(label, kind)),
-            h('p', { class: 'mailbox-sync-msg' }, '直近2か月の、下の差出人から届いた添付つきメールを読み、依頼書を自動で仕分けます。Gmailは読み取りだけで、送信・削除・書き換えはできません。'),
-            h('label', { class: 'mailbox-field', for: 'mailGmailSenders' }, h('span', {}, '差出人(名前やメールアドレスの一部)'), input),
+            h('p', { class: 'mailbox-sync-msg' }, '直近2か月の、登録した差出人から届いた添付つきメールを読み、依頼書を自動で仕分けます。Gmailは読み取りだけで、送信・削除・書き換えはできません。'),
+            senderListUi(),
             h('p', { class: 'mailbox-hint-s' }, 'メール本文は読みません・保存しません。BOXに残るのは、件名・ファイル名・受信日と、登録した訪問先だけです。'));
         if (!st.connected) {
             card.append(h('div', { class: 'mailbox-note' },
-                h('p', {}, st.configured ? 'まだGoogleにつながっていません。先に「Googleにつなぐ」を押して、Gmailの読み取りを許可してください。' : 'Googleの接続設定(クライアントID)がまだありません。手順書のとおりに設定してから「Googleにつなぐ」を押してください。'),
-                h('p', { class: 'mailbox-hint-s' }, '許可の画面で「このアプリは確認されていません」と出ることがあります(アキヤさんが自分のアプリとして公開している場合)。出たときの進み方は手順書に書いてあります。つなぐのはアプリを開くたびに必要です(許可の情報を端末に保存しないため)。')));
-            card.append(h('div', { class: 'mailbox-actions' }, h('button', { type: 'button', class: 'btn btn-primary mailbox-btn-s', onclick: connectGmail }, 'Googleにつなぐ')));
+                h('p', {}, st.configured ? 'まだGoogleにつながっていません。上の「Googleにつなぐ」を押して、Gmailの読み取りと同期を許可してください。' : 'Googleの接続設定(クライアントID)がまだありません。手順書のとおりに設定してから「Googleにつなぐ」を押してください。')));
         } else {
             card.append(h('div', { class: 'mailbox-actions' },
-                h('button', { type: 'button', class: 'btn btn-primary mailbox-btn-s', id: 'mailGmailImport', disabled: gRunning, onclick: importGmail }, gRunning ? '取り込み中…' : 'Gmailから取り込む'),
-                gRunning ? h('button', { type: 'button', class: 'btn btn-secondary mailbox-btn-s', onclick: () => { if (gAbort) gAbort.abort(); } }, '中止') : null,
-                !gRunning ? h('button', { type: 'button', class: 'btn btn-secondary mailbox-btn-s', onclick: () => { try { gTransport.disconnect(); } catch (e) { /* 何もしない */ } gAccount = ''; gNote = { lines: ['Googleとの接続を切りました。'], kind: '' }; render(); } }, '接続を切る') : null));
+                h('button', { type: 'button', class: 'btn btn-primary mailbox-btn-s', id: 'mailGmailImport', disabled: gRunning, onclick: importGmail }, gRunning ? '取り込み中…' : '読み込む'),
+                gRunning ? h('button', { type: 'button', class: 'btn btn-secondary mailbox-btn-s', onclick: () => { if (gAbort) gAbort.abort(); } }, '中止') : null));
         }
         card.append(gProgressEl);
-        if (gNote && gNote.lines.length) card.append(h('div', { class: 'mailbox-note mailbox-gmail-result', 'data-kind': gNote.kind, role: gNote.kind === 'error' ? 'alert' : 'status' }, gNote.lines.map(t => h('p', {}, t))));
+        if (gNote && gNote.lines.length) card.append(h('div', { class: 'mailbox-note mailbox-gmail-result', 'data-kind': gNote.kind, role: gNote.kind === 'error' ? 'alert' : 'status' }, gNote.lines.map(txt => h('p', {}, txt))));
         return card;
     }
 
@@ -250,8 +372,7 @@ const MailBoxUI = (() => {
             h('div', { class: 'mailbox-actions' },
                 st.connected
                     ? h('button', { type: 'button', class: 'btn btn-secondary mailbox-btn-s', disabled: syncing, onclick: syncNow }, '今すぐ同期')
-                    : (typeof DriveTransfer !== 'undefined' ? h('button', { type: 'button', class: 'btn btn-secondary mailbox-btn-s', disabled: syncing, onclick: connectDrive }, 'Googleドライブに接続') : null),
-                !st.connected ? h('span', { class: 'mailbox-hint-s' }, '接続はアプリを開くたびに必要です(許可の情報を端末に保存しないため)。') : null));
+                    : h('span', { class: 'mailbox-hint-s' }, '上の「Googleにつなぐ」で、Gmailと一緒につながります。')));
         const conflicts = box.conflicts();
         conflicts.slice(0, 20).forEach(c => card.append(h('div', { class: 'mailbox-note mailbox-conflict', role: 'alert' },
             h('p', {}, '同じ依頼書が2台で登録された可能性があります。自動では消していません。'),
@@ -373,13 +494,17 @@ const MailBoxUI = (() => {
         if (!list.length) return h('p', { class: 'mailbox-empty' }, '自動登録した依頼書はまだありません。');
         return h('div', {}, h('p', { class: 'mailbox-hint' }, '判別できた依頼書は、自動で登録しました(チェックや反映の操作は要りません)。'), list.map(row => {
             const r = row.result || { workspaces: {}, duplicates: 0 };
-            const places = Object.entries(r.workspaces).map(([ws, n]) => `${wsText(ws)} ${n}件`);
+            const places = Object.entries(r.workspaces).map(([ws, n]) => h('button', { type: 'button', class: 'mailbox-ws-link', onclick: () => { if (typeof openMailWorkspace === 'function') openMailWorkspace(ws); } }, `${wsText(ws)} ${n}件`));
             const st = row.state === 'cancelled' ? '取り消し済み' : '登録済み';
             const info = row.state === 'registered' ? box.registeredStatus(row.id) : null;
             const missingWarn = info && info.total && info.present < info.total;
+            const destLine = places.length
+                ? h('p', {}, '登録先: ', ...places.flatMap((el, i) => i ? ['、', el] : [el]))
+                : h('p', {}, '新しく登録した訪問先はありません。', r.duplicates ? `(重複${r.duplicates}件は登録していません)` : '');
+            if (places.length && r.duplicates) destLine.append(`（重複${r.duplicates}件は登録していません）`);
             const card = h('article', { class: 'mailbox-card' },
                 h('div', { class: 'mailbox-card-head' }, starBtn(row), h('strong', {}, row.state === 'cancelled' ? '依頼書(取り消し済み)' : '依頼書が来ました'), chip(st, row.state === 'cancelled' ? '' : 'ok'), row.needsAttention && row.state === 'registered' ? chip('確認推奨', 'warn') : null),
-                h('p', {}, places.length ? `登録先: ${places.join('、')}` : '新しく登録した訪問先はありません。', r.duplicates ? `(重複${r.duplicates}件は登録していません)` : ''),
+                destLine,
                 row.needsAttention && row.state === 'registered' ? h('p', { class: 'mailbox-note' }, row.reason) : null,
                 row.origin === 'remote' ? h('p', { class: 'mailbox-note' }, 'もう1台の端末で登録した依頼書です。訪問先そのものはその端末に入っています(訪問先を揃えるには「送る/受け取る」を使ってください)。') : missingWarn ? h('p', { class: 'mailbox-note' }, `登録した訪問先のうち${info.total - info.present}件が見つかりません(バックアップの復元などで消えた可能性)。自動では登録し直しません。必要なら手で追加してください。`) : null,
                 meta(row));
@@ -450,7 +575,7 @@ const MailBoxUI = (() => {
         const pane = !health.ok ? h('p', { class: 'mailbox-error', role: 'alert' }, 'メールBOXのデータを読み込めません(破損の可能性)。データは上書きしていません。アプリを再読込しても直らない場合は、このBOXのデータだけを消す操作が必要です。')
             : tab === 'request' ? requestPane(rows) : tab === 'unreadable' ? unreadablePane(rows) : tab === 'favorite' ? favoritePane() : referencePane(rows);
         const empty = !rows.length && health.ok ? h('p', { class: 'mailbox-hint' }, gmailCardAvailable() ? 'まだ取り込んだメールはありません。上の「Gmailから取り込み」から始めます。' : 'まだ取り込んだメールはありません。') : null;
-        bodyEl.replaceChildren(...[gmailCard(), syncCard(), pane, empty, devTools()].filter(Boolean));
+        bodyEl.replaceChildren(...[googleCard(), gmailCard(), syncCard(), pane, empty, devTools()].filter(Boolean));
         statusEl.textContent = note.text; statusEl.dataset.kind = note.kind;
     }
 

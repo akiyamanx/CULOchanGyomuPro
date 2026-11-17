@@ -49,9 +49,13 @@ const RouteManager = (() => {
     }
 
     function updateRoutePanel() {
+        const routeEl = document.getElementById('routeManager');
+        if (typeof DataStorage.isUndatedCombinedView === 'function' && DataStorage.isUndatedCombinedView()) {
+            routeEl.innerHTML = '<p class="empty-msg">日付が決まっていない訪問を全部の月から見ています。月をまたぐため、ここではルート作成・距離計算はできません。ルートを組むときは、対象月でその月を選んでください。</p>';
+            return;
+        }
         const routes = DataStorage.getRoutes();
         const customers = DataStorage.getCustomers();
-        const routeEl = document.getElementById('routeManager');
         let html = '';
 
         for (const route of routes) {
@@ -171,7 +175,8 @@ const RouteManager = (() => {
     }
 
     function updateSummary() {
-        const customers = DataStorage.getCustomers();
+        const combined = typeof DataStorage.isUndatedCombinedView === 'function' && DataStorage.isUndatedCombinedView();
+        const customers = combined && DataStorage.getViewCustomers ? DataStorage.getViewCustomers() : DataStorage.getCustomers();
         const routes = DataStorage.getRoutes();
         const summaryEl = document.getElementById('summaryContent');
         if (customers.length === 0) { summaryEl.innerHTML = '<p class="empty-msg">データがありません</p>'; return; }
@@ -185,6 +190,11 @@ const RouteManager = (() => {
         html += `<div class="summary-row"><span>🔴 未アポ</span><span class="summary-value">${pending}件</span></div>`;
         html += `<div class="summary-row"><span>🟢 アポ済み</span><span class="summary-value">${appointed}件</span></div>`;
         html += `<div class="summary-row"><span>⚪ 完了</span><span class="summary-value">${completed}件</span></div></div>`;
+        if (combined) {
+            html = '<p class="summary-note">日付が決まっていない訪問（全部の月）の件数です。完了済みは含みません。</p>' + html;
+            summaryEl.innerHTML = html;
+            return;
+        }
 
         for (const route of routes) {
             const members = customers.filter(c => c.routeId === route.id);

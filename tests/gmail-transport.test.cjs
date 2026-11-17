@@ -183,3 +183,16 @@ test('ソースにトークン・秘密を保存する処理(localStorage/AppSto
     const src = fs.readFileSync(require.resolve('../map/gmail-transport.js'), 'utf8');
     assert.equal(/setItem|localStorage|sessionStorage|indexedDB|document\.cookie|console\./.test(src), false);
 });
+
+test('acceptToken はメモリにだけ置き、状態にはトークンを出さない。許可が無い応答はつながった扱いにしない', () => {
+    const e = env();
+    const ok = e.t.acceptToken({ access_token: TOKEN, expires_in: 3600, scope: SCOPE });
+    assert.equal(ok.ok, true);
+    assert.equal(e.t.state().connected, true);
+    assert.equal(JSON.stringify(e.t.state()).includes('FAKE-TOKEN'), false);
+    const e2 = env({ granted: false });
+    const bad = e2.t.acceptToken({ access_token: TOKEN, expires_in: 3600, scope: SCOPE });
+    assert.equal(bad.ok, false);
+    assert.equal(bad.code, 'scope_missing');
+    assert.equal(e2.t.state().connected, false);
+});
