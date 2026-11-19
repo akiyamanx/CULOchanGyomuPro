@@ -5,6 +5,7 @@
 //   ・止めるべき失敗(認証切れ・利用上限・権限など)は、そこまでの分を取り込んで止まる。一時的な失敗は1通だけ飛ばし、次回また取りに行く。
 //   ・取得したものはすべて「信用しないデータ」として扱う(拡張子・MIME・先頭バイト・サイズを確認してから開く)。
 const GmailImport = (() => {
+    const PARTIAL_CODES = ['network', 'timeout', 'server_error'];
     const DEFAULT_LIMITS = { maxMessages: 100, maxAttachmentBytes: 10 * 1024 * 1024, maxTotalBytes: 60 * 1024 * 1024, maxAttachmentsPerMail: 20, batchSize: 20, maxConsecutiveFailures: 3 };
     const STOP_CODES = ['auth_expired', 'rate_limited', 'forbidden', 'scope_missing', 'api_disabled', 'not_connected', 'aborted', 'bad_url'];
     const EXT_KIND = { pdf: 'pdf', xls: 'xls', xlsx: 'xlsx', csv: 'csv', jpg: 'image', jpeg: 'image', png: 'image', gif: 'image', webp: 'image', heic: 'image', heif: 'image', bmp: 'image', tif: 'image', tiff: 'image', tnef: 'tnef' };
@@ -58,9 +59,14 @@ const GmailImport = (() => {
                 try { query = source.buildQuery({ terms, days }); } catch (e) { fail(safe(e), 'list'); return finish(out); }
                 progress('list', 0, 0);
                 let listed;
-                try { listed = await source.listMessageIds({ query, maxMessages: L.maxMessages, signal }); }
+                try { listed = await source.listMessageIds({ query, maxMessages: L.maxMessages, signal, allowPartial:opts.allowPartialSearch === true }); }
                 catch (e) { fail(safe(e), 'list'); return finish(out); }
+                if (aborted()) { fail('aborted', 'list'); return finish(out); }
                 out.found = listed.ids.length; out.truncated = !!listed.truncated;
+                const partial = listed.partialSearch;
+                if (opts.allowPartialSearch === true && partial && Number.isInteger(partial.page) && partial.page >= 2 && PARTIAL_CODES.includes(partial.code)) {
+                    out.partialSearch = { page:partial.page, code:partial.code };
+                }
                 const termsN = terms.map(norm), oldest = now() - (days + 1) * 86400000;
                 let batch = [], consecutive = 0, stop = false;
                 const flush = async () => {
@@ -108,7 +114,7 @@ const GmailImport = (() => {
 
         function finish(out) {
             try {
-                mailBox.recordEvent('gmail_import', { ok: out.ok ? 1 : 0, code: out.code && /^[a-z0-9_]{1,40}$/.test(out.code) ? out.code : '', stage: out.stage, found: out.found, mails: out.mails, failed: out.failedMails, truncated: out.truncated ? 1 : 0, skipped_sender: out.skippedSender, tnef: out.attachments.tnef, downloaded: out.attachments.downloaded, bytes: out.bytes });
+                mailBox.recordEvent('gmail_import', { ok: out.ok ? 1 : 0, code: out.code && /^[a-z0-9_]{1,40}$/.test(out.code) ? out.code : '', stage: out.stage, partial_page:out.partialSearch?.page || 0, partial_code:out.partialSearch?.code || '', found: out.found, mails: out.mails, failed: out.failedMails, truncated: out.truncated ? 1 : 0, skipped_sender: out.skippedSender, tnef: out.attachments.tnef, downloaded: out.attachments.downloaded, bytes: out.bytes });
             } catch (e) { /* 記録のみ */ }
             return out;
         }

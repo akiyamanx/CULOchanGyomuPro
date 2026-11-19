@@ -12,6 +12,7 @@ const GmailSource = (() => {
     const PART_RE = /^[0-9.]{1,40}$/;
     const B64_RE = /^[A-Za-z0-9_-]*={0,2}$/;
     const CODES = ['not_connected', 'auth_expired', 'forbidden', 'scope_missing', 'api_disabled', 'rate_limited', 'server_error', 'not_found', 'http_error', 'timeout', 'aborted', 'bad_url', 'network', 'too_large', 'bad_response'];
+    const PARTIAL_CODES = ['network', 'timeout', 'server_error'];
     const DEFAULTS = { pageSize: 50, maxPages: 10, maxParts: 100, maxDepth: 8, maxRetries: 12, maxFileName: 200 };
     const err = (code, extra) => Object.assign(new Error(code), { code }, extra || {});
     const mapErr = e => err(e && CODES.indexOf(e.code) >= 0 ? e.code : 'network', { status: e && Number.isFinite(e.status) ? e.status : 0, retryAfterMs: e && Number.isFinite(e.retryAfterMs) ? e.retryAfterMs : 0 });
@@ -66,14 +67,30 @@ const GmailSource = (() => {
             return `has:attachment newer_than:${days}d from:(${terms.join(' OR ')})`;
         }
 
-        async function listMessageIds({ query, maxMessages, signal } = {}) {
+        async function listMessageIds({ query, maxMessages, signal, allowPartial = false } = {}) {
             const cap = Math.max(1, Math.min(Number(maxMessages) || 1, 500));
             const ids = [], seenTokens = new Set(); let token = '', pages = 0, truncated = false;
             for (;;) {
                 if (pages >= L.maxPages) { truncated = true; break; }
                 const params = new URLSearchParams({ q: String(query || ''), maxResults: String(Math.min(L.pageSize, 500)), fields: 'messages(id),nextPageToken' });
                 if (token) params.set('pageToken', token);
-                const data = await call(API + '?' + params.toString(), signal, r => r.json());
+                let data;
+                try {
+                    data = await call(API + '?' + params.toString(), signal, async r => {
+                        // Invalid JSON is not a transient network failure. Preserve abort/read errors.
+                        try { return await r.json(); } catch (error) {
+                            if (error?.name === 'SyntaxError') throw err('bad_response');
+                            throw error;
+                        }
+                    });
+                } catch (error) {
+                    if (signal?.aborted) throw err('aborted');
+                    if (allowPartial && pages > 0 && ids.length > 0 && PARTIAL_CODES.includes(error?.code)) {
+                        return { ids, truncated:false, pages, partialSearch:{ page:pages + 1, code:error.code } };
+                    }
+                    throw error;
+                }
+                if (signal?.aborted) throw err('aborted');
                 pages++;
                 if (!data || typeof data !== 'object' || Array.isArray(data) || (data.messages !== undefined && !Array.isArray(data.messages))) throw err('bad_response');
                 for (const m of data.messages || []) {

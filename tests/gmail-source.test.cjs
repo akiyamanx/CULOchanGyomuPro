@@ -161,3 +161,43 @@ test('1通の取得: ヘッダーが RFC 2047 の符号化(=?UTF-8?B?...?= / Q)�
     const m2 = await GmailSource.create({ transport: fakeTransport(() => ({ body: msg })) }).getMessage('18a0b1c2d3e4f5a6');
     assert.match(m2.from, /=\?UTF-8\?B\?/); assert.match(m2.subject, /=\?x-unknown/);
 });
+
+test('検索: 既定の50件とアプリ用100件の1ページ目は同じ条件', async () => {
+    const t = fakeTransport(u => {
+        assert.equal(u.searchParams.get('maxResults'), '100');
+        assert.equal(u.searchParams.get('q'), 'same-query');
+        assert.equal(u.searchParams.has('pageToken'), false);
+        return { body:{ messages:Array.from({ length:74 }, (_,i) => ({ id:(0x100000+i).toString(16) })) } };
+    });
+    const r = await GmailSource.create({ transport:t, limits:{ pageSize:100 } }).listMessageIds({ query:'same-query', maxMessages:100, allowPartial:true });
+    assert.equal(r.ids.length, 74); assert.equal(t.calls.length, 1); assert.equal(r.partialSearch, undefined);
+});
+
+test('検索: 後続ページの一時的通信失敗だけ検証済みの一覧を返す（明示オプトインのみ）', async () => {
+    for (const code of ['network', 'timeout', 'server_error']) {
+        const t = fakeTransport(u => {
+            if (u.searchParams.get('pageToken')) throw coded(code, { privateText:'想定外テキスト' });
+            return { body:{ messages:[{ id:'aaaaaa01' }], nextPageToken:'fixture-page' } };
+        });
+        const get = a => GmailSource.create({ transport:t, sleep:noSleep() }).listMessageIds({ maxMessages:100, allowPartial:a });
+        assert.deepEqual(await get(true), { ids:['aaaaaa01'], truncated:false, pages:1, partialSearch:{ page:2, code } });
+        await assert.rejects(() => get(false), { code });
+    }
+    const f = fakeTransport(() => { throw coded('network'); });
+    await assert.rejects(() => GmailSource.create({ transport:f, sleep:noSleep() }).listMessageIds({ allowPartial:true }), { code:'network' });
+});
+
+test('検索: 二頁目の許可・利用制限・異常応答・中止では部分処理しない', async () => {
+    const first = { body:{ messages:[{ id:'aaaaaa01' }], nextPageToken:'fixture-page' } };
+    for (const code of ['auth_expired', 'scope_missing', 'forbidden', 'api_disabled', 'rate_limited', 'aborted', 'bad_response']) {
+        const t = fakeTransport(u => { if (u.searchParams.has('pageToken')) throw coded(code); return first; });
+        await assert.rejects(() => GmailSource.create({ transport:t, sleep:noSleep() }).listMessageIds({ maxMessages:100, allowPartial:true }), { code });
+    }
+    const malformed = { request:async (url, _, consume) => consume({ json:async () => {
+        if (new URL(url).searchParams.has('pageToken')) throw new SyntaxError('secret body'); return first.body;
+    } }) };
+    await assert.rejects(() => GmailSource.create({ transport:malformed }).listMessageIds({ maxMessages:100, allowPartial:true }), { code:'bad_response' });
+    const c = new AbortController();
+    const t = fakeTransport(u => { if (u.searchParams.has('pageToken')) { c.abort(); throw coded('network'); } return first; });
+    await assert.rejects(() => GmailSource.create({ transport:t, sleep:noSleep() }).listMessageIds({ maxMessages:100, allowPartial:true, signal:c.signal }), { code:'aborted' });
+});

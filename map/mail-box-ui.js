@@ -176,9 +176,23 @@ const MailBoxUI = (() => {
     function gmailSummary(r) {
         const lines = []; let kind = r.ok ? 'ok' : 'error';
         const A = r.attachments || {}, S = r.ingest || {};
-        if (!r.ok) { lines.push(gErrText(r.code) + (r.stage === 'fetch' || r.stage === 'ingest' ? (r.mails ? `ここまでの${r.mails}通は取り込みました。` : '') : '')); if (r.code === 'aborted') kind = ''; }
-        else if (!r.found) lines.push('条件に合う新しいメールはありませんでした。');
-        else {
+        const partial = r.partialSearch;
+        if (!r.ok) {
+            lines.push(gErrText(r.code) + (!partial && (r.stage === 'fetch' || r.stage === 'ingest') && r.mails ? `ここまでの${r.mails}通は取り込みました。` : ''));
+            if (r.code === 'aborted') kind = '';
+        }
+        if (partial) {
+            const reason = { network:'通信エラー', timeout:'応答時間切れ', server_error:'Google側の一時エラー' }[partial.code];
+            if (r.ok) {
+                const known = r.knownMails || 0;
+                lines.push(`メール検索の${partial.page}ページ目で${reason}。先に取得した${r.found}通分の一覧から、新しく${r.mails}通を取り込みました。残りは未確認です。`);
+                if (known) lines.push(`${known}通は前回までに取り込み済みです。`);
+                kind = 'warn';
+            } else {
+                lines.push(`メール検索の${partial.page}ページ目で${reason}になりました。先に取得できた一覧は${r.found}通分です。残りは未確認です。`);
+            }
+        } else if (r.ok && !r.found) lines.push('条件に合う新しいメールはありませんでした。');
+        else if (r.ok) {
             const parts = [];
             if (S.registered) parts.push(`${S.registered}件を自動登録`); if (S.unreadable) parts.push(`確認が必要${S.unreadable}件`); if (S.reference) parts.push(`通達${S.reference}件`); if (S.duplicates) parts.push(`重複${S.duplicates}件は登録せず`); if (S.moved) parts.push(`日程未定から${S.moved}件を作業日の月へ移動`);
             // 1行目だけが画面上部の通知に出るため、1行目だけで「新しく何通か」が分かるように書く。
@@ -192,7 +206,7 @@ const MailBoxUI = (() => {
             lines.push('上のタブの件数は、BOXにたまっている合計(添付ごと)です。');
         }
         if (r.failedMails) { lines.push(`${r.failedMails}通は取得に失敗しました(登録していません。次回また取りに行きます)。`); if (kind === 'ok') kind = 'warn'; }
-        if (r.truncated) { lines.push(r.stoppedBy === 'run_limit' ? '1回の取り込み量の上限に達したため、残りは次回に取り込みます。もう一度押してください。' : '1回の取り込み件数の上限のため、残りがあります。もう一度押してください。'); if (kind === 'ok') kind = 'warn'; }
+        if (r.truncated && !partial) { lines.push(r.stoppedBy === 'run_limit' ? '1回の取り込み量の上限に達したため、残りは次回に取り込みます。もう一度押してください。' : '1回の取り込み件数の上限のため、残りがあります。もう一度押してください。'); if (kind === 'ok') kind = 'warn'; }
         if (A.tnef) { lines.push(`Outlook形式(winmail.dat)の添付が${A.tnef}件あり、開けないため判別不可に入れました。`); if (kind === 'ok') kind = 'warn'; }
         if (r.senderUnverified) lines.push(`差出人を確かめられなかったメールが${r.senderUnverified}通あります(Gmailの検索結果を信じて取り込みました)。`);
         if (r.syncOk === false) lines.push('端末間の同期には失敗しました(この端末の記録だけで重複を防いでいます)。');
@@ -614,7 +628,7 @@ const MailBoxUI = (() => {
         try {
             if (typeof GmailImport !== 'undefined' && typeof GmailSource !== 'undefined') {
                 const g = gMock() && typeof MailBoxDemo !== 'undefined' && MailBoxDemo.gmail ? MailBoxDemo.gmail() : (typeof GmailTransport !== 'undefined' && typeof RequestReader !== 'undefined' ? { transport: GmailTransport.create(), reader: RequestReader } : null);
-                if (g) { gTransport = g.transport; gSource = GmailSource.create({ transport: g.transport }); gImport = GmailImport.create({ source: gSource, reader: g.reader, mailBox: box, syncer, getTerms: readTerms, makeFile: g.makeFile }); }
+                if (g) { gTransport = g.transport; gSource = GmailSource.create({ transport: g.transport, limits:{ pageSize:100 } }); gImport = GmailImport.create({ source: gSource, reader: g.reader, mailBox: box, syncer, getTerms: readTerms, makeFile: g.makeFile, allowPartialSearch:true }); }
             }
         } catch (e) { gTransport = null; gImport = null; console.error('mailbox: gmail_init_failed'); }
         overlay = document.getElementById('mailBoxOverlay');

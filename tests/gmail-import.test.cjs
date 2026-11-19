@@ -421,3 +421,60 @@ test('スレッドIDをBOXの行に残す(16進だけ)', async () => {
     assert.equal(rows.find(r => r.messageId === IDS(1)).threadId, 'bbbbbb01');
     assert.equal(rows.find(r => r.messageId === IDS(2)).threadId, undefined);
 });
+
+test('部分検索: 取得済みを従来の台帳で処理し、再挑戦でも二重登録しない', async () => {
+    const g = makeGmail(), d = device();
+    M(g, IDS(1), '業務依頼書.xlsx', XLSX_MIME, 3000, 'xlsx');
+    g.source.listMessageIds = async o => {
+        assert.equal(o.allowPartial, true); assert.equal(o.maxMessages, 100);
+        return { ids:[IDS(1)], truncated:false, pages:1, partialSearch:{ page:2, code:'network', raw:'秘密' } };
+    };
+    const imp = d.make(g, makeReader(), { allowPartialSearch:true });
+    const r = await plainRun(imp);
+    assert.equal(r.ok, true); assert.deepEqual(r.partialSearch,{ page:2, code:'network' });
+    assert.equal(r.found,1); assert.equal(r.mails,1); assert.equal(r.ingest.registered,1);
+    const repeat = await plainRun(imp);
+    assert.equal(repeat.mails,0); assert.equal(repeat.knownMails,1); assert.equal(d.customers().length,1);
+    assert.equal(g.calls.dl.length,1);
+    assert.ok(d.mb('log').some(x => x.event === 'gmail_import' && x.partial_page === 2 && x.partial_code === 'network'));
+});
+
+test('部分検索: 後続の個別取得・登録失敗を消さない。中止を検知したら一覧以降に進まない', async () => {
+    const partialSearch = { page:2, code:'network' };
+    const patch = (g, fn) => { g.source.listMessageIds = async () => {
+        fn?.();
+        return { ids:[IDS(1)], pages:1, partialSearch };
+    }; };
+    const g = makeGmail({ getError: () => 'auth_expired' }), d = device();
+    patch(g);
+    const fetchFailure = await plainRun(d.make(g,makeReader(),{ allowPartialSearch:true }));
+    assert.equal(fetchFailure.ok,false); assert.equal(fetchFailure.code,'auth_expired');
+    assert.equal(fetchFailure.stage,'fetch'); assert.deepEqual(fetchFailure.partialSearch, partialSearch);
+    const h = makeGmail(); M(h,IDS(1),'業務依頼書.xlsx',XLSX_MIME,3000,'xlsx'); patch(h);
+    const ingestFailure = await plainRun(d.make(h,makeReader(),{ allowPartialSearch:true, syncer:{ ingestMails:()=>({ ok:false,code:'ingest_failed' }) } }));
+    assert.equal(ingestFailure.ok,false); assert.equal(ingestFailure.code,'ingest_failed');
+    assert.equal(ingestFailure.stage,'ingest'); assert.deepEqual(ingestFailure.partialSearch,partialSearch);
+    const c = new AbortController();
+    const i = makeGmail(); patch(i,() => c.abort());
+    const stopped = await plainRun(d.make(i,makeReader(),{ allowPartialSearch:true }), { signal:c.signal });
+    assert.equal(stopped.code,'aborted'); assert.equal(stopped.stage,'list');
+    assert.equal(stopped.partialSearch,undefined); assert.equal(i.calls.get.length,0);
+});
+
+test('部分検索: 利用者へ残り未確認と明記し、後続エラーは先頭。版の読込も確認', () => {
+    const code = fs.readFileSync(require.resolve('../map/mail-box-ui.js'),'utf8').replace('return { init, open, close,','return { gmailSummary, init, open, close,');
+    const summary = vm.runInNewContext(code + ';MailBoxUI.gmailSummary');
+    const x = { ok:true, mails:20, found:50, truncated:true, partialSearch:{ page:2, code:'network' } };
+    const success = summary(x);
+    assert.equal(success.kind,'warn'); assert.match(success.lines[0],/2ページ目.*50通分.*20通.*残りは未確認/);
+    assert.doesNotMatch(success.lines.join(' '),/もう一度押して|残りは次回/);
+    const error = summary({ ...x, ok:false, stage:'ingest', code:'ingest_failed' });
+    assert.match(error.lines[0],/BOXへの登録に失敗/);
+    assert.match(error.lines[1],/残りは未確認/); assert.doesNotMatch(error.lines.join(' '),/20通を取り込みました/);
+    assert.match(code,/GmailSource.create\(\{ transport: g.transport, limits:\{ pageSize:100 \} \}\)/);
+    assert.match(code,/allowPartialSearch:true/);
+    const html = fs.readFileSync(require.resolve('../index.html'),'utf8');
+    for (const name of ['gmail-source','gmail-import','mail-box-ui']) assert.ok(html.includes(name+'.js?v=20261120-gmail-partial-1'));
+    const sw = fs.readFileSync(require.resolve('../sw.js'),'utf8');
+    assert.ok(sw.includes("const CACHE_NAME = 'gyomupro-v84';"));
+});
