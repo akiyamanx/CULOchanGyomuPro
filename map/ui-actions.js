@@ -304,6 +304,11 @@ function saveEdit() {
     if (!id) return;
     if (typeof VisitPlanner !== 'undefined' && !VisitPlanner.validate()) return;
     var appoDate = document.getElementById('editAppoDate').value || null;
+    var scheduleField = document.getElementById('editScheduleKind');
+    var scheduleKind = scheduleField && scheduleField.value;
+    var dateWarning = document.getElementById('visitDateSourceWarning');
+    if (scheduleField && appoDate && scheduleKind === 'undated') scheduleKind = 'unknown';
+    if (dateWarning && !dateWarning.hidden && appoDate && !confirm('依頼書の日付と曜日が一致していません。原本で確認した日時として保存しますか？')) return;
     var updates = {
         company: document.getElementById('editCompany').value.trim(),
         address: document.getElementById('editAddress').value.trim(),
@@ -314,6 +319,8 @@ function saveEdit() {
         appoDate: appoDate,
         purpose: document.getElementById('editPurpose').value
     };
+    if (scheduleField) updates.scheduleKind = scheduleKind;
+    if (dateWarning && !dateWarning.hidden && appoDate) updates.dateNeedsReview = false;
     if (!(typeof DataStorage.isUndatedCombinedView === 'function' && DataStorage.isUndatedCombinedView())) {
         updates.routeId = document.getElementById('editRoute').value || null;
     }
@@ -332,8 +339,8 @@ function saveEdit() {
         var lab = DataStorage.workspaceLabel ? DataStorage.workspaceLabel({ id: result.to }) : null;
         showVisitToast((lab && lab.month) ? lab.month + 'に移しました' : 'その月に移しました');
     }
-    // v1.8追加: アポ日時があればGCalボタン表示
-    if (appoDate) {
+    // 希望日時を確定予定のようにカレンダーへ案内しない。
+    if (appoDate && scheduleKind !== 'preferred') {
         var company = document.getElementById('editCompany').value.trim();
         var address = document.getElementById('editAddress').value.trim();
         var contact = document.getElementById('editContact').value.trim();

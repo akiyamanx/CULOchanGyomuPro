@@ -23,6 +23,7 @@ const MailBox = (() => {
         save: '登録の保存に失敗しました。判別不可BOXから反映し直してください。',
         broken: 'このメールの処理中に問題が起きました。Gmailで直接確認してください。',
         multi: '作業日が複数の月にまたがるか、月を決められません。登録先の月を選んでください。',
+        weekday: '日付と曜日が一致しません。原本で確認してください。反映する場合は日程未定へ登録します。',
         partial: '一部の項目に欠けがあります。確認して月を選んでください。'
     };
 
@@ -69,6 +70,8 @@ const MailBox = (() => {
         if (!it || typeof it !== 'object' || Array.isArray(it)) return null;
         const o = {};
         for (const k of ITEM_STR) if (typeof it[k] === 'string') o[k] = it[k].slice(0, 300);
+        if (['preferred','confirmed','unknown','undated'].includes(it.scheduleKind)) o.scheduleKind = it.scheduleKind;
+        if (it.dateNeedsReview === true) o.dateNeedsReview = true;
         if (Number.isInteger(it.unitCount) && it.unitCount >= 0 && it.unitCount < 10000) o.unitCount = it.unitCount;
         if (Array.isArray(it.warnings)) o.warnings = it.warnings.filter(w => typeof w === 'string').slice(0, 10).map(w => w.slice(0, 200));
         return o;
@@ -344,14 +347,15 @@ const MailBox = (() => {
                     setLedger(st, u.base, 'unreadable'); sum.unreadable++; continue;
                 }
                 // 依頼書: 揃った項目を登録。欠け・月が決まらない項目は判別不可の行へ。
-                const complete = items.filter(i => !classifier.missingOf(i).length);
-                const incomplete = items.filter(i => classifier.missingOf(i).length);
+                const badDates = items.filter(i => i.dateNeedsReview === true);
+                const complete = items.filter(i => !i.dateNeedsReview && !classifier.missingOf(i).length);
+                const incomplete = items.filter(i => !i.dateNeedsReview && classifier.missingOf(i).length);
                 const received = /^\d{4}-\d{2}-\d{2}$/.test(String(mail.receivedDate)) ? mail.receivedDate : undefined;
                 let plan;
                 try {
                     plan = month.routeItems(complete, { today: todayTokyo(), receivedDate: received });
                     const reg = registerGroups(plan.workspaces, u.base, { autoCreate: true });
-                    const left = [...incomplete, ...plan.review];
+                    const left = [...badDates, ...incomplete, ...plan.review];
                     if (reg.added.length || reg.duplicates || reg.moved) {
                         const result = { workspaces: {}, duplicates: reg.duplicates, moved: reg.moved, customers: reg.added, at: nowIso() };
                         reg.added.forEach(a => { result.workspaces[a.ws] = (result.workspaces[a.ws] || 0) + 1; });
@@ -359,7 +363,7 @@ const MailBox = (() => {
                         setLedger(st, u.base, 'registered');
                     } else setLedger(st, u.base, 'unreadable');
                     if (left.length) {
-                        const why = plan.review.length ? (plan.review[0].reviewReason || MSG.multi) : MSG.partial;
+                        const why = badDates.length ? MSG.weekday : plan.review.length ? (plan.review[0].reviewReason || MSG.multi) : MSG.partial;
                         addRow(st, makeRow(u.base + '#partial', mail, u.att, 'unreadable', why, { items: left, opened: true }));
                         sum.unreadable++;
                     }
@@ -442,9 +446,16 @@ const MailBox = (() => {
                     if (!row.applicable || !Array.isArray(row.items) || !row.items.length) throw fail('not_applicable');
                     if (!(ws === 'unscheduled' || (typeof ws === 'string' && MONTH_ID.test(ws)))) throw fail('invalid_workspace');
                     const base = baseOf(String(row.id).replace(/#partial$/, ''));
-                    const reg = registerGroups({ [ws]: row.items }, base, { review: true, noteLead: '【要確認】メールBOXから反映(内容を原本と照合してください)', allowCreateMonth: !!opts.allowCreateMonth });
+                    const groups = {};
+                    for (const item of row.items) {
+                        const target = item.dateNeedsReview ? 'unscheduled' : ws;
+                        (groups[target] ||= []).push(item.dateNeedsReview ? {...item, appoDate:''} : item);
+                    }
+                    const reg = registerGroups(groups, base, { review: true, noteLead: '【要確認】メールBOXから反映(内容を原本と照合してください)', allowCreateMonth: !!opts.allowCreateMonth });
                     row.state = 'applied'; row.resolvedAt = nowIso();
-                    row.result = { workspaces: { [ws]: reg.added.length }, duplicates: reg.duplicates, customers: reg.added, at: nowIso() };
+                    const workspaces = {};
+                    reg.added.forEach(a => { workspaces[a.ws] = (workspaces[a.ws] || 0) + 1; });
+                    row.result = { workspaces, duplicates: reg.duplicates, customers: reg.added, at: nowIso() };
                     touch(row, 'status');
                     setLedger(st, base, 'applied');
                     res.ok = true; res.count = reg.added.length; res.duplicates = reg.duplicates; out.applied++;

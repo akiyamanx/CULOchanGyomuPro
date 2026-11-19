@@ -341,7 +341,8 @@ const MapCore = (() => {
             if (c.floors && c.floors.length > 0) html += ` · ${esc(c.floors.join(','))}`;
             html += `</span><span class="customer-meta">${statuses[status]} · ${esc(route ? route.name : 'ルート未割当')}`;
             if (combined && c.workspaceId && DataStorage.workspaceTag) html += ` · <span class="visit-ws-tag">${esc(DataStorage.workspaceTag(c.workspaceId))}</span>`;
-            else if (!combined && undated) html += ` · <span class="visit-undated-tag">日付未定</span>`;
+            const schedule = RequestParser.scheduleLabel(c);
+            html += ` · <span class="${undated || c.dateNeedsReview ? 'visit-undated-tag':'visit-ws-tag'}">${esc(schedule)}</span>`;
             html += `</span></span>`;
             if (c.unitCount > 1) html += `<span class="customer-count">${c.unitCount}台</span>`;
             html += `</button>`;
@@ -423,7 +424,7 @@ const MapCore = (() => {
             + `<div class="list-pick-title">${esc(customer.company || '')}</div>`
             + (() => { const c = {...customer}; Object.keys(c).forEach(k => { if (typeof c[k] === 'string') c[k] = esc(c[k]); }); if (c.floors) c.floors = c.floors.map(esc); return detailLines(c); })()
             + (route ? `<div>🗺️ ${esc(route.name || '')}</div>` : '')
-            + `<div>${esc(statusText[customer.status] || '')}</div>`
+            + `<div>${esc(statusText[customer.status] || '')} · ${esc(RequestParser.scheduleLabel(customer))}</div>`
             + `<div class="list-pick-note">${why}</div>`
             + (canLocate ? `<button type="button" class="info-btn info-btn-locate" onclick="MapCore.locateAndFocus(${esc(JSON.stringify(customer.id))})">📍 地図の位置を取得</button>` : '')
             + `<button type="button" class="info-btn info-btn-edit" onclick="MapCore.openEdit(${esc(JSON.stringify(customer.id))})">日時・備考を編集</button>`;
@@ -441,6 +442,10 @@ const MapCore = (() => {
         document.getElementById('editNote').value = customer.note || '';
         document.getElementById('editStatus').value = customer.status || 'pending';
         document.getElementById('editAppoDate').value = customer.appoDate || '';
+        const schedule = document.getElementById('editScheduleKind');
+        if (schedule) schedule.value = Object.hasOwn(RequestParser.scheduleLabels, customer.scheduleKind) ? customer.scheduleKind : customer.appoDate ? 'unknown' : 'undated';
+        const dateWarning = document.getElementById('visitDateSourceWarning');
+        if (dateWarning) dateWarning.hidden = !customer.dateNeedsReview;
         document.getElementById('editPurpose').value = customer.purpose || '';
         const routes = DataStorage.getRoutes();
         const routeSelect = document.getElementById('editRoute');

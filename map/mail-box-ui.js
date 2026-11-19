@@ -416,7 +416,8 @@ const MailBoxUI = (() => {
         const list = h('ul', { class: 'mailbox-items' });
         items.slice(0, 3).forEach(item => {
             const miss = missingOf(item).map(k => LABEL[k]).filter(Boolean);
-            list.append(h('li', {}, [item.company || '(会社名なし)', ' / ', item.address || '(住所なし)', item.purpose ? ` / ${item.purpose}` : '', miss.length ? h('span', { class: 'mailbox-missing' }, ` 欠け: ${miss.join('・')}`) : null]));
+            list.append(h('li', {}, [item.company || '(会社名なし)', ' / ', item.address || '(住所なし)', item.purpose ? ` / ${item.purpose}` : '', miss.length ? h('span', { class: 'mailbox-missing' }, ` 欠け: ${miss.join('・')}`) : null,
+                item.dateNeedsReview ? h('span', { class: 'mailbox-missing' }, ' 日付・曜日を要確認（反映先: 日程未定）') : null]));
         });
         if (items.length > 3) list.append(h('li', {}, `ほか${items.length - 3}件`));
         return list;
@@ -451,10 +452,11 @@ const MailBoxUI = (() => {
         const monthIds = box.monthOptions().map(o => o.id);
         return { entry: { rowId: row.id, workspaceId: c.ws }, create: c.ws !== 'unscheduled' && !monthIds.includes(c.ws) };
     }
+    const allDatesNeedReview = row => !!row.items?.length && row.items.every(i => i.dateNeedsReview);
     function applyMany(rows, forceUnscheduled) {
         const plain = [], withCreate = [], errors = [];
         for (const row of rows) {
-            const e = forceUnscheduled ? { entry: { rowId: row.id, workspaceId: 'unscheduled' }, create: false } : entryFor(row);
+            const e = forceUnscheduled || allDatesNeedReview(row) ? { entry: { rowId: row.id, workspaceId: 'unscheduled' }, create: false } : entryFor(row);
             if (e.error) { errors.push(e.error); continue; }
             (e.create ? withCreate : plain).push(e.entry);
         }
@@ -536,8 +538,8 @@ const MailBoxUI = (() => {
                 h('div', { class: 'mailbox-card-head' }, starBtn(row), row.applicable ? h('label', { class: 'mailbox-check' }, h('input', { type: 'checkbox', 'aria-label': 'この依頼を選ぶ', checked: selected.has(row.id), onchange: ev => { ev.target.checked ? selected.add(row.id) : selected.delete(row.id); render(); } })) : null, h('strong', {}, '確認が必要'), chip('判別不可', 'warn'), row.elsewhere ? chip('他端末で登録済みの可能性', 'warn') : null),
                 h('p', {}, row.reason), row.elsewhere ? h('p', { class: 'mailbox-note' }, '他の端末でこの依頼書が登録された可能性があります。反映する前に、訪問先の一覧に同じものが無いか確認してください。') : null, meta(row));
             if (row.applicable) {
-                card.append(itemsView(row), h('div', { class: 'mailbox-actions' }, monthSelect(row),
-                    h('button', { type: 'button', class: 'btn btn-primary mailbox-btn-s', onclick: () => applyMany([row], false) }, 'この月に反映'),
+                card.append(itemsView(row), h('div', { class: 'mailbox-actions' }, allDatesNeedReview(row) ? null : monthSelect(row),
+                    allDatesNeedReview(row) ? null : h('button', { type: 'button', class: 'btn btn-primary mailbox-btn-s', onclick: () => applyMany([row], false) }, 'この月に反映'),
                     h('button', { type: 'button', class: 'btn btn-secondary mailbox-btn-s', onclick: () => applyMany([row], true) }, '日程未定に反映')));
             } else card.append(h('p', { class: 'mailbox-note' }, '自動では反映できません。元のメールや添付を確認してください。'));
             card.append(h('div', { class: 'mailbox-actions' }, gmailLink(row), h('button', { type: 'button', class: 'btn btn-secondary mailbox-btn-s', onclick: () => { box.dismissRow(row.id); selected.delete(row.id); sayAll('確認済みにしました。', 'ok'); afterChange(); } }, '確認済みにする(登録しない)')));

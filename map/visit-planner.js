@@ -5,7 +5,7 @@ const VisitPlanner = (() => {
     const esc = value => ExpenseImport.escapeHtml(String(value ?? ''));
     const byId = id => document.getElementById(id);
     let month = '', selectedDay = '', appointments = [], readFailed = false, baseline = '';
-    const fields = ['editCompany','editAddress','editPhone','editContact','editRoute','editStatus','editPurpose','editNote','visitScheduleDay','visitScheduleTime'];
+    const fields = ['editCompany','editAddress','editPhone','editContact','editRoute','editStatus','editScheduleKind','editPurpose','editNote','visitScheduleDay','visitScheduleTime'];
     function combine(day,time) {
         if (!day && !time) return '';
         if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return null;
@@ -30,7 +30,7 @@ const VisitPlanner = (() => {
                 .map(c=>({...c,workspace}))).sort((a,b)=>a.appoDate.localeCompare(b.appoDate));
         } catch (error) { appointments=[]; readFailed=true; }
     }
-    const signature = () => JSON.stringify(fields.map(id=>byId(id).value));
+    const signature = () => JSON.stringify(fields.map(id=>byId(id)?.value));
     function refreshPhone() {
         const phones=phoneNumbers(byId('editPhone').value);
         byId('visitPhoneActions').innerHTML=phones.length ? phones.map((phone,i)=>`<a class="btn visit-call" href="tel:${esc(phone)}">電話${phones.length>1?' '+(i+1):'をかける'}<small>${esc(phone)}</small></a>`).join('') : '<span class="visit-help">電話番号が未登録です</span>';
@@ -86,6 +86,7 @@ const VisitPlanner = (() => {
         let message='';
         if (!byId('editCompany').value.trim()||!byId('editAddress').value.trim()) message='会社名と住所を入力してください。';
         else if (value===null) message='訪問日と時刻を両方入力してください。未定に戻す場合は両方を空欄にします。';
+        else if (value === '' && byId('editScheduleKind')?.value === 'confirmed') message='「確定」で保存するには訪問日と時刻が必要です。未定の場合は日程の区分を変更してください。';
         byId('visitEditError').textContent=message;
         if(message){byId('visitEditError').focus();return false;}
         byId('editAppoDate').value=value;return true;

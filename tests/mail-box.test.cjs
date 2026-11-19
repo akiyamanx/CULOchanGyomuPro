@@ -499,3 +499,22 @@ test('差出人は表示名だけ保存し、メールアドレスは残さな�
     assert.equal(mb.row('f2/a1').from, undefined);
     assert.equal(store.get(KEY_BOX).includes('example.invalid'), false);
 });
+
+test('曜日不一致の依頼だけ自動登録せず、手動反映しても未定に置く', () => {
+    const { mb, store } = setup(legacy());
+    const pending = full({ company:'架空要確認', workDateText:'2026/11/16（火）', appoDate:'2026-11-16T09:00', dateNeedsReview:true, scheduleKind:'preferred' });
+    const ready = full({ company:'架空別件', workDateText:'2026/11/16（月）', appoDate:'2026-11-16T09:00', scheduleKind:'confirmed' });
+    const r = mb.ingest([mail('m-date', [att('a1', '業務依頼書.xlsx', 'xlsx', [pending, ready])])]);
+    assert.equal(r.registered,1);
+    assert.equal(r.unreadable,1);
+    const readySaved=customersOf(store,'2026-11').find(c=>c.company==='架空別件');
+    assert.equal(readySaved.scheduleKind,'confirmed');
+    assert.equal(readySaved.status,'pending');
+    const row=mb.rows().find(c=>c.bucket==='unreadable');
+    assert.match(row.reason,/日付と曜日が一致しません/);
+    assert.equal(allCustomers(store).some(c=>c.company==='架空要確認'),false);
+    assert.equal(mb.call('applyRows',[{rowId:row.id,workspaceId:'2026-11'}]).applied,1);
+    const held=customersOf(store,'unscheduled').find(c=>c.company==='架空要確認');
+    assert.equal(held.appoDate,'');
+    assert.equal(held.dateNeedsReview,true);
+});

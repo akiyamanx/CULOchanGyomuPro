@@ -65,7 +65,7 @@ const RequestImport = (() => {
             item.sameUnit = d.action === 'add' && d.sameUnit;
             if (d.action === 'add') MfDedupe.remember(mfIdx, item, targetMonth());
             item.possibleDuplicate = item.mfDuplicate || (!mf && known.some(other => RequestParser.duplicate(item,other)));
-            item.selected = !item.possibleDuplicate;
+            item.selected = !item.possibleDuplicate && (!item.dateNeedsReview || item.sourceDateChecked === true);
             known.push(item);
         });
         render();
@@ -81,7 +81,10 @@ const RequestImport = (() => {
             ${(item.warnings || []).map(w=>`<p class="request-warning">${esc(w)}</p>`).join('')}
             <div class="request-grid">${input(item,index,'company','会社名 *')}${input(item,index,'address','住所 *')}
             <label class="request-field">作業内容<select data-index="${index}" data-field="purpose">${['','メンテナンス','修理','本体設置','その他'].map(p=>`<option value="${p}" ${item.purpose===p?'selected':''}>${p||'未設定'}</option>`).join('')}</select></label>
-            ${input(item,index,'appoDate','訪問予定日時（希望日も含む）','datetime-local')}</div>
+            <label class="request-field">日程の区分<select data-index="${index}" data-field="scheduleKind">${Object.entries(RequestParser.scheduleLabels).map(([k,v])=>`<option value="${k}" ${(item.scheduleKind||'unknown')===k?'selected':''}>${v}</option>`).join('')}</select></label>
+            ${input(item,index,'appoDate','訪問日時','datetime-local')}</div>
+            ${item.workDateText?`<p class="request-source">日程の原文: ${esc(item.workDateText)}</p>`:''}
+            ${item.dateNeedsReview?`<label class="request-select"><input type="checkbox" data-index="${index}" data-field="sourceDateChecked" ${item.sourceDateChecked?'checked':''}>原本を確認しました（日時が不明なら空欄のまま）</label>`:''}
             <details><summary>電話・機種・備考などを確認</summary><div class="request-grid">
             ${input(item,index,'phone','電話番号','tel')}${input(item,index,'contact','担当者')}${input(item,index,'equipType','機種')}${input(item,index,'unitCount','台数','number')}${input(item,index,'managementNo','管理番号・シリアル')}${input(item,index,'branch','営業所・SS')}${input(item,index,'filter','交換フィルター')}
             <label class="request-field request-wide">備考<textarea data-index="${index}" data-field="note" rows="4">${esc(item.note)}</textarea></label></div></details>
@@ -97,7 +100,7 @@ const RequestImport = (() => {
     function edit(event) {
         const {index,field} = event.target.dataset;
         if (!field || !candidates[index]) return;
-        candidates[index][field] = field === 'selected' ? event.target.checked : event.target.value;
+        candidates[index][field] = event.target.type === 'checkbox' ? event.target.checked : event.target.value;
         updateCount();
     }
     function cancel() {
@@ -115,6 +118,9 @@ const RequestImport = (() => {
         const selected = candidates.filter(item=>item.selected);
         if (!selected.length) { status('登録する訪問先にチェックしてください。'); return; }
         for (const item of selected) {
+            if (item.dateNeedsReview && !item.sourceDateChecked) { status('日付と曜日が一致しない訪問先は、原本を確認してから追加してください。'); return; }
+            if (!item.appoDate && item.scheduleKind === 'confirmed') { status('「確定」で追加するには訪問日と時刻が必要です。未定の場合は日程の区分を変更してください。'); return; }
+            if (item.appoDate && item.scheduleKind === 'undated') { status('日時を入れる場合は、日程の区分を「希望」「確定」「日程区分未確認」から選んでください。'); return; }
             if (!item.company.trim() || !item.address.trim()) { status('選択した訪問先の会社名と住所を入力してください。'); return; }
             if (!Number.isInteger(Number(item.unitCount)) || Number(item.unitCount) < 1) { status('台数は1以上の整数で入力してください。'); return; }
         }
@@ -126,8 +132,8 @@ const RequestImport = (() => {
             const fresh = selected.filter(item => { const d = MfDedupe.decide(item, month, mfIdx); if (d.action !== 'add') return false; MfDedupe.remember(mfIdx, item, month); return true; });
             const skippedMf = selected.length - fresh.length;
             const added = fresh.map((item,index) => {
-                const {selected,possibleDuplicate,mfDuplicate,sameUnit,warnings,previewUrl,originalText,kind,workDateText,titleText,...customer} = item;
-                return {...customer,unitCount:Number(item.unitCount),id:'c_'+crypto.randomUUID(),routeId:null,status:'pending',createdAt:new Date().toISOString()};
+                const {selected,sourceDateChecked,possibleDuplicate,mfDuplicate,sameUnit,warnings,previewUrl,originalText,kind,workDateText,titleText,...customer} = item;
+                return {...customer,dateNeedsReview:item.dateNeedsReview === true && !item.appoDate,unitCount:Number(item.unitCount),id:'c_'+crypto.randomUUID(),routeId:null,status:'pending',createdAt:new Date().toISOString()};
             });
             if (!DataStorage.getWorkspaces().some(ws=>ws.id===month)) DataStorage.createWorkspace(month);
             // One write: storage failure cannot leave a partially registered batch.

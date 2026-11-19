@@ -40,6 +40,42 @@ const RequestParser = (() => {
         if (date.getUTCFullYear() !== year || date.getUTCMonth() + 1 !== month || date.getUTCDate() !== day) return '';
         return `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}T${t[1].padStart(2,'0')}:${t[2]}`;
     }
+    function scheduleKind(value, label = '') {
+        const v = text(value).normalize('NFKC');
+        if (!/\d/.test(v) || /^(?:日程)?未定$/.test(v)) return 'undated';
+        if (/希望/.test(label) || /希望|仮(?:予定|予約)/.test(v)) return 'preferred';
+        if (!/(?:未|不|仮|要)確定/.test(v) && /(?:確定(?:済み?|です|しました)?|アポ済み?)[\s)】。！!]*$/.test(v)) return 'confirmed';
+        return 'unknown';
+    }
+    function weekdayWarning(value) {
+        const v = text(value).normalize('NFKC');
+        const days = '日月火水木金土';
+        const dates = v.matchAll(/(?:^|[^\d])(20\d{2}|\d{2})[年/.\-](\d{1,2})[月/.\-](\d{1,2})日?\s*(?:\(\s*([日月火水木金土])(?:曜日|曜)?\s*\)|([日月火水木金土])曜日)/g);
+        for (const d of dates) {
+            const year = Number(d[1]) + (d[1].length === 2 ? 2000 : 0), month = Number(d[2]), day = Number(d[3]);
+            const date = new Date(Date.UTC(year, month-1, day));
+            if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month-1 || date.getUTCDate() !== day) continue;
+            const actual = days[date.getUTCDay()], stated = d[4] || d[5];
+            if (stated !== actual) return `日付と曜日が一致しません（原文: ${stated}曜、${year}/${month}/${day}は${actual}曜）。原本を確認して日時を入力してください。`;
+        }
+        return '';
+    }
+    function setSchedule(item, value, label, time = '', useDate = true) {
+        item.scheduleKind = scheduleKind(value, label);
+        const warning = weekdayWarning(value);
+        if (warning) { item.dateNeedsReview = true; item.warnings.push(warning); }
+        else if (useDate) item.appoDate = appointment(value, time);
+        // 日付だけの「確定」は原文に保持。時刻のない予定を確定日時として扱わない。
+        if (!item.appoDate && item.scheduleKind === 'confirmed') item.scheduleKind = 'unknown';
+    }
+    const scheduleLabels = Object.freeze({ preferred:'希望', confirmed:'確定', unknown:'日程区分未確認', undated:'日程未定' });
+    function scheduleLabel(item) {
+        if (item.dateNeedsReview === true) return '日付・曜日を要確認';
+        if (item.scheduleKind === 'preferred') return '希望';
+        if (item.scheduleKind === 'confirmed') return '確定';
+        if (item.scheduleKind === 'unknown' || item.appoDate) return '日程区分未確認';
+        return '日程未定';
+    }
     function base(source, kind) {
         return {company:'',address:'',phone:'',contact:'',managementNo:'',branch:'',equipType:'',filter:'',purpose:'',note:'',appoDate:'',workDateText:'',titleText:'',unitCount:1,source,kind,warnings:[]};
     }
@@ -74,11 +110,10 @@ const RequestParser = (() => {
             (rows[headerIndex] || []).forEach((label, col) => {
                 if (!Object.values(columns).includes(col) && text(label) && text(row[col])) details.push(`${clean(label)}: ${clean(row[col])}`);
             });
-            if (columns.appointment !== undefined && text(row[columns.appointment])) {
-                const raw = text(row[columns.appointment]);
-                item.appoDate = appointment(raw);
-                details.push(`工事・訪問日（原文）: ${raw}`);
-            }
+            const hasAppointment = columns.appointment !== undefined && Boolean(text(row[columns.appointment]));
+            if (hasAppointment) details.push(`工事・訪問日（原文）: ${text(row[columns.appointment])}`);
+            setSchedule(item, hasAppointment ? text(row[columns.appointment]) : item.workDateText,
+                hasAppointment ? text(rows[headerIndex][columns.appointment]) : text(rows[headerIndex][dateCol]), '', hasAppointment);
             item.note = unique([item.note, ...details]).join('\n');
             result.push(item);
         });
@@ -141,8 +176,9 @@ const RequestParser = (() => {
         item.purpose = purpose(checked.length ? checked.join(' ') : work.value);
         const workDate = get(['工事予定日時']);
         const preferred = get(['作業希望日']);
-        const dateText = /\d/.test(workDate.value) ? workDate.value : preferred.value;
-        item.appoDate = appointment(dateText, get(['時間指定']).value);
+        const usePlannedDate = /\d/.test(workDate.value);
+        const dateText = usePlannedDate ? workDate.value : preferred.value;
+        setSchedule(item, dateText, usePlannedDate ? '工事予定日時' : '作業希望日', get(['時間指定']).value);
         item.workDateText = /\d/.test(dateText) ? clean(dateText) : '';
         const notes = [];
         rows.forEach(row => row.forEach((value, col) => {
@@ -243,8 +279,10 @@ const RequestParser = (() => {
             }
         }
         if (!item.purpose && /設置業務依頼書/.test(norm(joined))) item.purpose = '本体設置';
-        const dateText = value(['設置日','工事予定日時','作業予定日','工事予定日','訪問予定日','作業希望日']);
-        item.appoDate = appointment(dateText);
+        const dateLabels = ['設置日','工事予定日時','作業予定日','工事予定日','訪問予定日','作業希望日'];
+        const dateLabel = dateLabels.find(label => /\d/.test(value([label]))) || dateLabels.find(label => value([label]));
+        const dateText = dateLabel ? value([dateLabel]) : '';
+        setSchedule(item, dateText, dateLabel);
         item.workDateText = dateText;
         const noteIndex = joined.search(/備\s*考|【\s*(?:物置|本体|電気)/);
         const special = customerForm ? (joined.match(/特\s*記\s*事\s*項\s*([\s\S]*?)(?=受付年月日|受付者名|依頼SS名|備\s*考|$)/) || ['',''])[1].replace(/\n?（[^）\n]*）\s*$/,'').trim() : '';
@@ -262,6 +300,6 @@ const RequestParser = (() => {
             && norm(candidate.purpose) === norm(existing.purpose)
             && (candidate.appoDate || '') === (existing.appoDate || ''));
     }
-    return {parseRows, parsePdfText, requestDocumentCheck, appointment, duplicate, norm};
+    return {parseRows, parsePdfText, requestDocumentCheck, appointment, duplicate, norm, scheduleLabel, scheduleLabels};
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = RequestParser;

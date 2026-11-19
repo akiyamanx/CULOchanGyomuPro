@@ -46,3 +46,25 @@ test('ピンを押すと安全な会社名・別々の電話リンク・日時�
     assert.match(content,/href="tel:0300000000"/);assert.match(content,/href="tel:09000000000"/);
     assert.match(content,/日時・備考を編集/);assert.doesNotMatch(content,/<script>/);
 });
+test('日程区分の変更だけでも破棄確認し、日時が空なら確定で保存しない',()=>{
+    let asked=0;
+    const nodes=new Map();
+    const el=id=>{if(!nodes.has(id))nodes.set(id,{value:'',focus(){},textContent:'',innerHTML:''});return nodes.get(id)};
+    const context=vm.createContext({document:{getElementById:el},ExpenseImport:{escapeHtml:String},
+        DataStorage:{getWorkspaces:()=>[],getCurrentWorkspaceId:()=>''},
+        GoogleVisitCalendar:{setRange(){},snapshot:()=>({connected:false})},
+        confirm(){asked++;return false;}
+    });
+    vm.runInContext(fs.readFileSync(require.resolve('../map/visit-planner'),'utf8'),context);
+    el('editCompany').value='架空会社';el('editAddress').value='東京都架空区';
+    el('editScheduleKind').value='undated';
+    vm.runInContext('VisitPlanner.begin({})',context);
+    assert.equal(vm.runInContext('VisitPlanner.allowClose()',context),true);
+    el('editScheduleKind').value='confirmed';
+    assert.equal(vm.runInContext('VisitPlanner.allowClose()',context),false);
+    assert.equal(asked,1);
+    assert.equal(vm.runInContext('VisitPlanner.validate()',context),false);
+    assert.match(el('visitEditError').textContent,/「確定」/);
+    el('visitScheduleDay').value='2026-11-16'; el('visitScheduleTime').value='09:00';
+    assert.equal(vm.runInContext('VisitPlanner.validate()',context),true);
+});
