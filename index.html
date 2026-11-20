@@ -15,7 +15,7 @@
     <link rel="stylesheet" href="styles/expense.css?v=20261019-3">
     <!-- v2.0追加 - 駐車場利用明細スタイル -->
     <link rel="stylesheet" href="styles/parking.css">
-    <link rel="stylesheet" href="styles/parking-workflow.css?v=20261014-6">
+    <link rel="stylesheet" href="styles/parking-workflow.css?v=20261120-3">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600&display=swap">
     <link rel="stylesheet" href="styles/map/map-styles.css">
     <link rel="stylesheet" href="styles/map/map-expense-styles.css">
@@ -120,11 +120,30 @@
                 <details class="panel-card fold-card" id="routeImport"><summary><span>訪問ルート・走行距離</span><span class="summary-note">日付とルートを選択</span></summary><div class="fold-body" id="tabExpense"></div></details>
                 <div class="panel-card import-etc"><div><h4>高速道路の料金</h4><p class="section-desc">ETC利用照会のCSV・Excel（.xlsx）から利用日ごとに取り込みます。</p></div><label class="btn btn-secondary file-control">ETCファイルを選択（CSV・Excel）<input type="file" accept=".csv,text/csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" onchange="ExpenseEtc.handleFile(event)" class="file-input"></label><a href="https://www.etc-meisai.jp/" target="_blank" rel="noopener" class="text-link">ETC利用照会を開く ↗</a></div>
             <details class="panel-card fold-card" id="etcSection"><summary><span>ETC PDF・寄り道</span><span class="summary-note">月まとめ取込 → 日別に確認</span></summary><div class="fold-body" id="etcWorkflow"></div></details>
+            <dialog id="parkingCompanyDialog" class="parking-dialog" aria-labelledby="parkingCompanyTitle">
+                <h3 id="parkingCompanyTitle">会社名を五十音で選ぶ</h3>
+                <p class="parking-caption">業務プロに登録した訪問先から、会社名の候補が自動で増えます。これは会社名だけの選択です。機種や作業内容は別に確認してください。</p>
+                <p id="parkingCompanyStatus" class="parking-caption" role="status"></p>
+                <div class="parking-field-grid">
+                    <label>五十音の行<select id="parkingCompanyLine" class="parking-input"></select></label>
+                    <label>会社名<select id="parkingCompanyName" class="parking-input"></select></label>
+                    <label id="parkingCompanyBranchLabel" hidden>支店・店舗<select id="parkingCompanyBranch" class="parking-input"></select></label>
+                </div>
+                <div class="parking-actions">
+                    <button id="parkingCompanyUse" class="btn btn-primary" type="button" disabled>この会社名を使う</button>
+                    <form method="dialog"><button class="btn btn-secondary" type="submit">閉じる</button></form>
+                </div>
+                <details><summary>以前の訪問先リストも使う</summary>
+                    <p class="parking-caption">「業務プロ_訪問先リスト.json」はこのブラウザの業務プロ内に保存されます。メールやサイトへは送りません。</p>
+                    <label>訪問先リストを選ぶ<input id="parkingCompanySeed" type="file" accept=".json,application/json"></label>
+                </details>
+            </dialog>
             <details class="panel-card parking-section fold-card" id="parkingSection">
                 <summary><span>駐車場代を取り込む・記録する</span><span class="summary-note">レシート・手入力</span></summary><div class="fold-body">
                 <p class="card-desc">写真を追加 → 写真を整える → 訪問先を確認 → 提出用PDF。追加した写真は端末に保存されます。</p>
                 <div class="parking-actions">
                     <label class="btn btn-primary file-control">領収書を撮影<input type="file" accept="image/*" capture="environment" data-parking-upload onchange="ReceiptPhoto.addFiles(event)" class="file-input"></label>
+                    <label class="btn btn-secondary file-control">スキャンPDFを取り込む<input type="file" accept="application/pdf,.pdf" aria-label="スキャンPDFを取り込む" onchange="ParkingScan.open(this)" class="file-input"></label>
                     <label class="btn btn-secondary file-control">写真をまとめて追加<input type="file" accept="image/*" multiple data-parking-upload onchange="ReceiptPhoto.addFiles(event)" class="file-input"></label>
                     <button class="btn btn-secondary" onclick="ParkingManager.importFromScanner()">確認済みレシートを取り込む</button>
                     <button class="btn btn-secondary" onclick="ParkingManager.addItem()">写真なしで金額を記録</button>
@@ -378,7 +397,12 @@
     <!-- v1.3追加 - Phase I: 駐車場明細IndexedDB管理 -->
     <script src="expense/parking-idb.js?v=20261019-15"></script>
     <script src="expense/parking-document.js?v=20261014-3"></script>
-    <script src="expense/parking-manager.js?v=20261019-15"></script>
+    <script src="expense/visit-name-directory.js?v=20261120-1"></script>
+    <script src="expense/parking-manager.js?v=20261120-2"></script>
+    <script src="expense/parking-scan-geometry.js?v=20261120-2"></script>
+    <script src="expense/receipt-crop.js?v=20261120-3"></script>
+    <script src="expense/receipt-crop-editor.js?v=20261120-3"></script>
+    <script src="expense/parking-scan.js?v=20261120-2"></script>
     <script src="expense/parking-pdf.js?v=20261019-7"></script>
     <script src="map/map-data-storage.js?v=20261117-2"></script>
     <script src="map/v1-converter.js"></script>
@@ -497,6 +521,29 @@
             }
         });
     </script>
+<dialog id="parkingScanDialog" class="parking-dialog scan-dialog" aria-labelledby="parkingScanTitle">
+<div id="parkingScanMain"><h2 id="parkingScanTitle">PDFから領収書を切り出す</h2>
+<div class="parking-actions"><button id="parkingScanPrev" class="btn btn-secondary" type="button">前のページ</button><span id="parkingScanPage"></span><button id="parkingScanNext" class="btn btn-secondary" type="button">次のページ</button><button id="parkingScanRotate" class="btn btn-secondary" type="button">右へ90°回す</button></div>
+<label for="parkingScanLayout">1ページの並び方</label>
+<select id="parkingScanLayout"><option value="3,2">横3枚 × 縦2段</option><option value="2,3">横2枚 × 縦3段</option><option value="2,2">横2枚 × 縦2段</option><option value="4,1">横4枚</option><option value="2,1">横2枚</option><option value="1,2">縦2枚</option><option value="1,1">1枚</option></select>
+<p class="parking-caption" id="parkingScanStatus" role="status" aria-live="polite"></p>
+<details><summary>元のページ全体を見る</summary><div id="parkingScanSource"></div></details>
+<div id="parkingScanCards"></div>
+<div class="parking-actions scan-footer"><button id="parkingScanSave" class="btn btn-primary" type="button">選んだ領収書を追加</button><button id="parkingScanClose" class="btn btn-secondary" type="button">閉じて明細へ</button></div></div>
+<section id="cropEditor" aria-labelledby="cropTitle" hidden>
+<h2 id="cropTitle" tabindex="-1">切り取り範囲</h2>
+<p id="cropHint" class="parking-caption">四隅の丸は自由に動かせます。線の中央の黄色い目印をつかむと、上・下の線は上下、左・右の線は左右に動きます。２本指で拡大・縮小できます。</p>
+<canvas id="cropSurface" aria-label="切り取り範囲のプレビュー" aria-describedby="cropHint"></canvas>
+<div class="parking-actions crop-tools">
+<button class="btn btn-secondary" id="cropMinus" type="button" aria-label="縮小">−</button><span id="cropZoomStatus"></span><button class="btn btn-secondary" id="cropPlus" type="button" aria-label="拡大">＋</button>
+<button class="btn btn-secondary" id="cropFit" type="button">全体を見る</button><button class="btn btn-secondary" id="cropReset" type="button">枠を元に戻す</button>
+</div>
+<div class="parking-actions crop-confirm"><button class="btn btn-primary" id="cropApply" type="button">この枠で決定</button><button class="btn btn-secondary" id="cropCancel" type="button">キャンセル</button></div>
+<details id="cropCornerKeys"><summary>キーボードで調整</summary><p class="parking-caption">角を選んで矢印キーで移動します。Shiftを押しながらだと大きく動かせます。</p>
+<div class="parking-actions"><button class="btn btn-secondary" type="button">左上</button><button class="btn btn-secondary" type="button">右上</button><button class="btn btn-secondary" type="button">右下</button><button class="btn btn-secondary" type="button">左下</button></div>
+</details>
+</section>
+</dialog>
 </body>
 </html>
 

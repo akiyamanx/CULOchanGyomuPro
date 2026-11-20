@@ -39,3 +39,21 @@
 
 #parkingPdfPages img{width:auto;max-width:100%;max-height:60dvh;object-fit:contain;margin:auto}
 .pdf-large #parkingPdfPages img{width:100%;max-height:none}
+
+/* Copier PDF review stays readable on narrow phones. */
+.scan-dialog{width:min(940px,calc(100% - 20px))}
+#parkingScanCards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:10px;margin:12px 0}
+#parkingScanCards section{min-width:0;border:1px solid #d4dde5;border-radius:8px;padding:10px}
+#parkingScanCards label{display:block;overflow-wrap:anywhere}
+#parkingScanSource canvas,#parkingScanCards canvas{display:block;width:auto;max-width:100%;height:auto;max-height:280px;margin:6px auto}
+#parkingScanMain .scan-footer{bottom:0;position:sticky;padding:8px 0;background:white;z-index:1}
+#parkingScanMain .btn{margin-block:2px}
+#cropEditor{max-width:650px;margin:auto}
+#cropSurface{display:block;width:100%;height:clamp(240px,53dvh,630px);margin:8px auto;border-radius:10px;touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab}
+#cropSurface:active{cursor:grabbing}
+.crop-tools,.crop-confirm{margin:8px 0}
+.crop-tools .btn{padding-inline:10px}
+#cropEditor .crop-tools .btn,#cropEditor .crop-confirm .btn{width:auto;flex:0 1 auto}
+#cropEditor .crop-confirm .btn-primary{flex:1 1 auto}
+#cropZoomStatus{min-width:3.5ch;text-align:center;font-variant-numeric:tabular-nums}
+#cropCornerKeys,#parkingScanSample{margin-top:6px}

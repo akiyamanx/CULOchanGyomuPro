@@ -50,7 +50,7 @@ const ParkingManager = (() => {
                 if (!button) return;
                 flushEdits();
                 const id = button.closest('[data-id]').dataset.id;
-                ({visit:showCustomerPicker,edit:id=>ReceiptPhoto.open(id),read:readReceipt,remove:removeItem})[button.dataset.action]?.(id);
+                ({visit:showCustomerPicker,company:showCompanyDirectory,edit:id=>ReceiptPhoto.open(id),read:readReceipt,remove:removeItem})[button.dataset.action]?.(id);
             });
         }
         renderParkingList();
@@ -69,6 +69,23 @@ const ParkingManager = (() => {
             if (!await save(items.concat(added))) return -1;
             renderParkingList();
             return added.length;
+        });
+    }
+    async function appendScanPage(records) {
+        await flushEdits();
+        return serial(async()=>{
+            const key=records[0]?.sourcePageKey;
+            if(!key||records.length>6||records.some(r=>r.sourcePageKey!==key))return -2;
+            if(items.some(r=>r.sourcePageKey===key))return 0;
+            const existing=new Set(items.map(r=>r.originalImageDataUrl||r.imageDataUrl).filter(Boolean));
+            for(const r of records){
+                if(!r.imageDataUrl||existing.has(r.imageDataUrl))return -2;
+                existing.add(r.imageDataUrl);
+            }
+            const batch=records.map(r=>({...blank(),...r}));
+            if(!await save(items.concat(batch)))return -1;
+            renderParkingList();
+            return batch.length;
         });
     }
     async function importFromScanner() {
@@ -160,7 +177,7 @@ const ParkingManager = (() => {
         list.innerHTML = visibleItems().map((item,index)=>'<article class="parking-record" data-id="' + esc(item.id) + '">' +
             '<div class="parking-photo-col">' + (item.imageDataUrl ? '<label class="parking-pdf-check"><input type="checkbox" data-field="pdfSelected" ' + (item.pdfSelected!==false?'checked':'') + '> PDFに載せる</label><button class="parking-photo-button" data-action="edit" aria-label="写真' + (index+1) + 'を調整"><img alt="領収書' + (index+1) + '" src="' + esc(item.imageDataUrl) + '" style="transform:rotate(' + (Number(item.rotation)||0) + 'deg)"></button><button class="btn btn-secondary" data-action="edit">写真を調整</button>' : '<p>写真なし・精算用の手入力</p>') + '</div>' +
             '<div class="parking-record-fields"><div class="parking-field-grid">' + field(item,'date','利用日','date') + field(item,'amount','駐車場代（円）','number') + '</div>' +
-            '<button class="btn btn-secondary" data-action="visit">その日の訪問先から選ぶ</button>' +
+            '<div class="parking-actions"><button class="btn btn-secondary" data-action="visit">その日の訪問先から選ぶ</button><button class="btn btn-secondary" data-action="company">会社名を五十音で選ぶ</button></div>' +
             '<div class="parking-field-grid">' + field(item,'visitCompany','訪問先の会社名','text','○○株式会社') + field(item,'machineName','訪問先の機種名','text','DP400') + '</div>' +
             '<label>作業内容<input class="parking-input" data-field="purpose" list="parkingPurposes" value="' + esc(item.purpose) + '" placeholder="メンテナンス・修理・本体設置"></label>' +
             '<p class="parking-caption">' + (item.customerId?'訪問情報を反映済み。領収書と内容を確認してください。':'日付・会社名・機種名・作業内容を確認してからPDFにします。') + '</p>' +
@@ -185,6 +202,79 @@ const ParkingManager = (() => {
             const ids = new Set(visibleItems().map(i=>i.id));
             if (await save(items.map(i=>ids.has(i.id)?{...i,pdfSelected:checked}:i))) renderParkingList();
         });
+    }
+    async function showCompanyDirectory(id) {
+        await flushEdits();
+        if(!getItemById(id))return;
+        const dialog=document.getElementById('parkingCompanyDialog');
+        const line=document.getElementById('parkingCompanyLine'), name=document.getElementById('parkingCompanyName');
+        const branch=document.getElementById('parkingCompanyBranch'), branchLabel=document.getElementById('parkingCompanyBranchLabel');
+        const seedFile=document.getElementById('parkingCompanySeed'), use=document.getElementById('parkingCompanyUse');
+        const message=document.getElementById('parkingCompanyStatus');
+        const seedKey='gyomupro_visit_names_seed';
+        let rows=[],choice=null;
+        const clear=(select,title)=>select.replaceChildren(new Option(title,''));
+        function choose(){
+            choice=name.value===''?null:rows[Number(name.value)];
+            branchLabel.hidden=!choice?.sites.length;
+            clear(branch,'会社名だけを使う');
+            (choice?.sites||[]).forEach((v,i)=>branch.add(new Option(v,String(i))));
+            use.disabled=!choice;
+        }
+        function names(){
+            clear(name,'会社名を選んでください');
+            rows.forEach((r,i)=>{if(VisitNameDirectory.group(r)===line.value)name.add(new Option(r.name,String(i)));});
+            name.disabled=!line.value;
+            choose();
+        }
+        function refresh(){
+            let seed=[], warning='';
+            try {
+                const raw=AppStorage.getItem(seedKey);
+                if(raw)seed=VisitNameDirectory.parseSeed(raw);
+            } catch {warning='保存済みのリストを読めませんでした。';}
+            try {
+                const data=VisitNameDirectory.read(DataStorage,seed);
+                rows=data.rows;
+                if(data.skipped)warning+='読み込めなかった月があります。';
+            } catch {
+                rows=VisitNameDirectory.collect(seed,[]);
+                warning+='訪問先を読み込めませんでした。';
+            }
+            clear(line,'行を選んでください');
+            const sizes=new Map();
+            for(const r of rows){const g=VisitNameDirectory.group(r);sizes.set(g,(sizes.get(g)||0)+1);}
+            for(const group of VisitNameDirectory.lines)if(sizes.has(group))line.add(new Option(group+'（'+sizes.get(group)+'件）',group));
+            message.textContent=warning+(rows.length?'会社名の候補：'+rows.length+'件':'登録済みの候補はありません。会社名を手入力できます。');
+            names();
+        }
+        line.onchange=names;name.onchange=choose;
+        seedFile.onchange=async()=>{
+            const f=seedFile.files?.[0];seedFile.value='';if(!f)return;
+            try {
+                if(f.size>1024*1024)throw new Error();
+                const added=VisitNameDirectory.parseSeed(await f.text());
+                const previous=AppStorage.getItem(seedKey);
+                const before=previous?VisitNameDirectory.parseSeed(previous):[];
+                const customers=VisitNameDirectory.collect([...before,...added],[]);
+                const raw=JSON.stringify({format:'gyomu-customer-directory-v1',customers});
+                VisitNameDirectory.parseSeed(raw);
+                AppStorage.setItem(seedKey,raw);
+                if(dialog.open)refresh();
+            } catch {if(dialog.open)message.textContent='リストを保存できませんでした。業務プロ用のJSONとブラウザの空き容量を確認してください。';}
+        };
+        use.onclick=async()=>{
+            if(!choice)return;
+            const company=branch.value===''?choice.name:choice.sites[Number(branch.value)];
+            if(!company)return;
+            use.disabled=true;
+            const item=getItemById(id);
+            const patch=item?.visitCompany===company?null:fieldPatch('visitCompany',company);
+            if(item&&(!patch||await patchItem(id,patch))){dialog.close();renderParkingList();}
+            else use.disabled=false;
+        };
+        refresh();
+        dialog.showModal();
     }
     async function showCustomerPicker(id) {
         await flushEdits();
@@ -240,6 +330,7 @@ const ParkingManager = (() => {
     }
     function getItemById(id) { const item=items.find(i=>i.id===id); return item ? {...item} : null; }
     function getItems() { return items.map(i=>({...i})); }
-    return {init,importFromScanner,addItem,append,patchItem,readReceipt,removeItem,clearAll,renderParkingList,updateField,
+    return {init,importFromScanner,addItem,append,appendScanPage,patchItem,readReceipt,removeItem,clearAll,renderParkingList,updateField,
         showCustomerPicker,getItemById,getItems,getSelectedItems,selectVisible,snapshotSelected,settled:async()=>{await flushEdits();if(saveError || !ready)throw new Error('駐車場明細を保存できていません。保存状態を確認してください。');}};
 })();
+
