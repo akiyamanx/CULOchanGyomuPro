@@ -125,7 +125,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible, input:focus-visibl
 .scan-btn-icon { font-size: 36px; }
 
 /* Expenses: import → edit → finish, with secondary costs folded away. */
-.expense-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; align-items: start; }
+.expense-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px 24px; align-items: start; }
 .expense-work, .expense-finish { min-width: 0; }
 .section-title { font-size: 16px; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
 .section-title > span { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; background: #e4eef7; color: var(--accent-dark); font-size: 12px; }
@@ -266,3 +266,31 @@ button:focus-visible, a:focus-visible, summary:focus-visible, input:focus-visibl
 .list-pick-card .info-btn-edit { border:0; border-radius:8px; padding:8px 14px; background:#1f6fb2; color:#fff; font-weight:700; font-size:14px; }
 .list-pick-card .info-btn-locate { border:1px solid #1f6fb2; border-radius:8px; padding:8px 14px; margin:0 8px 6px 0; background:#fff; color:#1f6fb2; font-weight:700; font-size:14px; min-height:44px; }
 .list-pick-card p { margin:0; }
+
+/* Expense overview and task-first parking entry. */
+.expense-section-nav { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 6px; margin: 0 0 20px; }
+.expense-section-nav button { min-height: 44px; padding: 6px 3px; font: inherit; font-size: 13px; font-weight: 700; color: var(--accent-dark); background: #fff; border: 1px solid #8ca9c0; border-radius: 8px; cursor: pointer; overflow-wrap: anywhere; }
+.expense-section-nav b { display: inline-grid; place-items: center; width: 1.4em; height: 1.4em; background: #e4eef7; border-radius: 4px; }
+#tab-expense .section-title[tabindex="-1"], #parkingTitle { scroll-margin-top: 44px; }
+/* Emphasize the two step boundaries, not the borders between ordinary cards. */
+#expenseOverview .expense-divider { padding-top: 14px; border-top: 4px solid #466b86; }
+.expense-parking-entry { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.expense-parking-entry h4 { font-size: 15px; }
+.expense-parking-entry .section-desc { margin: 3px 0 0; }
+.parking-task-flow { max-width: 900px; margin-inline: auto; }
+.parking-task-header { margin: 0 0 12px; }
+.parking-task-header h2 { margin: 3px 0; font-size: 25px; color: var(--text-primary); }
+.parking-task-header p:not(.eyebrow) { color: var(--text-secondary); font-size: 14px; }
+.parking-task-flow > .parking-step { min-width: 0; margin: 0 0 20px; border-top: 3px solid #8ca9c0; }
+.parking-task-flow > .parking-output { background: #f6faff; }
+.parking-task-flow > .parking-reflect { background: #f6faf7; border-top-color: #7f9a89; }
+.parking-task-flow .parking-output .eyebrow { margin-bottom: 4px; }
+.parking-task-flow .parking-task-back { margin-top: 12px; }
+.parking-task-flow .parking-intake-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+.parking-task-flow .parking-intake-actions > * { width: 100%; min-width: 0; min-height: 44px; white-space: normal; overflow-wrap: anywhere; }
+.parking-task-flow .parking-intake-actions details { grid-column: 1 / -1; }
+@media (min-width: 800px) {
+    .expense-section-nav { max-width: 510px; }
+    .parking-task-flow .parking-intake-actions { grid-template-columns: repeat(3,minmax(0,1fr)); }
+}
+.parking-task-flow .parking-intake-actions > .btn { display: flex; justify-content: center; align-items: center; text-align: center; }

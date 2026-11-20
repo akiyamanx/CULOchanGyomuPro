@@ -474,7 +474,9 @@ test('部分検索: 利用者へ残り未確認と明記し、後続エラーは
     assert.match(code,/GmailSource.create\(\{ transport: g.transport, limits:\{ pageSize:100 \} \}\)/);
     assert.match(code,/allowPartialSearch:true/);
     const html = fs.readFileSync(require.resolve('../index.html'),'utf8');
-    for (const name of ['gmail-source','gmail-import','mail-box-ui']) assert.ok(html.includes(name+'.js?v=20261120-gmail-partial-1'));
     const sw = fs.readFileSync(require.resolve('../sw.js'),'utf8');
-    assert.ok(sw.includes("const CACHE_NAME = 'gyomupro-v88';"));
+    for (const name of ['gmail-source','gmail-import','mail-box-ui']) {
+        assert.ok(html.includes('map/'+name+'.js?v=20261120-gmail-partial-1'), name);
+        assert.ok(sw.includes("'./map/"+name+".js'"), name);
+    }
 });

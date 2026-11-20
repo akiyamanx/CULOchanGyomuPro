@@ -25,7 +25,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
-    <link rel="stylesheet" href="styles/workflow.css?v=20261117-1">
+    <link rel="stylesheet" href="styles/workflow.css?v=20261120-expense-3">
     <link rel="stylesheet" href="styles/map-workspace.css?v=20261105-3">
     <link rel="stylesheet" href="styles/settings.css?v=20261019-15">
     <link rel="stylesheet" href="styles/request-import.css">
@@ -46,13 +46,13 @@
     <nav class="tab-nav" aria-label="仕事の流れ">
         <p class="nav-caption">WORK FLOW <span>仕事の流れ</span></p>
         <button class="tab-btn active" data-tab="map" aria-current="page" aria-controls="tab-map" onclick="AppCore.switchTab('map')"><span class="tab-icon">01</span><span class="nav-copy"><span class="tab-label">訪問・ルート</span><span class="nav-hint">予定と回る順番を整える</span></span></button>
-        <button class="tab-btn" data-tab="receipt" aria-controls="tab-receipt" onclick="AppCore.switchTab('receipt')"><span class="tab-icon">02</span><span class="nav-copy"><span class="tab-label">レシート</span><span class="nav-hint">現場で使った経費を記録</span></span></button>
-        <button class="tab-btn" data-tab="expense" aria-controls="tab-expense" onclick="AppCore.switchTab('expense')"><span class="tab-icon">03</span><span class="nav-copy"><span class="tab-label">精算・PDF</span><span class="nav-hint">金額を確認して仕上げる</span></span></button>
+        <button class="tab-btn" data-tab="expense" aria-controls="tab-expense" onclick="AppCore.switchTab('expense')"><span class="tab-icon">02</span><span class="nav-copy"><span class="tab-label">精算・PDF</span><span class="nav-hint">駐車場・ETC・走行距離とPDF</span></span></button>
+        <button class="tab-btn" data-tab="receipt" aria-controls="tab-receipt" onclick="AppCore.switchTab('receipt')"><span class="tab-icon">＋</span><span class="nav-copy"><span class="tab-label">その他レシート</span><span class="nav-hint">買い物など・保存済み写真</span></span></button>
         <div class="nav-note">会社を出て、訪問して、会社へ。<br>一日の記録をここに。</div>
     </nav>
     <main class="main-content" id="mainContent" tabindex="-1">
         <div class="tab-panel" id="tab-receipt" aria-labelledby="receiptTitle">
-            <div class="screen-heading"><div><p class="eyebrow">STEP 02 · 経費を記録</p><h2 id="receiptTitle" tabindex="-1">レシートをまとめる</h2><p>画像を選んで読み取り、内容を確認して保存します。</p></div><button class="btn btn-secondary compact-action" onclick="WorkflowUI.openParking()">駐車場代を記録</button></div>
+            <div class="screen-heading"><div><p class="eyebrow">領収書の整理</p><h2 id="receiptTitle" tabindex="-1">その他のレシート</h2><p>買い物などの領収書を整理したり、保存済みの画像を確認したりできます。新しい駐車場の領収書は「精算・PDF」から追加します。</p></div></div>
             <ol class="mini-steps" aria-label="レシートの手順"><li><b>1</b>画像を選択</li><li><b>2</b>読み取り・確認</li><li><b>3</b>保存</li></ol>
             <div class="panel-card">
                 <div class="card-title">レシートの画像を選ぶ</div>
@@ -99,7 +99,7 @@
                     <div class="result-actions">
                         <button class="btn btn-pdf" onclick="ReceiptScanner.generateA4Pdf()">🖨️ 写真だけをA4 PDF出力</button>
                         <button class="btn btn-save" onclick="ReceiptScanner.saveAll()">💾 内容と写真を保存</button>
-                        <button class="btn btn-secondary" onclick="ReceiptScanner.sendToParking()">駐車場明細へ取り込む →</button>
+                        <button class="btn btn-secondary" onclick="ReceiptScanner.sendToParking()">選択した駐車場分だけ精算へ →</button>
                     </div>
                 </div>
             </div>
@@ -109,17 +109,53 @@
                     <p class="empty-msg">保存されたレシートはありません</p>
                 </div>
             </div>
-            <div class="next-action"><div><strong>記録ができたら、精算へ</strong><p>駐車場代・ETC・走行距離をまとめられます。</p></div><button class="btn btn-primary compact-action" onclick="AppCore.switchTab('expense')">精算・PDFへ →</button></div>
+            <div class="next-action"><div><strong>交通費の精算はこちら</strong><p>駐車場代・ETC・走行距離をまとめられます。</p></div><button class="btn btn-primary compact-action" onclick="AppCore.switchTab('expense')">精算・PDFへ →</button></div>
         </div>
         <div class="tab-panel" id="tab-expense" aria-labelledby="expenseTitle">
-            <div class="screen-heading"><div><p class="eyebrow">STEP 03 · 精算を仕上げる</p><h2 id="expenseTitle" tabindex="-1">交通費を精算する</h2><p>経費を取り込み、明細と合計を確認してPDFにします。</p></div></div>
-            <div class="expense-layout"><div class="expense-work">
-            <section class="expense-imports" aria-labelledby="importTitle">
-                <h3 class="section-title" id="importTitle"><span>1</span> 経費を取り込む</h3>
-                <p class="section-desc">必要なものだけ取り込めます。明細に直接入力しても大丈夫です。</p>
-                <details class="panel-card fold-card" id="routeImport"><summary><span>訪問ルート・走行距離</span><span class="summary-note">日付とルートを選択</span></summary><div class="fold-body" id="tabExpense"></div></details>
-                <div class="panel-card import-etc"><div><h4>高速道路の料金</h4><p class="section-desc">ETC利用照会のCSV・Excel（.xlsx）から利用日ごとに取り込みます。</p></div><label class="btn btn-secondary file-control">ETCファイルを選択（CSV・Excel）<input type="file" accept=".csv,text/csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" onchange="ExpenseEtc.handleFile(event)" class="file-input"></label><a href="https://www.etc-meisai.jp/" target="_blank" rel="noopener" class="text-link">ETC利用照会を開く ↗</a></div>
-            <details class="panel-card fold-card" id="etcSection"><summary><span>ETC PDF・寄り道</span><span class="summary-note">月まとめ取込 → 日別に確認</span></summary><div class="fold-body" id="etcWorkflow"></div></details>
+            <section id="parkingSection" class="parking-task-flow" aria-labelledby="parkingTitle" hidden>
+                <header class="parking-task-header">
+                    <p class="eyebrow">精算・PDF › 駐車場代</p>
+                    <h2 id="parkingTitle" tabindex="-1">駐車場の領収書を追加</h2>
+                    <p>撮影、写真、スキャンPDF、手入力から選べます。</p>
+                </header>
+                <section class="panel-card parking-step" aria-labelledby="parkingAddTitle">
+                    <h3 class="section-title" id="parkingAddTitle"><span>1</span> 領収書を追加</h3>
+                <div class="parking-actions parking-intake-actions">
+                    <label class="btn btn-primary file-control">領収書を撮影<input type="file" accept="image/*" capture="environment" data-parking-upload onchange="ReceiptPhoto.addFiles(event)" class="file-input"></label>
+                    <label class="btn btn-secondary file-control">スキャンPDFを取り込む<input type="file" accept="application/pdf,.pdf" aria-label="スキャンPDFを取り込む" onchange="ParkingScan.open(this)" class="file-input"></label>
+                    <label class="btn btn-secondary file-control">写真をまとめて追加<input type="file" accept="image/*" multiple data-parking-upload onchange="ReceiptPhoto.addFiles(event)" class="file-input"></label>
+                    <button class="btn btn-secondary" onclick="ParkingManager.addItem()">手入力（写真なし）</button>
+                </div>
+                <p id="parkingPhotoStatus" class="parking-caption" role="status" aria-live="polite">1枚ずつでも、まとめてでも追加できます。AI読取は設定済みの場合に利用します。</p>
+                </section>
+                <section class="panel-card parking-step" aria-labelledby="parkingRecordsTitle">
+                    <h3 class="section-title" id="parkingRecordsTitle"><span>2</span> 明細を確認・編集</h3>
+                <div class="parking-filter-grid">
+                    <label>表示・出力する月<input type="month" id="parkingFilterMonth" onchange="document.getElementById('parkingFilterDay').value='';ParkingManager.renderParkingList()"></label>
+                    <label>利用日で絞る（任意）<input type="date" id="parkingFilterDay" onchange="document.getElementById('parkingFilterMonth').value=this.value.slice(0,7);ParkingManager.renderParkingList()"></label>
+                </div>
+                <p class="parking-caption">月・日付が空欄なら全期間。日付不明の写真は、確認できるよう常に表示します。</p>
+                <div class="parking-actions"><button class="btn btn-secondary" onclick="ParkingManager.selectVisible(true)">表示中を全選択</button><button class="btn btn-secondary" onclick="ParkingManager.selectVisible(false)">表示中の選択を解除</button></div>
+                <datalist id="parkingPurposes"><option value="メンテナンス"><option value="修理"><option value="本体設置"><option value="営業"><option value="その他"></datalist>
+                <div id="parkingItemList"></div>
+                <div class="parking-total-bar"><span class="parking-total-label">表示中の駐車場合計</span><span class="parking-total-amount" id="parkingTotal">¥0</span></div>
+                </section>
+                <section class="panel-card parking-step parking-output" aria-labelledby="parkingPrintTitle">
+                    <p class="eyebrow">領収書の写真をまとめる</p>
+                    <h3 class="section-title" id="parkingPrintTitle">提出用PDFを作る</h3>
+                <div class="parking-actions">
+                    <label>1ページの枚数<select id="parkingPageSize"><option value="6">6枚（横3枚×2段）</option><option value="4">4枚（横2枚×2段）</option></select></label>
+                    <span id="parkingPdfCount" role="status"></span><button class="btn btn-primary" onclick="ParkingPdf.generate()">提出用PDFを確認</button>
+                </div><p class="parking-caption">表示中の月・利用日のうち「PDFに載せる」を選んだ写真を出力します。写真の下に日付・訪問先・機種・作業内容が入ります。</p>
+                </section>
+                <section class="panel-card parking-step parking-output parking-reflect" aria-labelledby="parkingReflectTitle">
+                    <p class="eyebrow">駐車場代の金額をまとめる</p>
+                    <h3 class="section-title" id="parkingReflectTitle">精算書に金額を反映</h3>
+                <div class="parking-btn-row"><label for="expParkingMonth">精算書に反映する月</label><input class="exp-input" type="month" id="expParkingMonth"><button class="btn btn-save" onclick="ExpenseManager.reflectParkingMonth()">駐車場代を精算書に反映</button></div>
+                <p class="parking-caption">ここで選んだ月の日付・金額が入っている明細を反映します。写真なしや「PDFに載せる」を選んでいない明細も含みます。</p>
+                    <button class="btn btn-secondary parking-task-back" type="button" onclick="AppCore.switchTab('expense')">精算・PDFの全体へ戻る</button>
+                </section>
+                <details><summary>駐車場記録の管理</summary><button class="btn btn-danger-quiet" onclick="ParkingManager.clearAll()">すべての駐車場記録を削除</button></details>
             <dialog id="parkingCompanyDialog" class="parking-dialog" aria-labelledby="parkingCompanyTitle">
                 <h3 id="parkingCompanyTitle">会社名を五十音で選ぶ</h3>
                 <p class="parking-caption">業務プロに登録した訪問先から、会社名の候補が自動で増えます。これは会社名だけの選択です。機種や作業内容は別に確認してください。</p>
@@ -138,36 +174,27 @@
                     <label>訪問先リストを選ぶ<input id="parkingCompanySeed" type="file" accept=".json,application/json"></label>
                 </details>
             </dialog>
-            <details class="panel-card parking-section fold-card" id="parkingSection">
-                <summary><span>駐車場代を取り込む・記録する</span><span class="summary-note">レシート・手入力</span></summary><div class="fold-body">
-                <p class="card-desc">写真を追加 → 写真を整える → 訪問先を確認 → 提出用PDF。追加した写真は端末に保存されます。</p>
-                <div class="parking-actions">
-                    <label class="btn btn-primary file-control">領収書を撮影<input type="file" accept="image/*" capture="environment" data-parking-upload onchange="ReceiptPhoto.addFiles(event)" class="file-input"></label>
-                    <label class="btn btn-secondary file-control">スキャンPDFを取り込む<input type="file" accept="application/pdf,.pdf" aria-label="スキャンPDFを取り込む" onchange="ParkingScan.open(this)" class="file-input"></label>
-                    <label class="btn btn-secondary file-control">写真をまとめて追加<input type="file" accept="image/*" multiple data-parking-upload onchange="ReceiptPhoto.addFiles(event)" class="file-input"></label>
-                    <button class="btn btn-secondary" onclick="ParkingManager.importFromScanner()">確認済みレシートを取り込む</button>
-                    <button class="btn btn-secondary" onclick="ParkingManager.addItem()">写真なしで金額を記録</button>
-                </div>
-                <p id="parkingPhotoStatus" class="parking-caption" role="status" aria-live="polite">1枚ずつでも、まとめてでも追加できます。AI読取は設定済みの場合に利用します。</p>
-                <div class="parking-filter-grid">
-                    <label>表示・出力する月<input type="month" id="parkingFilterMonth" onchange="document.getElementById('parkingFilterDay').value='';ParkingManager.renderParkingList()"></label>
-                    <label>利用日で絞る（任意）<input type="date" id="parkingFilterDay" onchange="document.getElementById('parkingFilterMonth').value=this.value.slice(0,7);ParkingManager.renderParkingList()"></label>
-                </div>
-                <p class="parking-caption">月・日付が空欄なら全期間。日付不明の写真は、確認できるよう常に表示します。</p>
-                <div class="parking-actions"><button class="btn btn-secondary" onclick="ParkingManager.selectVisible(true)">表示中を全選択</button><button class="btn btn-secondary" onclick="ParkingManager.selectVisible(false)">表示中の選択を解除</button></div>
-                <datalist id="parkingPurposes"><option value="メンテナンス"><option value="修理"><option value="本体設置"><option value="営業"><option value="その他"></datalist>
-                <div id="parkingItemList"></div>
-                <div class="parking-total-bar"><span class="parking-total-label">表示中の駐車場合計</span><span class="parking-total-amount" id="parkingTotal">¥0</span></div>
-                <div class="parking-submit-card"><h4>領収書を本部へ提出する</h4><div class="parking-actions">
-                    <label>1ページの枚数<select id="parkingPageSize"><option value="6">6枚（横3枚×2段）</option><option value="4">4枚（横2枚×2段）</option></select></label>
-                    <span id="parkingPdfCount" role="status"></span><button class="btn btn-primary" onclick="ParkingPdf.generate()">提出用PDFを確認</button>
-                </div><p class="parking-caption">各写真の下に、日付・訪問先の会社名・機種名と作業内容を横書きで記載します。</p></div>
-                <div class="parking-btn-row"><label for="expParkingMonth">精算書に反映する月</label><input class="exp-input" type="month" id="expParkingMonth"><button class="btn btn-save" onclick="ExpenseManager.reflectParkingMonth()">駐車場代を精算書に反映</button></div>
-                <p class="parking-caption">精算書には対象月の全明細の金額を反映します。写真のPDF選択とは別です。</p>
-                <details><summary>駐車場記録の管理</summary><button class="btn btn-danger-quiet" onclick="ParkingManager.clearAll()">すべての駐車場記録を削除</button></details>
-            </div></details>
             </section>
-            <h3 class="section-title"><span>2</span> 内容を確認・入力</h3>
+            <div id="expenseOverview">
+            <div class="screen-heading"><div><p class="eyebrow">STEP 02 · 経費の記録と精算</p><h2 id="expenseTitle" tabindex="-1">交通費を精算する</h2><p>駐車場の領収書やETCを取り込み、合計を確認してPDFにします。</p></div></div>
+            <nav class="expense-section-nav" aria-label="精算ページ内の移動">
+                <button type="button" onclick="WorkflowUI.jumpExpense('importTitle')"><b>1</b> 取り込み</button>
+                <button type="button" onclick="WorkflowUI.jumpExpense('expenseDetailsTitle')"><b>2</b> 明細確認</button>
+                <button type="button" onclick="WorkflowUI.jumpExpense('expenseFinishTitle')"><b>3</b> 保存・PDF</button>
+            </nav>
+            <div class="expense-layout"><div class="expense-work">
+            <section class="expense-imports" aria-labelledby="importTitle">
+                <h3 class="section-title" id="importTitle" tabindex="-1"><span>1</span> 経費を取り込む</h3>
+                <p class="section-desc">必要なものだけ取り込めます。明細に直接入力しても大丈夫です。</p>
+                <div class="panel-card expense-parking-entry">
+                    <div><h4>駐車場代</h4><p class="section-desc">撮影・写真・スキャンPDF・手入力</p></div>
+                    <button type="button" class="btn btn-secondary" onclick="WorkflowUI.openParking()">駐車場の領収書を追加</button>
+                </div>
+                <details class="panel-card fold-card" id="routeImport"><summary><span>訪問ルート・走行距離</span><span class="summary-note">日付とルートを選択</span></summary><div class="fold-body" id="tabExpense"></div></details>
+                <div class="panel-card import-etc"><div><h4>高速道路の料金</h4><p class="section-desc">ETC利用照会のCSV・Excel（.xlsx）から利用日ごとに取り込みます。</p></div><label class="btn btn-secondary file-control">ETCファイルを選択（CSV・Excel）<input type="file" accept=".csv,text/csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" onchange="ExpenseEtc.handleFile(event)" class="file-input"></label><a href="https://www.etc-meisai.jp/" target="_blank" rel="noopener" class="text-link">ETC利用照会を開く ↗</a></div>
+            <details class="panel-card fold-card" id="etcSection"><summary><span>ETC PDF・寄り道</span><span class="summary-note">月まとめ取込 → 日別に確認</span></summary><div class="fold-body" id="etcWorkflow"></div></details>
+            </section>
+            <h3 class="section-title expense-divider" id="expenseDetailsTitle" tabindex="-1"><span>2</span> 内容を確認・入力</h3>
             <section class="panel-card"><h4 class="card-title">提出先・行先</h4>
                 <div class="exp-basic-form">
                     <div class="exp-basic-row">
@@ -191,7 +218,8 @@
                 <button class="btn btn-primary" onclick="ExpenseDraftReceipts.preview()">この下書きの領収書PDFを見る</button>
             </section>
             </div><aside class="expense-finish" aria-label="精算の仕上げ">
-                <section class="panel-card finish-card"><h3 class="section-title"><span>3</span> 保存・PDF出力</h3>
+                <h3 class="section-title expense-divider" id="expenseFinishTitle" tabindex="-1"><span>3</span> 保存・PDF出力</h3>
+                <section class="panel-card finish-card" aria-labelledby="expenseFinishTitle">
                     <div class="exp-total-display"><div class="exp-total-label">精算する合計</div><div class="exp-total-amount" id="expGrandTotal">¥0</div><p class="section-desc">入力中のすべての明細の合計</p></div>
                     <button class="btn btn-primary" onclick="ExpensePdf.generate()">精算書をPDFにする</button>
                     <label class="draft-choice">下書きに付ける領収書<select id="draftReceiptSource" onchange="ExpenseDraftReceipts.updateHint()"><option value="current">駐車場欄で選んだ分</option><option value="loaded" id="draftReceiptLoadedOption" disabled>読み込んだ下書きの分</option><option value="none">領収書を付けない</option></select></label>
@@ -202,6 +230,7 @@
                 </section>
                 <section class="panel-card"><h3 class="card-title">保存した下書き</h3><div id="expDraftList"><p class="empty-msg">下書きはありません</p></div></section>
             </aside></div>
+            </div>
         </div>
         <!-- マップタブ -->
         <div class="tab-panel active" id="tab-map" aria-labelledby="mapTitle">
@@ -265,7 +294,7 @@
                     <div class="legend" id="legend" style="display:none;"><div class="legend-title">ルートと状態の色 <button class="legend-close" onclick="toggleLegend()" aria-label="色の説明を閉じる">✕</button></div><div id="legendItems"></div></div>
                 </section>
             </div>
-            <div class="next-action"><div><strong>訪問が終わったら、経費を記録</strong><p>レシートを保存してから、精算書にまとめましょう。</p></div><button class="btn btn-secondary compact-action" onclick="AppCore.switchTab('receipt')">レシートへ →</button><button class="text-link" onclick="WorkflowUI.openRouteImport()">走行距離を精算する →</button></div>
+            <div class="next-action"><div><strong>訪問が終わったら、交通費を記録</strong><p>駐車場の領収書をその場で追加できます。</p></div><button class="btn btn-secondary compact-action" onclick="WorkflowUI.openParking()">駐車場の領収書を追加 →</button><button class="text-link" onclick="WorkflowUI.openRouteImport()">走行距離を精算する →</button></div>
             <div class="modal-overlay" id="addModal" style="display:none;"><div class="modal"><h2>訪問先を追加</h2><div class="modal-row"><label for="addCompany">会社名 *</label><input type="text" id="addCompany" placeholder="例：㈱サンプル会社"></div><div class="modal-row"><label for="addAddress">住所 *</label><input type="text" id="addAddress" placeholder="例：東京都港区虎ノ門1-1-1"></div><div class="modal-row"><label for="addPhone">電話番号</label><input type="tel" id="addPhone" placeholder="例：03-1234-5678"></div><div class="modal-row"><label for="addContact">担当者</label><input type="text" id="addContact" placeholder="例：山田様"></div><div class="modal-row"><label for="addPurpose">目的</label><select id="addPurpose"><option value="">未設定</option><option value="メンテナンス">メンテナンス</option><option value="修理">修理</option><option value="本体設置">本体設置</option><option value="その他">その他</option></select></div><div class="modal-row"><label for="addNote">備考</label><textarea id="addNote" placeholder="台数や機種、駐車場情報など..."></textarea></div><div class="modal-buttons"><button class="modal-cancel" onclick="hideAddModal()">キャンセル</button><button class="modal-submit" onclick="addNewLocation()">追加する</button></div></div></div>
             <div class="modal-overlay" id="editModal" style="display:none;"><div class="modal visit-editor">
                 <header class="visit-editor-header"><div><h2>電話・訪問予定を登録</h2><strong id="visitEditorName"></strong><p id="visitEditorAddress" class="visit-help"></p></div><button type="button" class="modal-cancel" onclick="hideEditModal()" aria-label="訪問先の編集を閉じる">閉じる</button></header>
@@ -448,7 +477,7 @@
     <script src="expense/etc-reader.js?v=20261019-7"></script>
     <script src="expense/etc-view.js?v=20261031-2"></script>
     <script src="expense/etc-workflow.js?v=20261031-2"></script>
-    <script src="shared/workflow-ui.js?v=20261019-14"></script>
+    <script src="shared/workflow-ui.js?v=20261120-expense-1"></script>
     <script src="shared/backup-format.js?v=20261117-3"></script>
     <script src="shared/backup-store.js?v=20261117-3"></script>
     <script src="shared/drive-graph.js?v=20261019-15"></script>

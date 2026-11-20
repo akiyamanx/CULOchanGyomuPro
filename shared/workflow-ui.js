@@ -3,6 +3,8 @@ const WorkflowUI = (() => {
     let fieldNumber = 0;
     let activeDialog = null;
     let returnFocus = null;
+    let parkingRequested = false;
+    const expenseTargets = new Set(['importTitle', 'expenseDetailsTitle', 'expenseFinishTitle']);
 
     function openRouteImport() {
         AppCore.switchTab('expense');
@@ -12,12 +14,21 @@ const WorkflowUI = (() => {
         section.querySelector('summary').focus({ preventScroll: true });
     }
 
+    function jumpExpense(id) {
+        if (!expenseTargets.has(id) || document.getElementById('expenseOverview').hidden) return;
+        const heading = document.getElementById(id);
+        heading.focus({ preventScroll: true });
+        heading.scrollIntoView({ block: 'start', behavior: 'instant' });
+    }
+
     function openParking() {
-        AppCore.switchTab('expense');
-        const section = document.getElementById('parkingSection');
-        section.open = true;
-        section.scrollIntoView({ block: 'start' });
-        section.querySelector('summary').focus({ preventScroll: true });
+        parkingRequested = true;
+        try {
+            AppCore.switchTab('expense');
+        } finally {
+            parkingRequested = false;
+        }
+        document.getElementById('parkingTitle').scrollIntoView({ block: 'start', behavior: 'instant' });
     }
 
     function labelControls() {
@@ -86,8 +97,17 @@ const WorkflowUI = (() => {
         labelControls();
         document.addEventListener('keydown', onKeydown);
         document.addEventListener('app:tabchange', event => {
-            if (event.detail === 'expense') MapExpenseForm.init();
-            const heading = document.querySelector('#tab-' + event.detail + ' h2');
+            let heading;
+            if (event.detail === 'expense') {
+                const headingId = parkingRequested ? 'parkingTitle' : 'expenseTitle';
+                document.getElementById('parkingSection').hidden = !parkingRequested;
+                document.getElementById('expenseOverview').hidden = parkingRequested;
+                document.getElementById('tab-expense').setAttribute('aria-labelledby', headingId);
+                heading = document.getElementById(headingId);
+                if (!parkingRequested) MapExpenseForm.init();
+            } else {
+                heading = document.querySelector('#tab-' + event.detail + ' h2');
+            }
             if (heading) heading.focus({ preventScroll: true });
             window.scrollTo({ top: 0, behavior: 'instant' });
         });
@@ -99,5 +119,5 @@ const WorkflowUI = (() => {
             .observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
     }
 
-    return { init, openRouteImport, openParking };
+    return { init, openRouteImport, openParking, jumpExpense };
 })();
