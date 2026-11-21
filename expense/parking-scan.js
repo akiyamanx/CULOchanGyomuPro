@@ -7,22 +7,40 @@ const ParkingScan = (() => {
         if (![width,height].every(n=>Number.isFinite(n)&&n>0)) throw new Error('PDFページの大きさを確認できません。');
         return Math.min(300/72,3600/Math.max(width,height));
     }
-    function records(hash,index,crops) {
+    const layouts = ['3,2','2,3','2,2','4,1','2,1','1,2','1,1'];
+    function validGeometry(r) {
+        const q = r.scanQuad;
+        return layouts.includes(r.scanLayout) && [0,90,180,270].includes(r.scanAngle) && Array.isArray(q) && q.length === 4
+            && q.every(p=>p && [p.x,p.y].every(n=>Number.isFinite(n)&&n>=0&&n<=1))
+            && q.every((p,i)=>{const v=q[(i+1)%4], n=q[(i+2)%4]; return (v.x-p.x)*(n.y-v.y)-(v.y-p.y)*(n.x-v.x)>0.00001;});
+    }
+    function records(hash,index,crops,geometry) {
         if (!/^[a-f0-9]{64}$/.test(hash)||!Number.isSafeInteger(index)||index<1||!Array.isArray(crops)||!crops.length||crops.length>6) throw new Error('追加する領収書を選んでください。');
         const sourcePageKey = hash+':'+index, seenImages=new Set(), seenSlots=new Set();
-        return crops.map(({image,slot})=>{
+        return crops.map(({image,slot,quad})=>{
             if(!Number.isInteger(slot)||slot<0||slot>5||seenSlots.has(slot)||!/^data:image\/jpeg;base64,[a-z0-9+/]+=*$/i.test(image)||seenImages.has(image)){
                 throw new Error('同じ画像か無効な枠が含まれています。切り出し枠を確認してください。');
             }
             seenSlots.add(slot);seenImages.add(image);
-            return {imageDataUrl:image,originalImageDataUrl:image,sourceHash:'pdfscan:'+sourcePageKey+':'+slot,sourcePageKey,pdfSelected:false};
+            const record = {imageDataUrl:image,originalImageDataUrl:image,sourceHash:'pdfscan:'+sourcePageKey+':'+slot,sourcePageKey,pdfSelected:false};
+            if (geometry) {
+                Object.assign(record,{scanLayout:geometry.layout,scanAngle:geometry.angle,scanQuad:quad});
+                if(!validGeometry(record)||slot>=geometry.layout.split(',').reduce((a,n)=>a*Number(n),1))throw new Error('切り出し位置を確認してください。');
+            }
+            return record;
         });
     }
     function say(msg) {el('parkingScanStatus').textContent=msg;}
-    async function act(fn) {
+    function feedback(msg, state='') {
+        const node=el('parkingScanFeedback');node.dataset.state=state;node.textContent=msg;
+    }
+    async function act(fn,adding=false) {
         if(busy)return;
         busy=true;syncControls();
-        try {await fn();}catch(e){say(e.message||'PDFを取り込めませんでした。');}
+        try {await fn();}catch(e){
+            const msg=e.message||'PDFを取り込めませんでした。';
+            if(adding)feedback('追加できませんでした。'+msg,'error');else say(msg);
+        }
         finally{busy=false;syncControls();}
     }
     function syncControls() {
@@ -31,16 +49,33 @@ const ParkingScan = (() => {
         });
         if(!busy){
             el('parkingScanPrev').disabled=!doc||page<=1;el('parkingScanNext').disabled=!doc||page>=doc.numPages;
-            el('parkingScanSave').disabled=!image||!!savedPage();
-            el('parkingScanLayout').disabled=!image;
-            el('parkingScanRotate').disabled=!doc;
+            el('parkingScanSave').disabled=!image||!cards.some(c=>!c.tick.disabled&&c.tick.checked);
+            el('parkingScanLayout').disabled=!image||savedRecords().length>0;
+            el('parkingScanRotate').disabled=!doc||savedRecords().length>0;
         }
     }
-    function savedPage() {return from&&ParkingManager.getItems().some(i=>i.sourcePageKey===from.hash+':'+page);}
+    function savedRecords(index=page) {return from ? ParkingManager.getItems().filter(i=>i.sourcePageKey===from.hash+':'+index) : [];}
+    function legacy(saved) {return saved.some(r=>!validGeometry(r));}
+    function isSaved(saved,slot) {return saved.some(r=>r.sourceHash==='pdfscan:'+r.sourcePageKey+':'+slot);}
+    function markSaved(saved) {
+        const old = legacy(saved);
+        for(const c of cards){
+            const used=isSaved(saved,c.slot);
+            c.tick.disabled=c.adjust.disabled=old||used;
+            if(c.tick.disabled)c.tick.checked=false;
+            c.label.textContent=used?' 取り込み済み':old?' 旧版で取り込み済みのページ':' '+(c.slot+1)+'枚目を追加';
+        }
+    }
     function dropCanvas() {if(image){image.width=image.height=1;image=null;}cards=[];el('parkingScanCards').replaceChildren();el('parkingScanSource').replaceChildren();}
     async function dispose() {dropCanvas();const old=task;task=doc=from=null;if(old)await old.destroy().catch(()=>{});}
     async function renderPage(next,rotation) {
-        say('PDFページを読み込み中…');
+        feedback('');say('PDFページを読み込み中…');
+        const saved=savedRecords(next), layout=el('parkingScanLayout');
+        if(saved.length&&!legacy(saved)){
+            layout.value=layout.dataset.previous=saved[0].scanLayout;
+            rotation=saved[0].scanAngle;
+        }
+        rotation=((rotation%360)+360)%360;
         const p=await doc.getPage(next),rot=((p.rotate+rotation)%360+360)%360;
         const base=p.getViewport({scale:1,rotation:rot});
         const viewport=p.getViewport({scale:pageScale(base.width,base.height),rotation:rot});
@@ -56,30 +91,40 @@ const ParkingScan = (() => {
         draw();
     }
     function make(tag,value) {const n=document.createElement(tag);if(value!=null)n.textContent=value;return n;}
+    function cropImage(quad,turn,limit){
+        const crop=ReceiptCrop.image(image,quad,limit);
+        if(!turn)return crop;
+        try{return ReceiptCrop.turnImage(crop,turn);}
+        finally{crop.width=crop.height=1;}
+    }
     function draw() {
         const [columns,rows]=el('parkingScanLayout').value.split(',').map(Number);
         const result=GyomuScanner.detectImage(image,{columns,rows});
         const host=el('parkingScanCards');host.replaceChildren();
         cards=result.boxes.map((box,i)=>{
-            const card=make('section'), label=make('label'), tick=make('input');tick.type='checkbox';tick.disabled=!!savedPage();
-            label.append(tick,document.createTextNode(' '+(i+1)+'枚目を追加'));
+            const card=make('section'), tag=make('label'), tick=make('input'), label=make('span');tick.type='checkbox';
+            tick.onchange=syncControls;
+            tag.append(tick,label);
             const info=make('p',box.method==='detected'?'用紙の縁を検出。欠けがないか確認。':'均等分割の枠です。空欄は選ばない。');
             info.className='parking-caption';
             const preview=make('div'), adjust=make('button','指でトリミング');
             adjust.type='button';adjust.className='btn';
             adjust.setAttribute('aria-label',(i+1)+'枚目を指でトリミング');
-            adjust.disabled=!!savedPage();
             const initial=ReceiptCrop.fromBox(GyomuScanner.sanitizeBox(box));
-            let quad=initial;
-            const redraw=()=>preview.replaceChildren(ReceiptCrop.image(image,quad,550));
-            adjust.onclick=()=>editor.open({source:image,initial,quad,invoker:adjust,label:(i+1)+'枚目',
-                onApply:next=>{quad=next;redraw();}});
-            card.append(label,info,preview,adjust);host.append(card);redraw();
-            return {tick,adjust,slot:i,current:()=>quad,edited:()=>quad!==initial};
+            let quad=initial, turn=0;
+            const redraw=()=>preview.replaceChildren(cropImage(quad,turn,550));
+            adjust.onclick=()=>editor.open({source:image,initial,quad,turn,allowRotation:true,invoker:adjust,label:(i+1)+'枚目',
+                onApply:(next,steps)=>{quad=next;turn=steps;redraw();}});
+            card.append(tag,info,preview,adjust);host.append(card);redraw();
+            return {tick,label,adjust,slot:i,current:()=>quad,turn:()=>turn,edited:()=>quad!==initial||turn!==0};
         });
-        say(savedPage()?'このページは追加済みです。取り込んだ画像は明細で確認できます。':'領収書が全部入っている枠だけ選んでください。注記入りの提出済みPDFではなく、スキャンした元のPDFを使ってください。');
+        const saved=savedRecords();
+        markSaved(saved);
+        say(legacy(saved)?'旧版で追加したページは、枠の位置を記録していないため追加できません。残りは写真で追加できます。'
+            :saved.length?'取り込み済みの枠は選べません。このページの残りは選んで追加できます。'
+            :'領収書が全部入っている枠だけ選んでください。注記入りの提出済みPDFではなく、スキャンした元のPDFを使ってください。');
     }
-    function confirmDiscard(){return !!savedPage()||!cards.some(c=>c.tick.checked||c.edited())||confirm('このページの未追加の選択・枠調整を破棄しますか？');}
+    function confirmDiscard(){return !cards.some(c=>!c.tick.disabled&&(c.tick.checked||c.edited()))||confirm('このページの未追加の選択・枠調整を破棄しますか？');}
     function setup() {
         const d=el('parkingScanDialog');
         editor=ReceiptCropEditor.setup(el('cropEditor'));
@@ -94,23 +139,27 @@ const ParkingScan = (() => {
         const layout=el('parkingScanLayout');layout.dataset.previous=layout.value;
         layout.onchange=()=>{if(!confirmDiscard()){layout.value=layout.dataset.previous;return;}layout.dataset.previous=layout.value;draw();};
         el('parkingScanSave').onclick=()=>act(async()=>{
+            feedback('領収書を保存しています…','pending');
             await ParkingManager.settled();
-            if(savedPage())throw new Error('すでに取り込んだページです。明細画面から確認してください。');
-            const chosen=cards.filter(c=>c.tick.checked);
+            const saved=savedRecords();
+            if(legacy(saved))throw new Error('旧版で取り込んだページです。残りは写真として追加してください。');
+            const chosen=cards.filter(c=>c.tick.checked&&!c.tick.disabled);
             const boxes=chosen.map(c=>c.current());
             if(boxes.some((box,i)=>boxes.slice(0,i).some(b=>ReceiptCrop.overlapRatio(box,b)>.15)))throw new Error('選んだ枠が重なっています。同じ領収書を2回追加しないよう、枠を確認してください。');
-            const batch=records(from.hash,page,chosen.map(({slot,current})=>{
-                const crop=ReceiptCrop.image(image,current(),2400);
-                try {return {slot,image:crop.toDataURL('image/jpeg',.94)};}
+            const batch=records(from.hash,page,chosen.map(({slot,current,turn})=>{
+                const quad=current();
+                const crop=cropImage(quad,turn(),2400);
+                try {return {slot,quad,image:crop.toDataURL('image/jpeg',.94)};}
                 finally {crop.width=crop.height=1;}
-            }));
+            }),{layout:layout.value,angle});
             const count=await ParkingManager.appendScanPage(batch);
-            if(count===-2)throw new Error('取り込み済みの画像が含まれています。このページは追加していません。別の枠を選んでください。');
+            if(count===-2)throw new Error('追加済みの画像・枠と重なるか、向きや並び方が一致しません。今回は追加していません。未追加の枠を確認してください。');
             if(count<0)throw new Error('領収書を保存できませんでした。端末の空き容量を確認してください。');
-            cards.forEach(c=>{c.tick.checked=false;c.tick.disabled=true;c.adjust.disabled=true;});
-            const msg=count?count+'枚追加しました。駐車場明細で日付・金額・訪問先を確認してください。':'このページは追加済みです。';
+            markSaved(savedRecords());
+            const msg=count?count+'枚追加しました。未追加の枠はそのまま選べます。駐車場明細で日付・金額・訪問先を確認してください。':'このページは追加済みです。';
+            feedback(count?count+'枚追加しました。':'選んだ領収書は追加済みです。','success');
             say(msg);el('parkingPhotoStatus').textContent=msg;
-        });
+        },true);
     }
     async function open(input) {
         const file=input.files?.[0];input.value='';if(!file||busy)return;
@@ -118,7 +167,7 @@ const ParkingScan = (() => {
         if(!dialog.dataset.initialized){setup();dialog.dataset.initialized='1';}
         if(!dialog.open){opener=input instanceof HTMLElement ? input : document.activeElement;dialog.showModal();}
         await act(async()=>{
-            await dispose();
+            feedback('');await dispose();
             try {
                 if(file.size>20*1024*1024)throw new Error('PDFは20MBまでです。分割して取り込んでください。');
                 say('PDFを開いています。初回はPDF表示機能の読み込みに通信が必要です。');
@@ -150,6 +199,6 @@ const ParkingScan = (() => {
         const f=new File([pdf.output('arraybuffer')],'gyomu-scan-sample.pdf',{type:'application/pdf'});
         return open({files:[f],value:''});
     }
-    return {open,openSample,pageScale,records};
+    return {open,openSample,pageScale,records,validGeometry};
 })();
 if(typeof module!=='undefined'&&module.exports)module.exports=ParkingScan;

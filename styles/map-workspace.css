@@ -33,6 +33,9 @@ body.map-focus .workflow-toast { z-index:14000; }
 .visit-date-fields { display:grid;grid-template-columns:minmax(0,1fr) minmax(100px,.7fr);gap:12px; }
 #editModal .modal-row input,#editModal .modal-row select,#editModal .modal-row textarea { font-size:16px;min-height:44px;min-width:0;max-width:100%;box-sizing:border-box; }
 #visitScheduleHint { margin:-4px 0 16px; }
+.visit-schedule-end { border:1px solid var(--border);border-radius:8px;padding:0 10px;margin:0 0 12px; }
+.visit-schedule-end summary { cursor:pointer;min-height:44px;box-sizing:border-box;padding:11px 0;color:var(--accent-dark);font-size:14px; }
+.visit-schedule-end .text-link { min-height:44px; }
 .visit-contact-details { border-top:1px solid var(--border);padding-top:8px; }
 .visit-contact-details summary { cursor:pointer;padding:8px 0;font-size:14px;color:var(--accent-dark); }
 .visit-calendar { padding:16px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px; }
@@ -87,6 +90,7 @@ body.map-focus .workflow-toast { z-index:14000; }
     .visit-editor-grid>section:first-child { display:contents; }
     .visit-editor-grid>section:first-child>* { order:4; }
     .visit-editor-grid>section:first-child>.visit-date-fields:first-child { order:1; }
+    .visit-editor-grid #visitScheduleEndDetails { order:2;margin-bottom:0; }
     .visit-editor-grid #visitScheduleHint { order:2;margin-bottom:0; }
     .visit-editor-grid>.visit-calendar { order:3; }
     body.map-focus .map-region-header .visit-help { display:none; }

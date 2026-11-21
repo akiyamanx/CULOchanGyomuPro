@@ -7,6 +7,33 @@
   const cross=(a,b,p)=>(b.x-a.x)*(p.y-a.y)-(b.y-a.y)*(p.x-a.x);
   const area=q=>Math.abs(q.reduce((s,p,i)=>{const n=q[(i+1)%q.length];return s+p.x*n.y-p.y*n.x;},0))/2;
   const fromBox=({x,y,w,h})=>[{x,y},{x:x+w,y},{x:x+w,y:y+h},{x,y:y+h}];
+  const quarterTurns=steps=>((steps%4)+4)%4;
+  function turnQuad(quad,steps){
+    for(let i=0;i<quarterTurns(steps);i++){
+      const [a,b,c,d]=quad;
+      quad=[d,a,b,c].map(p=>({x:1-p.y,y:p.x}));
+    }
+    return quad;
+  }
+  // w/h describe the destination rectangle after rotation, in canvas coordinates.
+  function drawTurn(ctx,source,steps,x,y,w,h){
+    const turn=quarterTurns(steps);
+    if(!turn){ctx.drawImage(source,x,y,w,h);return;}
+    ctx.save();
+    ctx.translate(x+(turn===1||turn===2?w:0),y+(turn===2||turn===3?h:0));
+    ctx.rotate(turn*Math.PI/2);
+    ctx.drawImage(source,0,0,turn%2?h:w,turn%2?w:h);
+    ctx.restore();
+  }
+  function turnImage(source,steps){
+    const turn=quarterTurns(steps);
+    if(!turn)return source;
+    const out=document.createElement('canvas');
+    out.width=turn%2?source.height:source.width;
+    out.height=turn%2?source.width:source.height;
+    drawTurn(out.getContext('2d'),source,turn,0,0,out.width,out.height);
+    return out;
+  }
   function bounds(q){
     const xs=q.map(p=>p.x),ys=q.map(p=>p.y);
     return {x:Math.min(...xs),y:Math.min(...ys),r:Math.max(...xs),b:Math.max(...ys)};
@@ -114,5 +141,5 @@
     const z=clamp(v.z*factor,1,10),p=toSource(v,from);
     return limit({...v,z,x:to.x-p.x*v.w*z,y:to.y-p.y*v.h*z},w,h);
   }
-  return {fromBox,bounds,moveCorner,moveEdge,pickHandle,overlapRatio,project,raster,image,toSource,zoomView};
+  return {fromBox,bounds,quarterTurns,turnQuad,drawTurn,turnImage,moveCorner,moveEdge,pickHandle,overlapRatio,project,raster,image,toSource,zoomView};
 });

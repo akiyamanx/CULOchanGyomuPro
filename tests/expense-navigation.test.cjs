@@ -62,11 +62,11 @@ test('normal expense navigation restores the overview and section jumps only vis
 
 test('one copy of each existing parking field, with intake, records and both outputs in distinct sections', () => {
     const html=fs.readFileSync(require.resolve('../index.html'),'utf8');
-    for (const id of ['parkingSection','parkingPhotoStatus','parkingItemList','parkingPageSize','expParkingMonth','routeImport','etcSection']) {
+    for (const id of ['parkingSection','parkingPhotoStatus','parkingItemList','parkingPageSize','parkingReflectButton','routeImport','etcSection']) {
         assert.equal([...html.matchAll(new RegExp('id="'+id+'"','g'))].length,1,id);
     }
     const at=token=>html.indexOf(token);
-    const order=['id="parkingSection"','id="parkingAddTitle"','id="parkingPhotoStatus"','id="parkingRecordsTitle"','id="parkingItemList"','id="parkingPrintTitle"','id="parkingPageSize"','id="parkingReflectTitle"','id="expParkingMonth"','id="expenseOverview"'];
+    const order=['id="parkingSection"','id="parkingAddTitle"','id="parkingPhotoStatus"','id="parkingRecordsTitle"','id="parkingItemList"','id="parkingPrintTitle"','id="parkingPageSize"','id="parkingReflectTitle"','id="parkingReflectButton"','id="expenseOverview"'];
     order.forEach((token,i)=>assert.ok(at(token)>=0 && (i===0||at(token)>at(order[i-1])),token));
 });
 
@@ -140,4 +140,29 @@ test('parking company picker remains outside the hidden expense overview', () =>
     const html = fs.readFileSync(require.resolve('../index.html'), 'utf8');
     assert.match(html, /id="parkingSection"[\s\S]+<dialog id="parkingCompanyDialog"[\s\S]*?<\/dialog>\s*<\/section>\s*<div id="expenseOverview">/);
     assert.doesNotMatch(html, /id="parkingScanSample"/);
+});
+
+test('PDF add result is in its sticky action footer and saved photo opens the shared crop editor',()=>{
+    const html=fs.readFileSync(require.resolve('../index.html'),'utf8');
+    const css=fs.readFileSync(require.resolve('../styles/parking-workflow.css'),'utf8');
+    const scanner=fs.readFileSync(require.resolve('../expense/parking-scan.js'),'utf8');
+    const photo=fs.readFileSync(require.resolve('../receipt/receipt-photo.js'),'utf8');
+    assert.match(html,/<div class="scan-footer"><p id="parkingScanFeedback"[^>]*role="status"[^>]*><\/p><div class="parking-actions"><button id="parkingScanSave"/);
+    assert.match(css,/\.scan-footer\{bottom:0;position:sticky/);
+    assert.match(scanner,/feedback\('領収書を保存しています…','pending'\)/);
+    assert.match(scanner,/feedback\(count\?count\+'枚追加しました。'/);
+    assert.match(scanner,/if\(adding\)feedback\('追加できませんでした。'/);
+    assert.match(photo,/ReceiptCropEditor\.clonePanel\('photo-'\)/);
+    assert.match(photo,/dialog\.showModal\(\);dialog\.scrollTop=0;openCrop\(\)/);
+    assert.match(photo,/originalImageDataUrl:item\.originalImageDataUrl\|\|item\.imageDataUrl/);
+});
+test('individual scan rotation is separate from page orientation and saved overlap coordinates',()=>{
+    const html=fs.readFileSync(require.resolve('../index.html'),'utf8');
+    const scanner=fs.readFileSync(require.resolve('../expense/parking-scan.js'),'utf8');
+    assert.match(html,/id="parkingScanRotate"[^>]*>ページ全体を右に90°/);
+    assert.match(html,/id="cropTurnLeft"[^>]*>この1枚を左へ90°/);
+    assert.match(html,/id="cropTurnRight"[^>]*>この1枚を右へ90°/);
+    assert.match(scanner,/let quad=initial, turn=0/);
+    assert.match(scanner,/cropImage\(quad,turn\(\),2400\)/);
+    assert.match(scanner,/\{layout:layout\.value,angle\}\)/);
 });

@@ -15,7 +15,7 @@
     <link rel="stylesheet" href="styles/expense.css?v=20261019-3">
     <!-- v2.0追加 - 駐車場利用明細スタイル -->
     <link rel="stylesheet" href="styles/parking.css">
-    <link rel="stylesheet" href="styles/parking-workflow.css?v=20261120-3">
+    <link rel="stylesheet" href="styles/parking-workflow.css?v=20261121-3">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600&display=swap">
     <link rel="stylesheet" href="styles/map/map-styles.css">
     <link rel="stylesheet" href="styles/map/map-expense-styles.css">
@@ -26,7 +26,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
     <link rel="stylesheet" href="styles/workflow.css?v=20261120-expense-3">
-    <link rel="stylesheet" href="styles/map-workspace.css?v=20261105-3">
+    <link rel="stylesheet" href="styles/map-workspace.css?v=20261121-5">
     <link rel="stylesheet" href="styles/settings.css?v=20261019-15">
     <link rel="stylesheet" href="styles/request-import.css">
     <link rel="stylesheet" href="styles/mail-box.css?v=20261117-3">
@@ -131,8 +131,8 @@
                 <section class="panel-card parking-step" aria-labelledby="parkingRecordsTitle">
                     <h3 class="section-title" id="parkingRecordsTitle"><span>2</span> 明細を確認・編集</h3>
                 <div class="parking-filter-grid">
-                    <label>表示・出力する月<input type="month" id="parkingFilterMonth" onchange="document.getElementById('parkingFilterDay').value='';ParkingManager.renderParkingList()"></label>
-                    <label>利用日で絞る（任意）<input type="date" id="parkingFilterDay" onchange="document.getElementById('parkingFilterMonth').value=this.value.slice(0,7);ParkingManager.renderParkingList()"></label>
+                    <label>表示・出力する月<input type="month" id="parkingFilterMonth" onchange="document.getElementById('parkingFilterDay').value='';document.getElementById('parkingReflectStatus').textContent='';ParkingManager.renderParkingList()"></label>
+                    <label>利用日で絞る（任意）<input type="date" id="parkingFilterDay" onchange="if(this.value)document.getElementById('parkingFilterMonth').value=this.value.slice(0,7);document.getElementById('parkingReflectStatus').textContent='';ParkingManager.renderParkingList()"></label>
                 </div>
                 <p class="parking-caption">月・日付が空欄なら全期間。日付不明の写真は、確認できるよう常に表示します。</p>
                 <div class="parking-actions"><button class="btn btn-secondary" onclick="ParkingManager.selectVisible(true)">表示中を全選択</button><button class="btn btn-secondary" onclick="ParkingManager.selectVisible(false)">表示中の選択を解除</button></div>
@@ -151,8 +151,11 @@
                 <section class="panel-card parking-step parking-output parking-reflect" aria-labelledby="parkingReflectTitle">
                     <p class="eyebrow">駐車場代の金額をまとめる</p>
                     <h3 class="section-title" id="parkingReflectTitle">精算書に金額を反映</h3>
-                <div class="parking-btn-row"><label for="expParkingMonth">精算書に反映する月</label><input class="exp-input" type="month" id="expParkingMonth"><button class="btn btn-save" onclick="ExpenseManager.reflectParkingMonth()">駐車場代を精算書に反映</button></div>
-                <p class="parking-caption">ここで選んだ月の日付・金額が入っている明細を反映します。写真なしや「PDFに載せる」を選んでいない明細も含みます。</p>
+                <p class="parking-caption">上で選んだ月または利用日を使います。写真なしやPDFに載せない領収書も、日付と金額が入っていれば反映します。</p>
+                <p id="parkingReflectPreview" class="parking-caption"></p>
+                <div class="parking-btn-row"><button id="parkingReflectButton" type="button" class="btn btn-save" onclick="ExpenseManager.reflectParkingMonth()">表示中の期間の駐車場代を反映</button></div>
+                <p id="parkingReflectStatus" class="parking-caption" role="status" aria-live="polite"></p>
+                    <div id="parkingReflectJump" hidden><button class="btn btn-primary" type="button" onclick="ExpenseManager.showReflectedParking()">反映した精算明細を見る</button></div>
                     <button class="btn btn-secondary parking-task-back" type="button" onclick="AppCore.switchTab('expense')">精算・PDFの全体へ戻る</button>
                 </section>
                 <details><summary>駐車場記録の管理</summary><button class="btn btn-danger-quiet" onclick="ParkingManager.clearAll()">すべての駐車場記録を削除</button></details>
@@ -300,7 +303,12 @@
                 <header class="visit-editor-header"><div><h2>電話・訪問予定を登録</h2><strong id="visitEditorName"></strong><p id="visitEditorAddress" class="visit-help"></p></div><button type="button" class="modal-cancel" onclick="hideEditModal()" aria-label="訪問先の編集を閉じる">閉じる</button></header>
                 <div class="visit-editor-actions"><div id="visitPhoneActions"></div><div id="visitCallInfo" class="visit-call-info" aria-label="電話中に見る情報"></div><p id="visitFilterInfo" class="visit-filter-info" hidden></p><a class="btn btn-secondary" href="https://calendar.google.com" target="_blank" rel="noopener">Googleカレンダーを開く ↗</a></div>
                 <div class="visit-editor-grid"><section aria-label="訪問先の編集">
-                    <div class="visit-date-fields"><div class="modal-row"><label for="visitScheduleDay">訪問日</label><input type="date" id="visitScheduleDay"></div><div class="modal-row"><label for="visitScheduleTime">訪問時刻</label><input type="time" id="visitScheduleTime"></div></div><input type="hidden" id="editAppoDate">
+                    <div class="visit-date-fields"><div class="modal-row"><label for="visitScheduleDay">開始日</label><input type="date" id="visitScheduleDay"></div><div class="modal-row"><label for="visitScheduleTime">開始時刻</label><input type="time" id="visitScheduleTime"></div></div><input type="hidden" id="editAppoDate">
+                    <details id="visitScheduleEndDetails" class="visit-schedule-end"><summary>終了日時を指定（泊まり・複数日）</summary>
+                        <p class="visit-help">翌日以降も指定できます。指定しない場合は、いつもどおり開始日時だけで保存できます。</p>
+                        <div class="visit-date-fields"><div class="modal-row"><label for="visitScheduleEndDay">終了日</label><input type="date" id="visitScheduleEndDay"></div><div class="modal-row"><label for="visitScheduleEndTime">終了時刻</label><input type="time" id="visitScheduleEndTime"></div></div>
+                        <button type="button" class="text-link" id="visitScheduleEndClear">終了日時を指定しない</button>
+                    </details>
                     <div class="modal-row"><label for="editScheduleKind">日程の区分</label><select id="editScheduleKind"><option value="undated">日程未定</option><option value="preferred">希望</option><option value="confirmed">確定</option><option value="unknown">日程区分未確認</option></select></div>
                     <p id="visitDateSourceWarning" class="visit-help" role="status" hidden>依頼書の日付と曜日が一致しません。原本を確認してから日時を入力してください。</p>
                     <p id="visitScheduleHint" class="visit-help" role="status"></p>
@@ -316,7 +324,7 @@
                     <details class="visit-month-picker"><summary>月カレンダーから日を選ぶ</summary>
                     <div class="visit-calendar-nav"><button type="button" data-visit-month="-1" aria-label="前の月の予定">‹</button><strong id="visitCalendarMonth" aria-live="polite"></strong><button type="button" data-visit-month="1" aria-label="次の月の予定">›</button></div>
                     <div class="visit-weekdays" aria-hidden="true"><span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span></div><div id="visitCalendarDays" class="visit-calendar-days"></div>
-                    <p class="visit-help">G：Googleの予定 ／ 訪：アプリの訪問予定。日付を押すと訪問日に入ります。</p></details>
+                    <p class="visit-help">G：Googleの予定 ／ 訪：アプリの訪問予定。日付を押すと開始日に入ります。</p></details>
                     <h4>Googleカレンダーの予定</h4><div id="googleVisitAgenda" aria-live="polite"></div>
                     <details class="visit-local-agenda" open><summary id="visitAgendaTitle">このアプリに保存した訪問予定</summary><div id="visitAgenda" aria-live="polite"></div></details>
                     <p class="visit-help">表示は日本時間。Googleの予定は閲覧のみです。変更後は「更新」。訪問予定の保存とGoogleへの追加は別々に行います。</p>
@@ -413,25 +421,25 @@
     <script src="receipt/receipt-image-utils.js"></script>
     <script src="receipt/receipt-scanner.js?v=20261019-15"></script>
     <script src="receipt/receipt-photo-geometry.js?v=20261014-3"></script>
-    <script src="receipt/receipt-photo.js?v=20261014-3"></script>
+    <script src="receipt/receipt-photo.js?v=20261121-3"></script>
     <script src="expense/expense-import.js?v=20261105-4"></script>
     <script src="expense/xlsx-lite.js?v=20261105-4"></script>
     <script src="shared/pdf-renderer.js"></script>
     <script src="expense/expense-draft-store.js?v=20261019-15"></script>
     <script src="expense/expense-draft-receipts.js?v=20261019-2"></script>
     <script src="expense/visit-picker.js?v=20261105-6"></script>
-    <script src="expense/expense-manager.js?v=20261105-5"></script>
+    <script src="expense/expense-manager.js?v=20261121-4"></script>
     <script src="expense/expense-pdf.js?v=20261019-7"></script>
     <script src="expense/expense-etc.js?v=20261105-4"></script>
     <!-- v1.3追加 - Phase I: 駐車場明細IndexedDB管理 -->
     <script src="expense/parking-idb.js?v=20261019-15"></script>
-    <script src="expense/parking-document.js?v=20261014-3"></script>
+    <script src="expense/parking-document.js?v=20261121-2"></script>
     <script src="expense/visit-name-directory.js?v=20261120-1"></script>
-    <script src="expense/parking-manager.js?v=20261120-2"></script>
+    <script src="expense/parking-manager.js?v=20261121-2"></script>
     <script src="expense/parking-scan-geometry.js?v=20261120-2"></script>
-    <script src="expense/receipt-crop.js?v=20261120-3"></script>
-    <script src="expense/receipt-crop-editor.js?v=20261120-3"></script>
-    <script src="expense/parking-scan.js?v=20261120-2"></script>
+    <script src="expense/receipt-crop.js?v=20261121-3"></script>
+    <script src="expense/receipt-crop-editor.js?v=20261121-3"></script>
+    <script src="expense/parking-scan.js?v=20261121-3"></script>
     <script src="expense/parking-pdf.js?v=20261019-7"></script>
     <script src="map/map-data-storage.js?v=20261117-2"></script>
     <script src="map/v1-converter.js"></script>
@@ -454,21 +462,21 @@
     <script src="map/mail-box-ui.js?v=20261120-gmail-partial-1"></script>
     <script src="map/request-import.js?v=20261119-date-review-1"></script>
     <script src="map/geocode-guard.js?v=20261104-3"></script>
-    <script src="map/map-core.js?v=20261119-date-review-1"></script>
+    <script src="map/map-core.js?v=20261121-5"></script>
     <script src="map/google-calendar-data.js?v=20261019-13"></script>
     <script src="map/google-visit-calendar.js?v=20261019-14"></script>
-    <script src="map/visit-planner.js?v=20261119-date-review-1"></script>
+    <script src="map/visit-planner.js?v=20261121-5"></script>
     <script src="map/map-workspace.js?v=20261019-11"></script>
     <script src="map/route-list-pdf.js"></script>
     <script src="map/result-map.js?v=20261105-3"></script>
-    <script src="map/route-manager.js?v=20261117-1"></script>
-    <script src="map/map-expense-form.js"></script>
+    <script src="map/route-manager.js?v=20261121-1"></script>
+    <script src="map/map-expense-form.js?v=20261121-1"></script>
     <script src="map/route-order.js?v=20261104-1"></script>
     <script src="map/ic-kanto.js?v=20261104-1"></script>
     <script src="map/highway-segments.js?v=20261105-2"></script>
     <script src="map/segment-dialog.js?v=20261105-1"></script>
     <script src="map/distance-calc.js?v=20261105-3"></script>
-    <script src="map/ui-actions.js?v=20261119-date-review-1"></script>
+    <script src="map/ui-actions.js?v=20261121-5"></script>
     <script src="map/gcal-panel.js?v=20261019-13"></script>
     <script src="expense/parking-matcher.js?v=20261014-4"></script>
     <script src="expense/etc-document.js?v=20261019-7"></script>
@@ -505,7 +513,6 @@
             catch (error) { document.getElementById('storageStartup').textContent = '保存データの確認・復旧を完了できません。ほかのタブを閉じて再読み込みしてください。 ' + error.message; return; }
             document.dispatchEvent(new Event('app:storage-ready'));
             ExpenseManager.init();
-            document.getElementById('expParkingMonth').value = new Date().toLocaleDateString('sv-SE').slice(0, 7);
             document.getElementById('parkingFilterMonth').value = new Date().toLocaleDateString('sv-SE').slice(0,7);
             await ParkingManager.init();
             DataStorage.migrateIfNeeded();
@@ -552,17 +559,21 @@
     </script>
 <dialog id="parkingScanDialog" class="parking-dialog scan-dialog" aria-labelledby="parkingScanTitle">
 <div id="parkingScanMain"><h2 id="parkingScanTitle">PDFから領収書を切り出す</h2>
-<div class="parking-actions"><button id="parkingScanPrev" class="btn btn-secondary" type="button">前のページ</button><span id="parkingScanPage"></span><button id="parkingScanNext" class="btn btn-secondary" type="button">次のページ</button><button id="parkingScanRotate" class="btn btn-secondary" type="button">右へ90°回す</button></div>
+<div class="parking-actions"><button id="parkingScanPrev" class="btn btn-secondary" type="button">前のページ</button><span id="parkingScanPage"></span><button id="parkingScanNext" class="btn btn-secondary" type="button">次のページ</button><button id="parkingScanRotate" class="btn btn-secondary" type="button">ページ全体を右に90°</button></div>
 <label for="parkingScanLayout">1ページの並び方</label>
 <select id="parkingScanLayout"><option value="3,2">横3枚 × 縦2段</option><option value="2,3">横2枚 × 縦3段</option><option value="2,2">横2枚 × 縦2段</option><option value="4,1">横4枚</option><option value="2,1">横2枚</option><option value="1,2">縦2枚</option><option value="1,1">1枚</option></select>
 <p class="parking-caption" id="parkingScanStatus" role="status" aria-live="polite"></p>
 <details><summary>元のページ全体を見る</summary><div id="parkingScanSource"></div></details>
 <div id="parkingScanCards"></div>
-<div class="parking-actions scan-footer"><button id="parkingScanSave" class="btn btn-primary" type="button">選んだ領収書を追加</button><button id="parkingScanClose" class="btn btn-secondary" type="button">閉じて明細へ</button></div></div>
+<div class="scan-footer"><p id="parkingScanFeedback" class="scan-feedback" role="status" aria-live="polite" aria-atomic="true"></p><div class="parking-actions"><button id="parkingScanSave" class="btn btn-primary" type="button">選んだ領収書を追加</button><button id="parkingScanClose" class="btn btn-secondary" type="button">閉じて明細へ</button></div></div></div>
 <section id="cropEditor" aria-labelledby="cropTitle" hidden>
 <h2 id="cropTitle" tabindex="-1">切り取り範囲</h2>
 <p id="cropHint" class="parking-caption">四隅の丸は自由に動かせます。線の中央の黄色い目印をつかむと、上・下の線は上下、左・右の線は左右に動きます。２本指で拡大・縮小できます。</p>
 <canvas id="cropSurface" aria-label="切り取り範囲のプレビュー" aria-describedby="cropHint"></canvas>
+<div class="parking-actions crop-turn-tools" id="cropTurnTools" hidden>
+<button class="btn btn-secondary" id="cropTurnLeft" type="button">この1枚を左へ90°</button>
+<button class="btn btn-secondary" id="cropTurnRight" type="button">この1枚を右へ90°</button>
+<span id="cropTurnStatus" role="status"></span></div>
 <div class="parking-actions crop-tools">
 <button class="btn btn-secondary" id="cropMinus" type="button" aria-label="縮小">−</button><span id="cropZoomStatus"></span><button class="btn btn-secondary" id="cropPlus" type="button" aria-label="拡大">＋</button>
 <button class="btn btn-secondary" id="cropFit" type="button">全体を見る</button><button class="btn btn-secondary" id="cropReset" type="button">枠を元に戻す</button>

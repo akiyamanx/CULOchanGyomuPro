@@ -304,6 +304,7 @@ function saveEdit() {
     if (!id) return;
     if (typeof VisitPlanner !== 'undefined' && !VisitPlanner.validate()) return;
     var appoDate = document.getElementById('editAppoDate').value || null;
+    var appoEndDate = typeof VisitPlanner !== 'undefined' ? VisitPlanner.endDate() : '';
     var scheduleField = document.getElementById('editScheduleKind');
     var scheduleKind = scheduleField && scheduleField.value;
     var dateWarning = document.getElementById('visitDateSourceWarning');
@@ -317,6 +318,7 @@ function saveEdit() {
         note: document.getElementById('editNote').value.trim(),
         status: document.getElementById('editStatus').value,
         appoDate: appoDate,
+        appoEndDate: appoEndDate || null,
         purpose: document.getElementById('editPurpose').value
     };
     if (scheduleField) updates.scheduleKind = scheduleKind;
@@ -346,7 +348,7 @@ function saveEdit() {
         var contact = document.getElementById('editContact').value.trim();
         var purpose = document.getElementById('editPurpose').value;
         var note = document.getElementById('editNote').value.trim();
-        showGcalConfirm(company, address, appoDate, contact, purpose, note);
+        showGcalConfirm(company, address, appoDate, contact, purpose, note, appoEndDate);
     } else {
         hideEditModal();
     }
@@ -457,23 +459,16 @@ function openGoogleCalendar() {
     window.open('https://calendar.google.com', '_blank', 'noopener');
 }
 
-// v1.8 GCal用の日時フォーマット（YYYYMMDDTHHmmSS）
-function formatGcalDate(datetimeLocal) {
-    // datetime-local形式 "2026-04-01T09:00" → "20260401T090000"
-    return datetimeLocal.replace(/[-:]/g, '').replace('T', 'T') + '00';
+// 入力は日本時間。Googleには時差が曖昧にならないUTC形式で渡す。
+function formatGcalDate(timestamp) {
+    return new Date(timestamp).toISOString().replace(/[-:]/g, '').slice(0,15) + 'Z';
 }
 
 // v1.8 Googleカレンダー追加URLを生成
-function buildGcalUrl(company, address, appoDate, contact, purpose, note) {
-    var startDate = formatGcalDate(appoDate);
-    // デフォルト1時間の予定
-    var dtObj = new Date(appoDate);
-    dtObj.setHours(dtObj.getHours() + 1);
-    var endStr = dtObj.getFullYear()
-        + String(dtObj.getMonth() + 1).padStart(2, '0')
-        + String(dtObj.getDate()).padStart(2, '0')
-        + 'T' + String(dtObj.getHours()).padStart(2, '0')
-        + String(dtObj.getMinutes()).padStart(2, '0') + '00';
+function buildGcalUrl(company, address, appoDate, contact, purpose, note, appoEndDate) {
+    var startMs = Date.parse(appoDate + '+09:00');
+    var startDate = formatGcalDate(startMs);
+    var endStr = formatGcalDate(appoEndDate ? Date.parse(appoEndDate + '+09:00') : startMs + 3600000);
 
     var title = company;
     if (purpose) title += '（' + purpose + '）';
@@ -488,6 +483,7 @@ function buildGcalUrl(company, address, appoDate, contact, purpose, note) {
         'action=TEMPLATE',
         'text=' + encodeURIComponent(title),
         'dates=' + startDate + '/' + endStr,
+        'ctz=' + encodeURIComponent('Asia/Tokyo'),
         'location=' + encodeURIComponent(address)
     ];
     if (details) params.push('details=' + encodeURIComponent(details));
@@ -496,8 +492,8 @@ function buildGcalUrl(company, address, appoDate, contact, purpose, note) {
 }
 
 // v1.8 保存後にGCal追加を提案するUI
-function showGcalConfirm(company, address, appoDate, contact, purpose, note) {
-    var url = buildGcalUrl(company, address, appoDate, contact, purpose, note);
+function showGcalConfirm(company, address, appoDate, contact, purpose, note, appoEndDate) {
+    var url = buildGcalUrl(company, address, appoDate, contact, purpose, note, appoEndDate);
     // editModalのボタンエリアをGCal確認UIに差し替え
     var modal = document.getElementById('editModal');
     var btnArea = modal.querySelector('.modal-buttons');
@@ -517,7 +513,7 @@ function showGcalConfirm(company, address, appoDate, contact, purpose, note) {
         '<div style="text-align:center;width:100%;">'
         + '<p style="margin:0 0 8px;font-size:14px;">✅ 保存しました</p>'
         + '<p style="margin:0 0 12px;font-size:13px;color:#888;">'
-        + ExpenseImport.escapeHtml(company) + ' ' + dateStr + '</p>'
+        + ExpenseImport.escapeHtml(company) + ' ' + dateStr + (appoEndDate ? ' 〜 ' + ExpenseImport.escapeHtml(appoEndDate.replace('T',' ')) : '') + '</p>'
         + '<a href="' + url + '" target="_blank" rel="noopener" '
         + 'class="gcal-add-btn" '
         + 'onclick="setTimeout(function(){restoreEditButtons();hideEditModal();},300)">'

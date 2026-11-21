@@ -328,6 +328,8 @@ const RouteManager = (() => {
             MapExpenseForm.updateSummary();
             loading.style.display = 'none';
             if (await showDistanceResult(route.name, result)) {
+                await ParkingManager.settled?.();
+                if (DataStorage.getCurrentWorkspaceId() !== workspace || distanceSignature(routeId, date) !== signature) throw new Error('対象月または訪問先が変わりました。計算し直してください');
                 const dest = buildDestinationText(ordered);
                 ExpenseManager.applyRoute(date, result.totalKm, dest);
                 ExpenseManager.syncParking(date);

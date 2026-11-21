@@ -9,6 +9,27 @@ const ParkingDocument = (() => {
         return customers.filter(c => includeOtherDays || (c.appoDate || '').slice(0, 10) === date)
             .sort((a, b) => (a.appoDate || '').localeCompare(b.appoDate || '') || (a.company || '').localeCompare(b.company || '', 'ja'));
     }
+    // A visit is stored in its start workspace, even when it spans other months.
+    function workspaceCandidates(storage, date, includeOtherDays, onDay) {
+        const workspaceId = date?.slice(0, 7) || storage.getCurrentWorkspaceId();
+        const load = id => id ? storage.getCustomersForWorkspace(id) : storage.getCustomers();
+        const hasDate = /^\d{4}-\d{2}-\d{2}$/.test(date || '');
+        const inMonth = customer => includeOtherDays || (hasDate && onDay(customer, date));
+        const choices = load(workspaceId).filter(inMonth).map(customer => ({customer, workspaceId}));
+        if (hasDate) {
+            const otherIds = new Set(storage.getWorkspaces().map(ws => ws.id));
+            otherIds.delete(workspaceId);
+            for (const id of otherIds) {
+                if (!id || (/^\d{4}-\d{2}$/.test(id) && id > workspaceId)) continue;
+                for (const customer of load(id)) {
+                    if (customer.appoEndDate && (customer.appoDate || '').slice(0, 10) < date && onDay(customer, date)) {
+                        choices.push({customer, workspaceId:id});
+                    }
+                }
+            }
+        }
+        return choices.sort(({customer:a},{customer:b}) => (a.appoDate || '').localeCompare(b.appoDate || '') || (a.company || '').localeCompare(b.company || '', 'ja'));
+    }
     function selected(items, month = '', day = '') {
         return items.filter(i => i.imageDataUrl && i.pdfSelected !== false && (!month || (i.date || '').startsWith(month)) && (!day || i.date === day))
             .sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.createdAt || a.id).localeCompare(b.createdAt || b.id));
@@ -25,6 +46,6 @@ const ParkingDocument = (() => {
         for (let i = 0; i < items.length; i += count) result.push(items.slice(i, i + count));
         return result;
     }
-    return {visitPatch, candidates, selected, validate, pages};
+    return {visitPatch, candidates, workspaceCandidates, selected, validate, pages};
 })();
 if (typeof module !== 'undefined') module.exports = ParkingDocument;

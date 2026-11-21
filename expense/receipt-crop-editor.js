@@ -1,15 +1,26 @@
 const ReceiptCropEditor=(()=>{
  'use strict';
- const $=id=>document.getElementById(id), g=ReceiptCrop;
+ const byId=id=>document.getElementById(id), g=ReceiptCrop;
  const mid=(a,b)=>({x:(a.x+b.x)/2,y:(a.y+b.y)/2}),gap=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
- function setup(panel){
+ function clonePanel(prefix){
+   const panel=byId('cropEditor').cloneNode(true);
+   panel.id=prefix+'cropEditor';panel.hidden=true;
+   for(const el of panel.querySelectorAll('[id]'))el.id=prefix+el.id;
+   for(const el of [panel,...panel.querySelectorAll('[aria-labelledby],[aria-describedby]')])
+     for(const name of ['aria-labelledby','aria-describedby'])if(el.hasAttribute(name))
+       el.setAttribute(name,el.getAttribute(name).split(/\s+/).map(id=>prefix+id).join(' '));
+   return panel;
+ }
+ function setup(panel,{prefix='',main=byId('parkingScanMain'),dialog=byId('parkingScanDialog'),mainTitle='parkingScanTitle'}={}){
+   const $=id=>byId(prefix+id);
    const canvas=$('cropSurface'),ctx=canvas.getContext('2d'),controls=$('cropCornerKeys');
    const pointers=new Map();
-   let source,initial,quad,view,w,h,invoker,onApply,active=-1,activeEdge=-1,raf=0,gesture;
+   let source,initial,quad,view,w,h,invoker,onApply,active=-1,activeEdge=-1,raf=0,gesture,previousScroll=0,turn=0,canTurn=false;
    const focus=()=>({x:w/2,y:h/2});
    function base(){
-     const s=Math.min((w-32)/source.width,(h-32)/source.height);
-     const iw=source.width*s,ih=source.height*s;
+     const sw=turn%2?source.height:source.width,sh=turn%2?source.width:source.height;
+     const s=Math.min((w-32)/sw,(h-32)/sh);
+     const iw=sw*s,ih=sh*s;
      return {w:iw,h:ih,z:1,x:(w-iw)/2,y:(h-ih)/2};
    }
    function focusBox(){
@@ -33,7 +44,7 @@ const ReceiptCropEditor=(()=>{
    function draw(){
      ctx.setTransform(canvas.width/w,0,0,canvas.height/h,0,0);
      ctx.fillStyle='#15272c';ctx.fillRect(0,0,w,h);
-     ctx.drawImage(source,view.x,view.y,view.w*view.z,view.h*view.z);
+     g.drawTurn(ctx,source,turn,view.x,view.y,view.w*view.z,view.h*view.z);
      const pts=quad.map(at), path=()=>{pts.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();};
      ctx.beginPath();ctx.rect(0,0,w,h);path();ctx.fillStyle='#0e1f27aa';ctx.fill('evenodd');
      ctx.beginPath();path();ctx.lineWidth=2;ctx.strokeStyle='#ffde5a';ctx.stroke();
@@ -66,9 +77,10 @@ const ReceiptCropEditor=(()=>{
    }
    function close(){
      clearPointers();source=initial=quad=view=onApply=null;active=activeEdge=-1;
-     panel.hidden=true;$('parkingScanMain').hidden=false;
-     $('parkingScanDialog').setAttribute('aria-labelledby','parkingScanTitle');
-     if(invoker?.isConnected)invoker.focus();
+     panel.hidden=true;main.hidden=false;
+     dialog.setAttribute('aria-labelledby',mainTitle);
+     dialog.scrollTop=previousScroll;
+     if(invoker?.isConnected)invoker.focus({preventScroll:true});
      invoker=null;
    }
    function position(e){const b=canvas.getBoundingClientRect();return {x:e.clientX-b.left,y:e.clientY-b.top};}
@@ -120,22 +132,36 @@ const ReceiptCropEditor=(()=>{
        quad=g.moveCorner(quad,i,g.toSource(view,{x:p.x+delta[0]*unit,y:p.y+delta[1]*unit}));schedule();
      };
    });
+   function rotate(delta){
+     if(!canTurn||!view)return;
+     clearPointers();active=activeEdge=-1;
+     quad=g.turnQuad(quad,delta);turn=g.quarterTurns(turn+delta);
+     $('cropTurnStatus').textContent='回転 '+(turn*90)+'°';
+     focusBox();schedule();
+   }
+   $('cropTurnLeft').onclick=()=>rotate(-1);
+   $('cropTurnRight').onclick=()=>rotate(1);
    $('cropMinus').onclick=()=>changeZoom(1/1.3);$('cropPlus').onclick=()=>changeZoom(1.3);
    $('cropFit').onclick=()=>{view=base();schedule();};
-   $('cropReset').onclick=()=>{quad=initial;focusBox();schedule();};
+   $('cropReset').onclick=()=>{quad=g.turnQuad(initial,turn);focusBox();schedule();};
    $('cropCancel').onclick=close;
-   $('cropApply').onclick=()=>{if(onApply){onApply(quad);close();}};
+   $('cropApply').onclick=()=>{if(onApply){onApply(g.turnQuad(quad,-turn),turn);close();}};
    new ResizeObserver(resize).observe(canvas);
    return {
     open(options){
       ({source,initial,quad,invoker,onApply}=options);view=null;active=activeEdge=-1;
+      canTurn=!!options.allowRotation;turn=canTurn?g.quarterTurns(options.turn||0):0;
+      quad=g.turnQuad(quad,turn);
+      $('cropTurnTools').hidden=!canTurn;
+      $('cropTurnStatus').textContent='回転 '+(turn*90)+'°';
       $('cropTitle').textContent=options.label+'の切り取り範囲';
-      $('parkingScanMain').hidden=true;panel.hidden=false;
-      $('parkingScanDialog').setAttribute('aria-labelledby','cropTitle');
-      $('parkingScanDialog').scrollTop=0;resize();$('cropTitle').focus({preventScroll:true});
+      previousScroll=dialog.scrollTop;
+      main.hidden=true;panel.hidden=false;
+      dialog.setAttribute('aria-labelledby',prefix+'cropTitle');
+      dialog.scrollTop=0;resize();$('cropTitle').focus({preventScroll:true});
     },
-    cancel:close,isOpen:()=>!panel.hidden
+    cancel:()=>{if(!panel.hidden)close();},isOpen:()=>!panel.hidden
    };
  }
- return {setup};
+ return {setup,clonePanel};
 })();

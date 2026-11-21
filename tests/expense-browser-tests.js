@@ -46,7 +46,7 @@ async function runExpenseTests() {
         document.getElementById('mapExpenseDate').value = '2026-10-08';
         MapExpenseForm.updateSummary();
         assert(document.getElementById('mapExpSummary').textContent.includes('180 km'), 'マップ集計に実際の計算済み距離を表示');
-        MapExpenseForm.reflectToExpense();
+        await MapExpenseForm.reflectToExpense();
         assert(output.dataset.tab === 'expense', 'マップから反映して精算書を開く');
         fixture.customers[0].address += '変更';
         assert(RouteManager.getDistance('route_1','2026-10-08') === null, '住所変更後の古い距離を使わない');

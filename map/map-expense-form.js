@@ -57,9 +57,12 @@ const MapExpenseForm = (() => {
         return RouteManager.calcDistance(selected.routeId, selected.date);
     }
 
-    function reflectToExpense() {
+    async function reflectToExpense() {
         try {
+            const chosen = _selection(), workspace = DataStorage.getCurrentWorkspaceId();
+            await ParkingManager.settled?.();
             const selected = _selection();
+            if (workspace !== DataStorage.getCurrentWorkspaceId() || chosen.date !== selected.date || chosen.routeId !== selected.routeId) throw new Error('対象日またはルートが変わりました。確認してから再度反映してください。');
             if (!selected.date || !selected.members.length) throw new Error('利用日と訪問先のあるルートを選択してください');
             const result = RouteManager.getDistance(selected.routeId, selected.date);
             if (!result) throw new Error('先にこの日の走行距離を計算してください');

@@ -68,3 +68,89 @@ test('日程区分の変更だけでも破棄確認し、日時が空なら確�
     el('visitScheduleDay').value='2026-11-16'; el('visitScheduleTime').value='09:00';
     assert.equal(vm.runInContext('VisitPlanner.validate()',context),true);
 });
+
+test('終了日時は任意。指定するなら有効な日付・時刻が揃い、開始より後でなければならない',()=>{
+    const start='2026-12-31T20:00';
+    assert.equal(Planner.scheduleEnd(start,'',''),'');
+    assert.equal(Planner.scheduleEnd(start,'2027-01-01','08:30'),'2027-01-01T08:30');
+    assert.equal(Planner.scheduleEnd(start,'2026-12-31','20:01'),'2026-12-31T20:01');
+    assert.equal(Planner.scheduleEnd(start,'2026-12-31','20:00'),null);
+    assert.equal(Planner.scheduleEnd(start,'2026-12-30','20:00'),null);
+    assert.equal(Planner.scheduleEnd(start,'2027-01-01',''),null);
+    assert.equal(Planner.scheduleEnd(start,'2027-02-29','08:30'),null);
+    assert.equal(Planner.scheduleEnd('','2027-01-01','08:30'),null);
+});
+test('月・年をまたいでも1件の予定を各日で表示し、終了が午前0時ならその日は含めない',()=>{
+    const span={appoDate:'2026-12-31T20:00',appoEndDate:'2027-01-02T00:00'};
+    assert.equal(Planner.onDay(span,'2026-12-30'),false);
+    assert.equal(Planner.onDay(span,'2026-12-31'),true);
+    assert.equal(Planner.onDay(span,'2027-01-01'),true);
+    assert.equal(Planner.onDay(span,'2027-01-02'),false);
+    assert.equal(Planner.timeLabel(span,'2026-12-31'),'20:00〜翌日以降');
+    assert.equal(Planner.timeLabel(span,'2027-01-01'),'前日以前から〜24:00');
+    assert.equal(Planner.timeLabel({...span,appoEndDate:'2027-01-01T08:30'},'2027-01-01'),'前日以前から〜08:30');
+    assert.equal(Planner.onDay({appoDate:span.appoDate},'2027-01-01'),false);
+    assert.equal(Planner.timeLabel({appoDate:span.appoDate},'2026-12-31'),'20:00');
+    assert.equal(Planner.onDay({...span,appoEndDate:'2027-02-30T12:00'},'2027-01-01'),false);
+});
+test('Google カレンダーのテンプレートに開始・終了と日本時間を渡し、終了なしは従来どおり1時間',()=>{
+    const ctx=vm.createContext({document:{addEventListener(){}}});
+    vm.runInContext(fs.readFileSync(require.resolve('../map/ui-actions'),'utf8'),ctx);
+    const build=vm.runInContext('buildGcalUrl',ctx);
+    let params=new URL(build('架空','東京都架空区','2026-12-31T23:30','','','','2027-01-02T08:30')).searchParams;
+    assert.equal(params.get('dates'),'20261231T143000Z/20270101T233000Z');
+    assert.equal(params.get('ctz'),'Asia/Tokyo');
+    params=new URL(build('架空','東京都架空区','2026-12-31T23:30','','','')).searchParams;
+    assert.equal(params.get('dates'),'20261231T143000Z/20261231T153000Z');
+});
+
+test('編集画面で月をまたぐ終了日時を保存し、同じIDのまま両日に表示して再編集できる',()=>{
+    const nodes=new Map();
+    const el=id=>{if(!nodes.has(id))nodes.set(id,{value:'',textContent:'',innerHTML:'',focus(){}});return nodes.get(id)};
+    const visit={id:'night',company:'架空会社（泊まり）',address:'東京都架空区',status:'pending',appoDate:null};
+    const data=new Map([
+        ['mm_workspace_current','2026-11'],
+        ['mm_workspaces',JSON.stringify([{id:'2026-11',name:'11月'}])],
+        ['mm_customers_2026-11',JSON.stringify([visit])]
+    ]);
+    const context=vm.createContext({console,document:{getElementById:el,addEventListener(){}},ExpenseImport:{escapeHtml:String},
+        AppStorage:{getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,String(v)),removeItem:k=>data.delete(k)},
+        GoogleVisitCalendar:{setRange(){},snapshot:()=>({connected:false})},
+        MapCore:{getCurrentEditId:()=>visit.id,refreshAllMarkers(){}},
+        RouteManager:{updateRoutePanel(){}},confirm:()=>false
+    });
+    for(const file of ['map-data-storage','visit-planner','ui-actions']){
+        vm.runInContext(fs.readFileSync(require.resolve('../map/'+file),'utf8'),context);
+    }
+    const run=code=>vm.runInContext(code,context);
+    context.showGcalConfirm=(...args)=>{context.calendarArgs=args;};
+    el('editCompany').value=visit.company;el('editAddress').value=visit.address;
+    el('editScheduleKind').value='confirmed';
+    el('visitDateSourceWarning').hidden=true;
+    run("VisitPlanner.begin(DataStorage.findCustomer('night'))");
+    el('visitScheduleDay').value='2026-11-30'; el('visitScheduleTime').value='18:00';
+    el('visitScheduleEndDay').value='2026-12-01';
+    assert.equal(run('VisitPlanner.allowClose()'),false);
+    run('saveEdit()');
+    assert.match(el('visitEditError').textContent,/終了日と終了時刻/);
+    assert.equal(JSON.parse(data.get('mm_customers_2026-11'))[0].appoDate,null);
+    el('visitScheduleEndTime').value='09:30';
+    run('saveEdit()');
+    const saved=JSON.parse(data.get('mm_customers_2026-11'));
+    assert.equal(saved.length,1);
+    assert.equal(saved[0].id,'night');
+    assert.equal(saved[0].appoDate,'2026-11-30T18:00');
+    assert.equal(saved[0].appoEndDate,'2026-12-01T09:30');
+    assert.equal(context.calendarArgs[6],saved[0].appoEndDate);
+    assert.equal(data.has('mm_customers_2026-12'),false);
+    run("VisitPlanner.begin(DataStorage.findCustomer('night'))");
+    assert.equal(el('visitScheduleEndDetails').open,true);
+    assert.equal(el('visitScheduleEndDay').value,'2026-12-01');
+    assert.equal(el('visitScheduleEndTime').value,'09:30');
+    assert.match(el('visitAgenda').innerHTML,/18:00〜翌日以降/);
+    assert.match(el('visitCalendarDays').innerHTML,/2026-12-01、アプリ1件/);
+    el('visitScheduleEndDay').value=''; el('visitScheduleEndTime').value='';
+    run('saveEdit()');
+    assert.equal(JSON.parse(data.get('mm_customers_2026-11'))[0].appoEndDate,null);
+    assert.match(el('visitCalendarDays').innerHTML,/2026-12-01、アプリ0件/);
+});

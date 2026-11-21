@@ -76,13 +76,24 @@ const ParkingManager = (() => {
         return serial(async()=>{
             const key=records[0]?.sourcePageKey;
             if(!key||records.length>6||records.some(r=>r.sourcePageKey!==key))return -2;
-            if(items.some(r=>r.sourcePageKey===key))return 0;
+            const stored=items.filter(r=>r.sourcePageKey===key);
+            const valid=r=>typeof ParkingScan!=='undefined'&&ParkingScan.validGeometry(r);
+            if(stored.length&&stored.some(r=>!valid(r)))return stored.every(r=>!valid(r))&&records.every(r=>stored.some(old=>old.sourceHash===r.sourceHash&&old.originalImageDataUrl===r.imageDataUrl))?0:-2;
+            const first=stored[0]||records[0], modern=valid(first);
+            if(records.concat(stored).some(r=>modern
+                ? !valid(r)||r.scanLayout!==first.scanLayout||r.scanAngle!==first.scanAngle
+                : valid(r)))return -2;
             const existing=new Set(items.map(r=>r.originalImageDataUrl||r.imageDataUrl).filter(Boolean));
+            const batch=[];
             for(const r of records){
-                if(!r.imageDataUrl||existing.has(r.imageDataUrl))return -2;
+                const same=stored.find(old=>old.sourceHash===r.sourceHash);
+                if(same){if((same.originalImageDataUrl||same.imageDataUrl)!==r.imageDataUrl)return -2;continue;}
+                if(!r.imageDataUrl||existing.has(r.imageDataUrl)||batch.some(old=>old.sourceHash===r.sourceHash))return -2;
+                if(modern&&stored.concat(batch).some(old=>ReceiptCrop.overlapRatio(old.scanQuad,r.scanQuad)>.15))return -2;
                 existing.add(r.imageDataUrl);
+                batch.push({...blank(),...r});
             }
-            const batch=records.map(r=>({...blank(),...r}));
+            if(!batch.length)return 0;
             if(!await save(items.concat(batch)))return -1;
             renderParkingList();
             return batch.length;
@@ -191,6 +202,7 @@ const ParkingManager = (() => {
         if (typeof ExpenseDraftReceipts !== 'undefined') ExpenseDraftReceipts.updateHint();
         const counter = document.getElementById('parkingPdfCount');
         if (counter) counter.textContent = getSelectedItems().length + '枚をPDFに出力';
+        if (typeof ExpenseManager !== 'undefined') ExpenseManager.previewParkingReflection?.();
     }
     function getSelectedItems() {
         // 日付不明を黙って除外せず、PDFの入力チェックへ渡す。
@@ -290,7 +302,7 @@ const ParkingManager = (() => {
                 const button=event.target.closest('[data-choice]');
                 if (!button) return;
                 const choice=pickerChoices[Number(button.dataset.choice)];
-                if (await patchItem(pickerId,ParkingDocument.visitPatch(choice.customer,choice.workspaceId))) {dialog.close();renderParkingList();}
+                if (choice && await patchItem(pickerId,ParkingDocument.visitPatch(choice.customer,choice.workspaceId))) {dialog.close();renderParkingList();}
             };
         }
         dialog.querySelector('#parkingOtherDays').checked=false;
@@ -299,19 +311,17 @@ const ParkingManager = (() => {
     function renderChoices() {
         const version=++pickerVersion;
         const item=getItemById(pickerId);
-        const workspaceId=item.date?.slice(0,7) || DataStorage.getCurrentWorkspaceId();
         const includeOther=document.getElementById('parkingOtherDays').checked;
         document.getElementById('parkingVisitDate').textContent=item.date ? item.date + ' の訪問先（必要な会社だけ選択）' : '先に領収書の利用日を入力すると、その日の訪問先を表示できます。';
         try {
-            const customers=workspaceId ? DataStorage.getCustomersForWorkspace(workspaceId) : DataStorage.getCustomers();
-            pickerChoices=ParkingDocument.candidates(customers,item.date,includeOther).map(customer=>({customer,workspaceId}));
+            pickerChoices=ParkingDocument.workspaceCandidates(DataStorage,item.date,includeOther,VisitPlanner.onDay);
             paintChoices();
             if (!includeOther && pickerChoices.length && typeof ParkingMatcher !== 'undefined' && (item.ocrAddress || item.ocrStore)) rankChoices(item,version);
         } catch (error) { document.getElementById('parkingVisitChoices').textContent='訪問先を読み込めませんでした。明細への手入力もできます。'; }
     }
     function paintChoices() {
             document.getElementById('parkingVisitHint').textContent='訪問先を選ぶと、会社名・機種名・作業内容を反映します。';
-            document.getElementById('parkingVisitChoices').innerHTML=pickerChoices.map(({customer:c},i)=>'<button class="parking-visit-choice" data-choice="'+i+'"><strong>'+esc(c.company)+'</strong><span>'+esc([c.appoDate?.replace('T',' '), c.equipType,c.purpose].filter(Boolean).join(' ／ '))+'</span><small>'+esc(c.address)+'</small></button>').join('') || '<p>候補がありません。利用日や訪問予定を確認するか、この月の他の訪問先を表示してください。会社名などを直接入力することもできます。</p>';
+            document.getElementById('parkingVisitChoices').innerHTML=pickerChoices.map(({customer:c},i)=>{const end=VisitPlanner.endOf(c);return '<button class="parking-visit-choice" data-choice="'+i+'"><strong>'+esc(c.company)+'</strong><span>'+esc([c.appoDate?.replace('T',' '), end ? '〜 '+end.replace('T',' ') : '', c.equipType,c.purpose].filter(Boolean).join(' ／ '))+'</span><small>'+esc(c.address)+'</small></button>';}).join('') || '<p>候補がありません。利用日や訪問予定を確認するか、この月の他の訪問先を表示してください。会社名などを直接入力することもできます。</p>';
     }
     async function rankChoices(item,version) {
         try {

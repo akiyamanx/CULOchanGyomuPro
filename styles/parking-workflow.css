@@ -25,7 +25,7 @@
 .photo-editor-grid{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:20px;align-items:start}
 .photo-editor-controls{display:grid;gap:14px}
 .photo-editor-controls input[type=range]{padding:0;accent-color:#1765aa}
-#receiptEditCanvas{width:100%;height:auto;touch-action:none;display:block;background:#e9eef4}
+#receiptEditCanvas{width:100%;height:auto;display:block;background:#e9eef4}
 #receiptResultImage{max-width:100%;max-height:65vh;display:block;margin:12px auto;object-fit:contain}
 #receiptEditStatus{color:#734908}
 #parkingPdfPages{display:grid;gap:20px;background:#e8edf2;padding:12px}
@@ -47,13 +47,25 @@
 #parkingScanCards label{display:block;overflow-wrap:anywhere}
 #parkingScanSource canvas,#parkingScanCards canvas{display:block;width:auto;max-width:100%;height:auto;max-height:280px;margin:6px auto}
 #parkingScanMain .scan-footer{bottom:0;position:sticky;padding:8px 0;background:white;z-index:1}
+#parkingScanMain .scan-footer .parking-actions{margin:0}
+.scan-feedback{margin:0 0 6px;padding:7px 10px;border-radius:8px;font-size:14px;font-weight:700}
+.scan-feedback:empty{display:none}
+.scan-feedback[data-state=success]{background:#e8f6ee;color:#175b33}
+.scan-feedback[data-state=pending]{background:#edf5ff;color:#164a75}
+.scan-feedback[data-state=error]{background:#fff2e7;color:#7b310b}
+#receiptCropOpen{margin-top:8px}
 #parkingScanMain .btn{margin-block:2px}
-#cropEditor{max-width:650px;margin:auto}
-#cropSurface{display:block;width:100%;height:clamp(240px,53dvh,630px);margin:8px auto;border-radius:10px;touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab}
-#cropSurface:active{cursor:grabbing}
+:is(#cropEditor,#photo-cropEditor){max-width:650px;margin:auto}
+:is(#cropSurface,#photo-cropSurface){display:block;width:100%;height:clamp(240px,53dvh,630px);margin:8px auto;border-radius:10px;touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab}
+:is(#cropSurface,#photo-cropSurface):active{cursor:grabbing}
 .crop-tools,.crop-confirm{margin:8px 0}
 .crop-tools .btn{padding-inline:10px}
-#cropEditor .crop-tools .btn,#cropEditor .crop-confirm .btn{width:auto;flex:0 1 auto}
-#cropEditor .crop-confirm .btn-primary{flex:1 1 auto}
-#cropZoomStatus{min-width:3.5ch;text-align:center;font-variant-numeric:tabular-nums}
-#cropCornerKeys,#parkingScanSample{margin-top:6px}
+:is(#cropEditor,#photo-cropEditor) .crop-tools .btn,:is(#cropEditor,#photo-cropEditor) .crop-confirm .btn{width:auto;flex:0 1 auto}
+:is(#cropEditor,#photo-cropEditor) .crop-confirm .btn-primary{flex:1 1 auto}
+:is(#cropZoomStatus,#photo-cropZoomStatus){min-width:3.5ch;text-align:center;font-variant-numeric:tabular-nums}
+:is(#cropCornerKeys,#photo-cropCornerKeys),#parkingScanSample{margin-top:6px}
+
+.crop-turn-tools[hidden]{display:none}
+.crop-turn-tools{gap:6px;margin:6px 0}
+.crop-turn-tools .btn{flex:1 1 auto;width:auto;padding-inline:8px}
+.crop-turn-tools [role=status]{font-size:13px;font-variant-numeric:tabular-nums}

@@ -283,3 +283,20 @@ test('差出人一覧(gmailSenders)は設定の同期で届く。APIキーは乗
     assert.equal(B.store.get('culo_mail_gmail_senders'), '甲野,乙川');
     assert.equal(JSON.stringify([...drive.files.values()]).includes('KEY-架空'), false);
 });
+
+test('月をまたぐ訪問の終了日時を同期し、明示的な終了日時の解除も同期する', async () => {
+    const drive = makeDrive();
+    const start = '2026-10-31T18:00', end = '2026-11-01T09:30';
+    const A = device(ID_A, drive, seedOf({ '2026-10': [cust('night', { appoDate:start, appoEndDate:end })] }));
+    const B = device(ID_B, drive, seedOf({}));
+    await settle(A, B);
+    assert.equal(B.find('night').appoEndDate,end);
+    assert.equal(B.find('night')._ws,'2026-10');
+    assert.equal(B.all().filter(c => c.id==='night').length,1);
+    B.tick(2); B.edit('2026-10','night',{appoEndDate:null});
+    await settle(A, B);
+    for(const d of [A,B]){
+        assert.equal(d.find('night').appoDate,start);
+        assert.equal(d.find('night').appoEndDate,null);
+    }
+});

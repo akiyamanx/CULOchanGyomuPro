@@ -5,12 +5,38 @@ const VisitPlanner = (() => {
     const esc = value => ExpenseImport.escapeHtml(String(value ?? ''));
     const byId = id => document.getElementById(id);
     let month = '', selectedDay = '', appointments = [], readFailed = false, baseline = '';
-    const fields = ['editCompany','editAddress','editPhone','editContact','editRoute','editStatus','editScheduleKind','editPurpose','editNote','visitScheduleDay','visitScheduleTime'];
+    const fields = ['editCompany','editAddress','editPhone','editContact','editRoute','editStatus','editScheduleKind','editPurpose','editNote','visitScheduleDay','visitScheduleTime','visitScheduleEndDay','visitScheduleEndTime'];
     function combine(day,time) {
         if (!day && !time) return '';
         if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return null;
         const date = new Date(`${day}T12:00:00`);
         return !isNaN(date.getTime()) && dayKey(date) === day ? `${day}T${time}` : null;
+    }
+    function scheduleEnd(start,day,time) {
+        const end=combine(day,time);
+        return end === '' ? '' : start && end && end > start ? end : null;
+    }
+    function endOf(customer) {
+        const raw=customer.appoEndDate;
+        if(typeof raw!=='string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(raw))return '';
+        return scheduleEnd(customer.appoDate,raw.slice(0,10),raw.slice(11,16)) || '';
+    }
+    function onDay(customer,day) {
+        const startDay=(customer.appoDate||'').slice(0,10), end=endOf(customer);
+        return end ? startDay <= day && end > day+'T00:00' : startDay===day;
+    }
+    function timeLabel(customer,day) {
+        const start=customer.appoDate, end=endOf(customer);
+        if(!end)return start.slice(11,16);
+        const startTime=start.startsWith(day)?start.slice(11,16):'前日以前から';
+        const endTime=end.startsWith(day)?end.slice(11,16):'翌日以降';
+        const midnightNext=new Date(day+'T00:00Z');
+        midnightNext.setUTCDate(midnightNext.getUTCDate()+1);
+        return startTime+'〜'+(end===midnightNext.toISOString().slice(0,16)?'24:00':endTime);
+    }
+    const endInput = () => [byId('visitScheduleEndDay')?.value || '',byId('visitScheduleEndTime')?.value || ''];
+    function endDate() {
+        return scheduleEnd(combine(byId('visitScheduleDay').value,byId('visitScheduleTime').value),...endInput()) || '';
     }
     function phoneNumbers(value) {
         return [...new Set(String(value||'').normalize('NFKC').split(/[\/／,，;\n]+/).map(part=>{
@@ -41,7 +67,7 @@ const VisitPlanner = (() => {
         const google=typeof GoogleVisitCalendar==='undefined'?null:GoogleVisitCalendar.snapshot();
         const googleEvents=google?.status==='ready'?google.events:[];
         const focusedDay=document.activeElement?.dataset?.visitDay;
-        appointments.forEach(c=>{const key=c.appoDate.slice(0,10);counts[key]=(counts[key]||0)+1;});
+        for(const day of days)counts[day]=appointments.filter(c=>onDay(c,day)).length;
         byId('visitCalendarMonth').textContent=month.replace('-','年')+'月';
         byId('visitCalendarDays').innerHTML=days.map(day=>{
             const gcount=googleEvents.filter(event=>GoogleCalendarData.onDay(event,day)).length;
@@ -54,12 +80,18 @@ const VisitPlanner = (() => {
         byId('googleVisitAgenda').innerHTML=!checked ? '<p class="visit-unconfirmed">'+esc(google?.status==='loading'?'Googleの予定を読み込み中です…':google?.status==='ready'?'表示中の月カレンダーから日付を選んでください。':'Googleの予定はまだ確認できていません。上の接続状態を確認してください。')+'</p>' :
             googleRows.length?'<ul>'+googleRows.map(event=>`<li><strong class="visit-event-time">${esc(GoogleCalendarData.timeLabel(event,selectedDay))}</strong><span class="visit-event-source">Google · ${esc(event.calendarName)}</span><b>${esc(event.title)}</b>${event.location?`<small>場所：${esc(event.location)}</small>`:''}${!event.busy?`<small>${event.declined?'不参加':'予定あり・時間は空きとして登録'}</small>`:event.tentative?'<small>仮の予定</small>':''}</li>`).join('')+'</ul>':'<p>選択中のGoogleカレンダーに、この日の予定はありません。</p>';
         byId('visitAgendaTitle').textContent='このアプリに保存した訪問予定';
-        const rows=appointments.filter(c=>c.appoDate.startsWith(selectedDay));
-        byId('visitAgenda').innerHTML=readFailed ? '<p role="alert">保存済み予定を読み込めません。空き時間とは判断せず、元のデータを確認してください。</p>' : rows.length ? '<ul>'+rows.map(c=>`<li><strong>${esc(c.appoDate.slice(11,16))}</strong><span>${esc(c.company)}<small>${esc(c.purpose||'作業内容未設定')} · ${c.status==='appointed'?'アポ済み':c.status==='completed'?'完了':'未アポ'}</small><small>${esc(c.address||'')}</small></span></li>`).join('')+'</ul>' : '<p>この日に保存された訪問予定はありません。</p>';
+        const rows=appointments.filter(c=>onDay(c,selectedDay));
+        byId('visitAgenda').innerHTML=readFailed ? '<p role="alert">保存済み予定を読み込めません。空き時間とは判断せず、元のデータを確認してください。</p>' : rows.length ? '<ul>'+rows.map(c=>`<li><strong>${esc(timeLabel(c,selectedDay))}</strong><span>${esc(c.company)}<small>${esc(c.purpose||'作業内容未設定')} · ${c.status==='appointed'?'アポ済み':c.status==='completed'?'完了':'未アポ'}</small><small>${esc(c.address||'')}</small></span></li>`).join('')+'</ul>' : '<p>この日に保存された訪問予定はありません。</p>';
         const proposed=combine(byId('visitScheduleDay').value,byId('visitScheduleTime').value);
-        const duplicate=proposed && appointments.some(c=>c.appoDate===proposed && !(c.id===MapCore.getCurrentEditId() && c.workspace===DataStorage.getCurrentWorkspaceId()));
+        const proposedEnd=scheduleEnd(proposed,...endInput());
+        const duplicate=proposed && appointments.some(c=>{
+            if(c.id===MapCore.getCurrentEditId() && c.workspace===DataStorage.getCurrentWorkspaceId())return false;
+            const end=endOf(c);
+            return c.appoDate===proposed || (c.appoDate<=proposed && end>proposed)
+                || (proposedEnd && proposed<c.appoDate && c.appoDate<proposedEnd);
+        });
         const googleConflict=proposed&&checked&&googleRows.some(event=>GoogleCalendarData.atStart(event,proposed));
-        byId('visitScheduleHint').textContent=googleConflict?'訪問開始時刻がGoogleの予定と重なっています。予定の時間・移動時間を確認してください。':duplicate ? '同じ時刻の訪問予定があります。移動時間も含めて確認してください。' : '日付と時刻を入力して保存。作業時間と移動時間も考えて予定を組んでください。';
+        byId('visitScheduleHint').textContent=googleConflict?'訪問開始時刻がGoogleの予定と重なっています。予定の時間・移動時間を確認してください。':duplicate ? '時間が重なる訪問予定があります。移動時間も含めて確認してください。' : '日付と時刻を入力して保存。作業時間と移動時間も考えて予定を組んでください。';
     }
     function loadGoogleMonth() {
         const days=monthDays(month);GoogleVisitCalendar.setRange(days[0],days[41]);
@@ -76,6 +108,10 @@ const VisitPlanner = (() => {
         { const info=byId('visitCallInfo'); if(info){ const rows=[]; if(customer.contact)rows.push(`<p>👤 ${esc(customer.contact)}</p>`); info.innerHTML=rows.join(''); info.hidden=!rows.length; } const fi=byId('visitFilterInfo'); if(fi){ fi.textContent=customer.filter?'🔧 フィルター: '+customer.filter:''; fi.hidden=!customer.filter; } }
         byId('visitScheduleDay').value=(customer.appoDate||'').slice(0,10);
         byId('visitScheduleTime').value=(customer.appoDate||'').slice(11,16);
+        const end=endOf(customer), endDay=byId('visitScheduleEndDay'), endTime=byId('visitScheduleEndTime'), endDetails=byId('visitScheduleEndDetails');
+        if(endDay)endDay.value=end.slice(0,10);
+        if(endTime)endTime.value=end.slice(11,16);
+        if(endDetails)endDetails.open=Boolean(end);
         selectedDay=byId('visitScheduleDay').value||dayKey(new Date()); month=selectedDay.slice(0,7);
         byId('visitEditError').textContent='';
         readAppointments(); refreshPhone();loadGoogleMonth();renderCalendar();baseline=signature();
@@ -83,10 +119,14 @@ const VisitPlanner = (() => {
     }
     function validate() {
         const value=combine(byId('visitScheduleDay').value,byId('visitScheduleTime').value);
+        const [endDay,endTime]=endInput(), end=combine(endDay,endTime);
         let message='';
         if (!byId('editCompany').value.trim()||!byId('editAddress').value.trim()) message='会社名と住所を入力してください。';
         else if (value===null) message='訪問日と時刻を両方入力してください。未定に戻す場合は両方を空欄にします。';
         else if (value === '' && byId('editScheduleKind')?.value === 'confirmed') message='「確定」で保存するには訪問日と時刻が必要です。未定の場合は日程の区分を変更してください。';
+        else if (end===null) message='終了日と終了時刻を両方入力してください。終了を指定しない場合は両方を空欄にします。';
+        else if (end && !value) message='終了日時を指定するには、開始日と開始時刻が必要です。';
+        else if (end && scheduleEnd(value,endDay,endTime)===null) message='終了日時は開始日時より後にしてください。';
         byId('visitEditError').textContent=message;
         if(message){byId('visitEditError').focus();return false;}
         byId('editAppoDate').value=value;return true;
@@ -99,7 +139,12 @@ const VisitPlanner = (() => {
             if(!fields.includes(event.target.id))return;
             restoreEditButtons(); byId('visitEditError').textContent='';
             if(event.target.id==='editPhone')refreshPhone();
-            if(event.target.id.startsWith('visitSchedule'))sync();
+            if(event.target.id==='visitScheduleDay'||event.target.id==='visitScheduleTime')sync();
+            if(event.target.id==='visitScheduleEndDay'||event.target.id==='visitScheduleEndTime')renderCalendar();
+        });
+        byId('visitScheduleEndClear')?.addEventListener('click',()=>{
+            byId('visitScheduleEndDay').value='';byId('visitScheduleEndTime').value='';
+            byId('visitEditError').textContent='';restoreEditButtons();renderCalendar();
         });
         byId('visitCalendarDays').addEventListener('click',event=>{
             const button=event.target.closest('[data-visit-day]');if(!button)return;
@@ -116,6 +161,6 @@ const VisitPlanner = (() => {
             byId('visitScheduleDay').value=dayKey(date);restoreEditButtons();sync();
         }));
     }
-    return {init,begin,validate,allowClose,saved,phoneNumbers,combine,monthDays};
+    return {init,begin,validate,allowClose,saved,phoneNumbers,combine,scheduleEnd,endOf,endDate,onDay,timeLabel,monthDays};
 })();
 if(typeof module!=='undefined'&&module.exports)module.exports=VisitPlanner;

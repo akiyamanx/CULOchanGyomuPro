@@ -253,7 +253,7 @@ const MapCore = (() => {
         const rawId = customer.id;
         const phones = VisitPlanner.phoneNumbers(customer.phone);
         customer = {...customer};
-        Object.keys(customer).forEach(key=> { if(typeof customer[key]==='string' && !['appoDate','status','routeId'].includes(key))customer[key]=esc(customer[key]); });
+        Object.keys(customer).forEach(key=> { if(typeof customer[key]==='string' && !['appoDate','appoEndDate','status','routeId'].includes(key))customer[key]=esc(customer[key]); });
         if(customer.floors)customer.floors=customer.floors.map(esc);
         const routes = DataStorage.getRoutes();
         const route = routes.find(r => r.id === customer.routeId);
@@ -268,7 +268,8 @@ const MapCore = (() => {
         if (customer.appoDate) {
             const d = new Date(customer.appoDate);
             const dateStr = esc(isNaN(d.getTime()) ? customer.appoDate : d.toLocaleString('ja-JP'));
-            html += `<p>📅 ${dateStr}</p>`;
+            const end = VisitPlanner.endOf(customer);
+            html += `<p>📅 ${dateStr}${end ? ' 〜 '+esc(end.replace('T',' ')) : ''}</p>`;
         }
         if (customer.note) html += `<p style="font-size:11px;color:#64748b;white-space:pre-wrap;">📝 ${customer.note}</p>`;
         if (customer.info) html += `<p style="font-size:11px;color:#64748b;">ℹ️ ${customer.info}</p>`;
