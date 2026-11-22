@@ -52,12 +52,20 @@ const MailBoxUI = (() => {
         } catch (e) { console.error('mailbox: refresh_failed'); }
     }
     // 操作のあと、つながっていれば少し待ってから自動で同期する(★・確認済みなどをもう1台へ早く届ける)
-    let syncTimer = null, visHooked = false;
+    let syncTimer = null, visHooked = false, mailSyncSession = null;
+    const driveState = () => typeof DriveTransfer !== 'undefined' ? DriveTransfer.state() : null;
+    const mailSyncAllowed = state => state?.connected && mailSyncSession !== null && state.session === mailSyncSession;
     function scheduleSync() {
         const ss = syncStatus();
         if (!ss || !ss.connected) return;
         clearTimeout(syncTimer);
-        syncTimer = setTimeout(() => { syncTimer = null; if (syncing) { scheduleSync(); return; } syncNow(true); }, 1500);
+        const session = mailSyncSession;
+        syncTimer = setTimeout(() => {
+            syncTimer = null;
+            if (session !== mailSyncSession || !syncStatus()?.connected) return;
+            if (syncing) { scheduleSync(); return; }
+            syncNow(true);
+        }, 1500);
     }
     const afterChange = (fromSync) => { refreshChrome(); refreshApp(); render(); if (fromSync !== true) scheduleSync(); };
 
@@ -75,7 +83,7 @@ const MailBoxUI = (() => {
     }
     async function runIngest(mails) {
         let r;
-        if (syncer) r = await syncer.ingestMails(mails);   // 同期は補助。失敗しても取り込みは行われる
+        if (syncStatus()?.connected) r = await syncer.ingestMails(mails);   // 同期は補助。失敗しても取り込みは行われる
         else r = box.ingest(mails);
         const s = summarize(r);
         const sy = r.sync;
@@ -239,6 +247,8 @@ const MailBoxUI = (() => {
         } catch (e) {
             cNote = { lines: [gErrText(e && e.code)], kind: 'error' }; render(); return;
         }
+        const driveForMail = granted.drive ? driveState() : null;
+        if (driveForMail?.connected) mailSyncSession = driveForMail.session;
         const lines = [];
         let kind = 'ok';
         if (granted.gmail) {
@@ -248,7 +258,7 @@ const MailBoxUI = (() => {
             lines.push('Gmailの読み取りはまだ許可されていません。「Gmailだけもう一度許可」を押してください。');
             kind = 'warn';
         }
-        const driveOk = !!(typeof DriveTransfer !== 'undefined' && DriveTransfer.state && DriveTransfer.state().connected);
+        const driveOk = mailSyncAllowed(driveState());
         if (driveOk) lines.push('ドライブにつながりました。同期を始めます。');
         else if (granted.driveGranted && !driveOk) {
             lines.push('ドライブの許可は取れましたが、アカウントの確認に失敗しました。「ドライブだけもう一度許可」を押してください。');
@@ -262,6 +272,7 @@ const MailBoxUI = (() => {
         if (driveOk) await syncNow(true);
     }
     function disconnectGoogle() {
+        mailSyncSession = null;
         try { if (gTransport) gTransport.disconnect(); } catch (e) { /* 片方でも切る */ }
         try { if (typeof DriveTransfer !== 'undefined') DriveTransfer.disconnect(); } catch (e) { /* 片方でも切る */ }
         gAccount = '';
@@ -312,7 +323,7 @@ const MailBoxUI = (() => {
         const dPart = (typeof DriveTransfer !== 'undefined') ? (dSt.connected ? 'ドライブ: つながった' : 'ドライブ: 未接続') : null;
         const card = h('section', { class: 'mailbox-sync mailbox-google', 'aria-label': 'Googleに接続' },
             h('div', { class: 'mailbox-card-head' }, h('strong', {}, 'Googleに接続'), chip(label, kind)),
-            h('p', { class: 'mailbox-sync-msg' }, '1回の許可で、Gmailの読み取りと端末間の同期（ドライブのアプリ専用領域）の両方につながります。'),
+            h('p', { class: 'mailbox-sync-msg' }, '1回の許可で、Gmailの読み取りと端末間の同期（ドライブのアプリ専用領域）の両方につながります。同期対象はメールの台帳です。訪問先やルート等の自動同期とは別です。'),
             h('p', { class: 'mailbox-hint-s' }, 'つなぐのはアプリを開くたびに、このボタンを1回押してください（許可の情報を端末に保存しないため）。許可の画面で「このアプリは確認されていません」と出ることがあります。進み方は手順書にあります。'),
             h('p', { class: 'mailbox-hint-s' }, [parts, dPart].filter(Boolean).join(' / ')));
         const actions = [];
@@ -355,7 +366,7 @@ const MailBoxUI = (() => {
     const SYNC_LEVEL = { off: ['未接続', ''], idle: ['未同期', ''], ok: ['同期済み', 'ok'], warn: ['要確認', 'warn'], error: ['失敗', 'warn'] };
     const when = iso => { const t = Date.parse(iso); return Number.isFinite(t) ? new Date(t).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''; };
     async function syncNow(quiet) {
-        if (!syncer || syncing) return;
+        if (!syncer || syncing || !syncStatus()?.connected) return;
         syncing = true; render();
         let r; try { r = await syncer.sync(); } catch (e) { r = { ok: false, code: 'unexpected' }; }
         syncing = false;
@@ -368,7 +379,11 @@ const MailBoxUI = (() => {
     async function connectDrive() {
         if (typeof DriveTransfer === 'undefined' || syncing) return;
         syncing = true; render();
-        try { await DriveTransfer.connect(); }
+        try {
+            const state = driveState()?.connected ? driveState() : await DriveTransfer.connect();
+            if (!state?.connected || state.session !== driveState()?.session) throw new Error('接続先を確認できませんでした。');
+            mailSyncSession = state.session;
+        }
         catch (e) { syncing = false; sayAll(String((e && e.message) || '接続できませんでした。').slice(0, 120), 'warn'); render(); return; }
         syncing = false;
         await syncNow();
@@ -386,7 +401,9 @@ const MailBoxUI = (() => {
             h('div', { class: 'mailbox-actions' },
                 st.connected
                     ? h('button', { type: 'button', class: 'btn btn-secondary mailbox-btn-s', disabled: syncing, onclick: syncNow }, '今すぐ同期')
-                    : h('span', { class: 'mailbox-hint-s' }, '上の「Googleにつなぐ」で、Gmailと一緒につながります。')));
+                    : driveState()?.connected
+                        ? h('button', { type: 'button', class: 'btn btn-secondary mailbox-btn-s', disabled: syncing, onclick: connectDrive }, 'メール台帳の同期を始める')
+                        : h('span', { class: 'mailbox-hint-s' }, '上の「Googleにつなぐ」で、Gmailと一緒につながります。')));
         const conflicts = box.conflicts();
         conflicts.slice(0, 20).forEach(c => card.append(h('div', { class: 'mailbox-note mailbox-conflict', role: 'alert' },
             h('p', {}, '同じ依頼書が2台で登録された可能性があります。自動では消していません。'),
@@ -621,7 +638,7 @@ const MailBoxUI = (() => {
         syncer = null;
         try {
             const adapter = dev() && /[?&]mockSync=1(&|$)/.test(location.search) && typeof MailBoxDemo !== 'undefined' && MailBoxDemo.ledgerAdapter ? MailBoxDemo.ledgerAdapter()
-                : (typeof DriveLedgerAdapter !== 'undefined' && typeof DriveTransfer !== 'undefined' && typeof BackupStore !== 'undefined' ? DriveLedgerAdapter.create({ transport: DriveTransfer, channel: BackupStore.channel }) : null);
+                : (typeof DriveLedgerAdapter !== 'undefined' && typeof DriveTransfer !== 'undefined' && typeof BackupStore !== 'undefined' ? DriveLedgerAdapter.create({ transport: DriveTransfer, channel: BackupStore.channel, isAllowed: mailSyncAllowed }) : null);
             if (adapter && typeof MailLedgerSync !== 'undefined') syncer = MailLedgerSync.create({ mailBox: box, adapter });
         } catch (e) { syncer = null; console.error('mailbox: sync_init_failed'); }
         gTransport = null; gImport = null;

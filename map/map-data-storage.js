@@ -469,7 +469,11 @@ const DataStorage = (() => {
         { id: 'route_7', name: 'ルート7', color: '#00796b', order: [] },
         { id: 'route_8', name: 'ルート8', color: '#795548', order: [] },
         { id: 'route_9', name: 'ルート9', color: '#607d8b', order: [] },
-        { id: 'route_10', name: 'ルート10', color: '#8a9400', order: [] }
+        { id: 'route_10', name: 'ルート10', color: '#8a9400', order: [] },
+        ...['#a02e75','#59651a','#614724','#3942a0','#a84158','#176b55','#89551c',
+            '#0f6581','#85389e','#527522','#953d38','#246799','#71504b','#994678',
+            '#146138','#9f510f','#31508a','#7b3270','#126c72','#994239','#4c5795']
+            .map((color,i)=>({id:'route_'+(i+11),name:'ルート'+(i+11),color,order:[]}))
     ];
 
     // 赤系の旧初期色だけ置換する。月別データやバックアップにも読込時に適用し、
@@ -481,7 +485,10 @@ const DataStorage = (() => {
     function getRoutes(workspaceId) {
         try {
             const data = AppStorage.getItem(workspaceId ? 'mm_routes_' + workspaceId : getKeys().routes);
-            const routes = data ? JSON.parse(data) : DEFAULT_ROUTES;
+            const saved = data ? JSON.parse(data) : [];
+            const ids = new Set(saved.map(route=>route.id));
+            // 既存ルートは上書きせず、月を開いたときだけ不足している選択肢を補う。
+            const routes = [...saved, ...DEFAULT_ROUTES.filter(route=>!ids.has(route.id)).map(route=>({...route,order:[]}))];
             return routes.map(route => {
                 const oldColor = LEGACY_ROUTE_COLORS[route.id];
                 return oldColor && String(route.color).toLowerCase() === oldColor
@@ -489,7 +496,7 @@ const DataStorage = (() => {
                     : route;
             });
         } catch (e) {
-            return [...DEFAULT_ROUTES];
+            return DEFAULT_ROUTES.map(route=>({...route,order:[]}));
         }
     }
 

@@ -13,7 +13,7 @@ test('scanner records preserve stable original slot and exclude original file na
 function setup(){
  let saved=[],writes=0,fail=false,reports=0;
  const ctx=vm.createContext({
-   console,clearTimeout,ParkingScan:Scan,ReceiptCrop,alert:()=>reports++,document:{getElementById:()=>null},
+   console,clearTimeout,ParkingScan:Scan,ReceiptCrop,ParkingDocument:require('../expense/parking-document.js'),alert:()=>reports++,document:{getElementById:()=>null},
    ParkingIDB:{migrateFromLocalStorage:async()=>({}),getAll:async()=>saved,putAll:async rows=>{writes++;if(fail)return false;saved=structuredClone(rows);return true;}},
    ReceiptScanner:{readParkingImage(){throw Error('Gemini must not be called automatically');}}
  });

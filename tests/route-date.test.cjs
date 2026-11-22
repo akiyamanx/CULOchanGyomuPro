@@ -8,7 +8,7 @@ function load(customers) {
     const el = id => els[id] || (els[id] = { innerHTML: '', textContent: '', style: {}, classList: { add() {}, remove() {}, toggle() {} }, querySelectorAll: () => [] });
     const ctx = vm.createContext({ console, document: { getElementById: el, querySelectorAll: () => [], querySelector: () => null }, window: {},
         DataStorage: { getRoutes: () => [{ id: 'r1', name: 'ルート1', color: '#f00' }], getCustomers: () => customers } });
-    for (const f of ['expense/expense-import.js', 'map/route-manager.js']) vm.runInContext(fs.readFileSync(require.resolve('../' + f), 'utf8'), ctx);
+    for (const f of ['expense/expense-import.js', 'map/route-pin-style.js', 'map/route-manager.js']) vm.runInContext(fs.readFileSync(require.resolve('../' + f), 'utf8'), ctx);
     return { ctx, el, info: m => JSON.parse(JSON.stringify(vm.runInContext('RouteManager.routeDateInfo(' + JSON.stringify(m) + ')', ctx))) };
 }
 const { info } = load([]);
@@ -36,4 +36,11 @@ test('ルートカードの見出しに出る・日付を変えると表示も�
     cs[0].appoDate = '2026-11-09T10:00';
     vm.runInContext('RouteManager.updateRoutePanel()', ctx);
     assert.match(el('routeManager').innerHTML, /11\/9\(月\)/);
+});
+
+test('ルート未割当だけでも凡例に黒い旗が出る',()=>{
+    const {ctx,el}=load([{id:'a',status:'pending'}]);
+    vm.runInContext('RouteManager.updateRoutePanel()',ctx);
+    assert.match(el('legendItems').innerHTML,/#171a22/);
+    assert.match(el('legendItems').innerHTML,/未アポ/);
 });

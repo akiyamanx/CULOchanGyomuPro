@@ -25,7 +25,7 @@ test('取り込み: 日程未定にある機械に作業日つきの依頼が来
 });
 test('掃除: 同じ月の完全な重複は、入力の多い方を残し、もう一方の空欄・メモを足してから消す', () => {
     const lists = [{ ws: '2026-10', customers: [
-        c({ id: 'a', managementNo: 'MF300001', phone: '', note: '取り込みメモ' }),
+        c({ id: 'a', managementNo: 'MF300001', phone: '', note: '取り込みメモ\n別メモ' }),
         c({ id: 'b', managementNo: 'MF300001', phone: '03-0000-0000', note: '取り込みメモ\n別メモ', routeId: 'route_1', status: 'appointed', appoDate: '2026-10-10T09:00' }),
         c({ id: 'n1', managementNo: '' }), c({ id: 'n2', managementNo: '' })
     ] }];
@@ -58,4 +58,12 @@ test('掃除の実行は一度だけ。消した分は控えに残る', () => {
     assert.equal(JSON.parse(store.get(D.BACKUP)).removed[0].c.id, 'b');
     lists['2026-10'].push(c({ id: 'z', managementNo: 'MF600001' }));
     assert.equal(D.runOnce(data, storage).ran, false);
+});
+
+test('初回掃除: 同じ開始でも終了時刻やメモが違う別の記録は残す',()=>{
+    for(const conflict of [{appoEndDate:'2026-11-24T11:00'},{note:'裏口から入る'},{appoDate:'2026-11-24T14:00'}]) {
+        const visit={managementNo:'MF900004',appoDate:'2026-11-24T09:00',appoEndDate:'2026-11-24T10:00',note:'正面から入る'};
+        const p=D.plan([{ws:'2026-11',customers:[c({id:'a',...visit}),c({id:'b',...visit,...conflict})]}]);
+        assert.deepEqual(p.remove,[]);assert.deepEqual(p.patch,[]);
+    }
 });

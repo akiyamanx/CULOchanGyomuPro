@@ -76,10 +76,11 @@ const TransferUI = (() => {
             await BackupFormat.verify(bundle);download(bundle,'CULOchan-before-restore.json');message('直前の取り込み前の記録を保存しました。戻す場合は「ファイルから取り込む」で選んでください。');
         });
         $('driveConnect').onclick=()=>run('Googleの接続画面で許可してください…',async()=>{
-            await DriveTransfer.connect();remote=await DriveTransfer.list();message('共有先を確認しました。接続だけでは記録は送信しません。');
+            if (!DriveTransfer.state().connected) await DriveTransfer.connect();
+            remote=await DriveTransfer.list();message('バックアップの保存版を確認しました。この操作で送信や自動同期の開始は行いません。');
         },false);
         $('driveDisconnect').onclick=()=>{
-            if(busy || !confirm('この画面の共有接続を終了しますか？共有先の記録は残ります。'))return;
+            if(busy || !confirm('Google Driveとの接続を終了しますか？この接続の自動同期も止まります。共有先の記録は残ります。'))return;
             DriveTransfer.disconnect();remote={heads:[]};render();message('この画面の共有接続を終了しました。');
         };
         $('driveRefresh').onclick=()=>run('共有先を確認しています…',async()=>{remote=await DriveTransfer.list();message('共有先を確認しました。');},false);

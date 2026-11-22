@@ -26,19 +26,30 @@ const DriveLedgerAdapter = (() => {
         if (!/^CULOchan\w{1,40}$/.test(app) || !/^CULOchan-[\w-]{1,40}$/.test(prefix)) throw new Error('app invalid');
         if (!transport || typeof transport.appdataRequest !== 'function' || typeof transport.state !== 'function') throw new Error('transport required');
         if (!CHANNEL_RE.test(channel)) throw new Error('channel invalid');
-        const call = async (url, options, consume) => {
+        function state() {
+            try {
+                const st = transport.state();
+                return st?.connected && (!opts.isAllowed || opts.isAllowed(st)) ? st : null;
+            } catch (e) { return null; }
+        }
+        const call = async (url, options, consume, expected) => {
+            const st = state();
+            if (!st || (expected && st.session !== expected.session)) throw err('not_connected');
             try { return await transport.appdataRequest(url, options || {}, consume); } catch (e) { throw mapErr(e); }
         };
         function available() {
-            try { return { connected: !!(transport.state() || {}).connected }; } catch (e) { return { connected: false }; }
+            const st = state();
+            return st?.session == null ? { connected: !!st } : { connected: true, session: st.session };
         }
         async function list() {
+            const expected = state();
+            if (!expected) throw err('not_connected');
             const q = "appProperties has { key='app' and value='" + app + "' } and appProperties has { key='channel' and value='" + channel + "' } and trashed = false";
             const out = []; let token = '';
             for (let page = 0; page < MAX_PAGES; page++) {
                 const params = new URLSearchParams({ spaces: 'appDataFolder', q, pageSize: '100', fields: 'nextPageToken,files(id,size,modifiedTime,appProperties)' });
                 if (token) params.set('pageToken', token);
-                const data = await call(API + 'files?' + params.toString(), {}, r => r.json());
+                const data = await call(API + 'files?' + params.toString(), {}, r => r.json(), expected);
                 if (!data || !Array.isArray(data.files)) throw err('bad_response');
                 for (const f of data.files) {
                     const p = f && f.appProperties;

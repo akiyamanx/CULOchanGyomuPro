@@ -1,5 +1,5 @@
 const EtcWorkflow = (() => {
-    let state={records:[],days:{},selectedDate:''},draftMode=false,ready=false,busy=false,queue=Promise.resolve(),saveError=null,saveTimer;
+    let state={records:[],days:{},selectedDate:''},liveBeforeDraft=null,savedDraftEtc=null,draftMode=false,ready=false,busy=false,queue=Promise.resolve(),saveError=null,saveTimer;
     const el=id=>document.getElementById(id),day=()=>state.days[state.selectedDate];
     const message=text=>{el('etcSaveStatus').textContent=text;};
     function plans(date=state.selectedDate) {
@@ -24,7 +24,7 @@ const EtcWorkflow = (() => {
         return changed;
     }
     function persist() {
-        if(draftMode){message('下書きを編集中です。変更を残すには「下書きを保存」を押してください。');return Promise.resolve();}
+        if(draftMode){message('下書きを編集中です。変更を残すには「この下書きを更新」か「別の下書きとして保存」を押してください。');return Promise.resolve();}
         const value=EtcJourney.clone(state);message('ETCの確認内容を保存中…');
         queue=queue.catch(()=>{}).then(()=>EtcStore.save(value)).then(()=>{saveError=null;message('ETCの確認内容を保存しました。精算書の金額は「反映」で更新します。');},error=>{saveError=error;message('保存できませんでした。画面を閉じず、下書き保存を試してください。'+error.message);});
         return queue;
@@ -47,8 +47,12 @@ const EtcWorkflow = (() => {
         el('etcDates').innerHTML=EtcView.options(dates.map(d=>[d,d]),state.selectedDate);
         el('etcDateList').innerHTML=EtcView.options([['','日付を選ぶ'],...dates.map(d=>[d,d+'（'+state.records.filter(r=>r.date===d).length+'件）'])],state.selectedDate);
         el('etcInventory').textContent='保管中：'+state.records.length+'件 ／ '+dates.length+'日分';
-        el('etcMode').textContent=draftMode?'下書きのETCを編集中（通常の保管明細とは別です）':'';
-        el('etcRestoreLive').hidden=!draftMode;
+        el('etcMode').textContent=draftMode?'下書きのETCを編集中（通常の保管明細とは別です）'
+            :savedDraftEtc?'通常の保管明細を表示中。精算書の下書きには、その下書きのETCを保存します。':'';
+        const switchButton=el('etcRestoreLive');
+        switchButton.hidden=!savedDraftEtc;
+        switchButton.textContent=draftMode?'保存済みのETCに戻る':'この下書きのETCに戻る';
+        el('etcReflect').disabled=Boolean(savedDraftEtc&&!draftMode);
         EtcView.trip(day(),plans());EtcView.records(state,day());EtcView.totals(state,day());
         if(day()?.planChanged)message('元の訪問予定が変更されています。「予定から読み込む」で更新して、寄り道と明細を確認し直してください。');
     }
@@ -64,7 +68,27 @@ const EtcWorkflow = (() => {
         el('etcWorkflow').addEventListener('click',event=>{const button=event.target.closest('[data-etc-action]');if(button)act(button.dataset.etcAction,Number(button.dataset.index)).catch(e=>alert(e.message));});
         el('etcReflect').onclick=()=>reflect().catch(e=>alert(e.message));
         el('etcPreview').onclick=()=>preview().catch(e=>alert(e.message));
-        el('etcRestoreLive').onclick=async()=>{if(confirm('編集中の下書きETCを閉じて、通常の保管明細に戻りますか？未保存の編集は戻りません。')){try{state=await EtcStore.read();draftMode=false;render();}catch(e){alert(e.message);}}};
+        el('etcRestoreLive').onclick=switchDraftView;
+    }
+    async function switchDraftView() {
+        if(!ready||busy||!savedDraftEtc||ExpenseManager.isBusy())return;
+        if(draftMode&&!confirm('通常の保管明細に戻りますか？下書きのETCは最後に保存した内容を保持し、未保存のETC編集だけを破棄します。'))return;
+        const linked=savedDraftEtc;
+        lock(true);
+        try {
+            clearTimeout(saveTimer); saveTimer=null;
+            if(draftMode) {
+                const live=await EtcStore.read();
+                if(linked!==savedDraftEtc)return;
+                state=live; liveBeforeDraft=null; draftMode=false;
+            } else {
+                await persist();
+                if(linked!==savedDraftEtc)return;
+                if(saveError)throw new Error('通常のETC編集を保存できません。もう一度お試しください。');
+                liveBeforeDraft=state; state=EtcJourney.clone(savedDraftEtc); draftMode=true;
+            }
+            render();
+        } catch(e){alert(e.message);} finally{lock(false);}
     }
     async function importPdf(event) {
         const file=event.target.files[0];event.target.value='';if(!file||busy)return;
@@ -156,6 +180,16 @@ const EtcWorkflow = (() => {
         // 下書きは独立した保存先なので通常の保存失敗時にも退避できる。
         return EtcJourney.clone(state);
     }
+    // 表示を通常の保管明細に切り替えても、精算書の保存元は変えない。
+    const statementState = () => !draftMode && savedDraftEtc ? savedDraftEtc : state;
+    async function captureForDraft() {
+        if(!ready||busy)throw new Error('ETCの読み込み・処理が終わってから保存してください。');
+        return !draftMode&&savedDraftEtc ? EtcJourney.clone(savedDraftEtc) : capture();
+    }
+    function markDraftSaved(value) {
+        if(!savedDraftEtc) load(value);
+        else savedDraftEtc=EtcJourney.clone(value);
+    }
     async function beforeLoad() {
         if(!ready||busy)throw new Error('ETCの読み込み・処理が終わってから下書きを開いてください。');
         clearTimeout(saveTimer);saveTimer=null;await persist();await queue;
@@ -167,20 +201,37 @@ const EtcWorkflow = (() => {
         await queue;
         if(saveError&&!draftMode)throw new Error('現在のETC編集を保存できません。保存状態を確認してください。');
     }
-    function load(value) {if(value){state=EtcJourney.clone(value);draftMode=true;render();}else if(draftMode){state={records:[],days:{},selectedDate:new Date().toLocaleDateString('sv-SE')};render();} }
-    function isManaged(date) {return Boolean(ready&&state.days[date]);}
+    function load(value) {
+        if (!draftMode) liveBeforeDraft = state;
+        savedDraftEtc = value ? EtcJourney.clone(value) : {records:[],days:{},selectedDate:new Date().toLocaleDateString('sv-SE')};
+        state = EtcJourney.clone(savedDraftEtc);
+        draftMode = true;
+        render();
+    }
+    function leaveDraft() {
+        if (!savedDraftEtc) return;
+        savedDraftEtc=null;
+        if (draftMode) {
+            clearTimeout(saveTimer); saveTimer=null;
+            state=liveBeforeDraft; liveBeforeDraft=null; draftMode=false;
+        }
+        render();
+    }
+    function isManaged(date) {return Boolean(ready&&statementState().days[date]);}
     function assertSynced() {
         if(!ready)throw new Error('ETCの保存データを確認中です。');
-        if(changedPlans()){render();persist();}
+        const evidence=statementState();
+        if(evidence===state&&changedPlans()){render();persist();}
         for(const row of ExpenseManager.getRowsData()) {
             if(!row.etcPdfFingerprint)continue;
-            const d=state.days[row.date];
-            if(!d||d.planChanged||row.etcPdfFingerprint!==EtcJourney.fingerprint(state.records,d))throw new Error(row.date+' のETC・訪問順が変更されています。明細を確認して精算書へ反映し直してください。');
-            const total=EtcJourney.totals(state.records,d);
+            const d=evidence.days[row.date];
+            if(!d||d.planChanged||row.etcPdfFingerprint!==EtcJourney.fingerprint(evidence.records,d))throw new Error(row.date+' のETC・訪問順が変更されています。明細を確認して精算書へ反映し直してください。');
+            const total=EtcJourney.totals(evidence.records,d);
             if(ExpenseManager.parseHighway(row.highway)!==total.amount||Number(row.highwayCount)!==total.accepted.length||Number(row.distance)!==EtcJourney.distance(d))throw new Error(row.date+' の金額・距離がETC確認内容と違います。反映し直してください。');
         }
     }
     async function reflect() {
+        if(savedDraftEtc&&!draftMode)throw new Error('精算書を変更するには「この下書きのETCに戻る」を選んでください。');
         await capture();const d=day();if(!d)throw new Error('この日の訪問順を先に登録してください。');
         if(d.planChanged)throw new Error('変更された予定を読み直して確認してください。');
         const totals=EtcJourney.totals(state.records,d),km=EtcJourney.distance(d);
@@ -194,5 +245,5 @@ const EtcWorkflow = (() => {
         const items=total.accepted.map(r=>({...r,captionLines:['日付：'+r.date+' '+r.time,'区間：'+(r.legId==='shared'?'共通区間':d.legs.find(l=>l.id===r.legId).label),'訪問先：'+r.visitCompany,'目的：'+r.machineName+'・'+r.purpose,...(r.claimAmount!==r.amount?['本部提出額：'+r.claimAmount+'円（証明書 '+r.amount+'円）']:[]),...(r.note?['メモ：'+r.note]:[])]}));
         await ParkingPdf.generate({items,pageSize:Number(el('etcPageSize').value),title:'高速道路利用明細',sourceLabel:'ETC・本部提出分'});
     }
-    return {init,capture,beforeLoad,settled,load,isManaged,assertSynced,preview};
+    return {init,captureForDraft,markDraftSaved,beforeLoad,settled,load,leaveDraft,isManaged,assertSynced,preview};
 })();

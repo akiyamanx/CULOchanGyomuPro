@@ -247,3 +247,21 @@
 }
 .gcal-add-btn:active { background: #3367d6; }
 
+
+/* 形と番号を地図と同じSVGで表示する。狭い画面でも凡例だけスクロール可能。 */
+.route-pin-swatch { display:inline-flex; width:28px; height:32px; flex:none; vertical-align:middle; }
+.route-pin-swatch svg { width:100%; height:100%; overflow:visible; filter:drop-shadow(0 1px 1px #0005); }
+#tab-map .legend { max-height:min(58dvh, 460px); overflow:auto; overscroll-behavior:contain; }
+.legend-divider { border:0; border-top:1px solid #cbd5e1; margin:.4rem 0; }
+
+#tab-map .map-completed-btn { min-height:44px; white-space:normal; }
+#tab-map .map-completed-btn[aria-pressed="true"] { background:#e5f5ee;color:#14563d;border-color:#177050; font-weight:700; }
+#tab-map .map-visit-view { margin:.35rem 0 0; width:fit-content; padding:.2em .55em; border-radius:.32rem; background:#e8f0f8; color:#263e59; font-size:.75rem; font-weight:700; }
+#tab-map .map-region-header:has(.map-completed-btn[aria-pressed="true"]) .map-visit-view { background:#e5f5ee; color:#14563d; }
+.legend-help { margin:.35rem 0; font-size:12px; }
+.legend-date-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:8px; }
+.unused-routes { margin-top:12px; border:1px solid var(--border); border-radius:var(--radius); padding:0 .65rem .15rem; }
+.unused-routes summary { cursor:pointer; min-height:44px; padding:.7rem 0; box-sizing:border-box; }
+.unused-routes p { font-size:12px; }
+.unused-routes ul { display:grid; grid-template-columns:repeat(auto-fit,minmax(90px,1fr)); gap:6px; margin:.4rem 0; padding:0; list-style:none; }
+.unused-routes li { display:flex; align-items:center; gap:4px; font-size:12px; }

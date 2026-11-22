@@ -50,7 +50,7 @@ const ParkingManager = (() => {
                 if (!button) return;
                 flushEdits();
                 const id = button.closest('[data-id]').dataset.id;
-                ({visit:showCustomerPicker,company:showCompanyDirectory,edit:id=>ReceiptPhoto.open(id),read:readReceipt,remove:removeItem})[button.dataset.action]?.(id);
+                ({visit:showCustomerPicker,company:showCompanyDirectory,review:confirmCaption,edit:id=>ReceiptPhoto.open(id),read:readReceipt,remove:removeItem})[button.dataset.action]?.(id);
             });
         }
         renderParkingList();
@@ -114,6 +114,7 @@ const ParkingManager = (() => {
             ocrStore:data.store || '', ocrAddress:data.address || '', ocrEnterTime:data.enterTime || '', ocrRead:true};
     }
     async function readReceipt(id) {
+        await flushEdits();
         const item = getItemById(id);
         if (!item?.imageDataUrl) return;
         if (!ReceiptScanner.hasApiKey()) { alert('AI読取を使う場合は、設定でGemini APIキーを登録してください。日付・金額は手入力でも保存できます。'); return; }
@@ -122,8 +123,11 @@ const ParkingManager = (() => {
             const data = await ReceiptScanner.readParkingImage(item.imageDataUrl);
             if (data.type !== 'parking') { alert('駐車場の領収書か確認してください。読取結果は反映せず、写真を保持しています。'); return; }
             const patch = ocrPatch(data);
+            await flushEdits();
+            const current=getItemById(id);
+            if (!current || current.imageDataUrl !== item.imageDataUrl) return;
             // 入力済み情報の再読取は、確認してから反映する。
-            if ((item.date || item.amount) && !confirm('読取結果に変更しますか？\n日付: ' + (patch.date || '不明') + '\n金額: ¥' + patch.amount.toLocaleString())) return;
+            if ((current.date || current.amount) && !confirm('読取結果に変更しますか？\n日付: ' + (patch.date || '不明') + '\n金額: ¥' + patch.amount.toLocaleString())) return;
             if (await patchItem(id, patch)) renderParkingList();
         } catch (error) { alert('読み取れませんでした。写真は保存されています。日付・金額を入力できます。\n' + error.message); }
         finally { AppCore.hideLoading(); }
@@ -132,7 +136,7 @@ const ParkingManager = (() => {
     function patchItem(id, patch) {
         return serial(async () => {
             if (!items.some(i=>i.id === id)) return false;
-            return save(items.map(i=>i.id === id ? {...i,...patch} : i));
+            return save(items.map(i=>i.id === id ? ParkingDocument.applyEdit(i,typeof patch === 'function' ? patch(i) : patch) : i));
         });
     }
     function fieldPatch(field,value) {
@@ -140,23 +144,50 @@ const ParkingManager = (() => {
         if(!allowed.includes(field))return {};
         if(field==='amount')value=Math.max(0,parseInt(value)||0);
         if(field==='pdfScale')value=Math.min(100,Math.max(50,Number(value)||100));
-        const patch={[field]:value};
-        if(field==='date'||field==='visitCompany')Object.assign(patch,{customerId:'',visitConfirmed:false});
-        return patch;
+        return {[field]:value};
     }
     function flushEdits() {
         clearTimeout(editTimer);
         if(!pendingEdits.size)return queue;
         const edits=new Map(pendingEdits);pendingEdits.clear();
         return serial(async()=>{
-            if(!await save(items.map(i=>edits.has(i.id)?{...i,...edits.get(i.id)}:i)))renderParkingList();
+            const before=new Map(items.map(i=>[i.id,i]));
+            if(!await save(items.map(i=>edits.has(i.id)?ParkingDocument.applyEdit(i,edits.get(i.id)):i)))renderParkingList();
+            else for (const id of edits.keys()) refreshCaptionRow(before.get(id),getItemById(id));
             updateSummary();
         });
     }
     async function updateField(id,field,value) {
-        flushEdits();
+        await flushEdits();
+        const previous=getItemById(id);
         if(!await patchItem(id,fieldPatch(field,value)))renderParkingList();
+        else refreshCaptionRow(previous,getItemById(id));
         updateSummary();
+    }
+    function captionMessage(item) {
+        if (item.visitCaptionReview) return '利用日または会社名が変わりました。機種名と作業内容を見直してください。';
+        return item.customerId ? '訪問情報を反映済み。領収書と内容を確認してください。' : '日付・会社名・機種名・作業内容を確認してからPDFにします。';
+    }
+    function refreshCaptionRow(before,next) {
+        if (!before || !next) return;
+        const list = document.getElementById('parkingItemList');
+        const row = Array.from(list?.querySelectorAll?.('.parking-record') || []).find(r => r.dataset.id === next.id);
+        if (!row) return;
+        for (const field of ['machineName','purpose']) {
+            if (before[field] === next[field] || Object.hasOwn(pendingEdits.get(next.id) || {},field)) continue;
+            const control = row.querySelector('[data-field="'+field+'"]');
+            if (control && control.value === String(before[field] ?? '')) control.value = next[field] ?? '';
+        }
+        row.querySelector('[data-caption-status]').textContent = captionMessage(next);
+        const button = row.querySelector('[data-action="review"]');
+        button.hidden = !next.visitCaptionReview;
+        button.disabled = !ParkingDocument.captionReady(next);
+    }
+    async function confirmCaption(id) {
+        await flushEdits();
+        const item = getItemById(id);
+        if (!item?.visitCaptionReview || !ParkingDocument.captionReady(item)) return;
+        if (await patchItem(id,{visitCaptionReview:false})) refreshCaptionRow(item,getItemById(id));
     }
     async function removeItem(id) {
         if (!confirm('この駐車場明細と写真を削除しますか？')) return;
@@ -191,7 +222,8 @@ const ParkingManager = (() => {
             '<div class="parking-actions"><button class="btn btn-secondary" data-action="visit">その日の訪問先から選ぶ</button><button class="btn btn-secondary" data-action="company">会社名を五十音で選ぶ</button></div>' +
             '<div class="parking-field-grid">' + field(item,'visitCompany','訪問先の会社名','text','○○株式会社') + field(item,'machineName','訪問先の機種名','text','DP400') + '</div>' +
             '<label>作業内容<input class="parking-input" data-field="purpose" list="parkingPurposes" value="' + esc(item.purpose) + '" placeholder="メンテナンス・修理・本体設置"></label>' +
-            '<p class="parking-caption">' + (item.customerId?'訪問情報を反映済み。領収書と内容を確認してください。':'日付・会社名・機種名・作業内容を確認してからPDFにします。') + '</p>' +
+            '<p class="parking-caption" data-caption-status aria-live="polite">' + captionMessage(item) + '</p>' +
+            '<button type="button" class="btn btn-secondary" data-action="review"'+(item.visitCaptionReview?'':' hidden')+(ParkingDocument.captionReady(item)?'':' disabled')+'>この内容で確認済みにする</button>' +
             (item.ocrStore?'<p class="parking-caption">駐車場：' + esc(item.ocrStore) + '</p>':'') +
             '<div class="parking-actions">' + (item.imageDataUrl?'<button class="btn btn-secondary" data-action="read">日付・金額をAI読取</button>':'') + '<button class="btn btn-danger-quiet" data-action="remove">この明細を削除</button></div></div></article>').join('') || '<p class="empty-msg">領収書の写真を追加してください。日付不明の写真もここで確認できます。</p>';
         updateSummary();
@@ -302,7 +334,7 @@ const ParkingManager = (() => {
                 const button=event.target.closest('[data-choice]');
                 if (!button) return;
                 const choice=pickerChoices[Number(button.dataset.choice)];
-                if (choice && await patchItem(pickerId,ParkingDocument.visitPatch(choice.customer,choice.workspaceId))) {dialog.close();renderParkingList();}
+                if (choice && await patchItem(pickerId,item=>ParkingDocument.visitPatch(choice.customer,choice.workspaceId,item))) {dialog.close();renderParkingList();}
             };
         }
         dialog.querySelector('#parkingOtherDays').checked=false;

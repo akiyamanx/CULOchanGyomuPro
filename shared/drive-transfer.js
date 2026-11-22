@@ -7,7 +7,7 @@ const DriveTransfer = (() => {
     function disconnect() { generation++;token='';expiry=0;account=null;requests.forEach(c=>c.abort());requests.clear(); }
     function state() {
         if (token && (Date.now()>=expiry || clientId!==configured())) disconnect();
-        return {connected:Boolean(token && account),email:account?.emailAddress||''};
+        return {connected:Boolean(token && account),email:account?.emailAddress||'', session:generation};
     }
     function prepare() {
         if (window.google?.accounts?.oauth2) return Promise.resolve();

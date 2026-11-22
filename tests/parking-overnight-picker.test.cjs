@@ -39,3 +39,25 @@ test('同じ月の翌日と日付なし・ほかの日の切替は従来どお�
     assert.deepEqual(ids(choices('',false)), []);
     assert.deepEqual(ids(choices('',true)), ['undated','day','same-month']);
 });
+
+test('翌月の領収書で泊まり訪問を選んでも手入力を残し、利用日変更では旧訪問の自動入力と紐付けだけ解除する',()=>{
+    const {customer,workspaceId}=choices('2026-12-01')[0];
+    const original={date:'2026-12-01',amount:1200,machineName:'手入力の型式'};
+    const patch=Parking.visitPatch({...customer,equipType:'自動候補の型式',purpose:'点検'},workspaceId,original);
+    const selected=Parking.applyEdit(original,patch);
+    assert.equal(selected.workspaceId,nov);
+    assert.equal(selected.customerId,'across');
+    assert.equal(selected.date,'2026-12-01');
+    assert.equal(selected.amount,1200);
+    assert.equal(selected.machineName,'手入力の型式');
+    assert.equal(selected.purpose,'点検');
+    assert.equal(Parking.validate([selected]),'');
+    const edited=Parking.applyEdit(selected,{date:'2026-12-02'});
+    assert.equal(edited.machineName,'手入力の型式');
+    assert.equal(edited.purpose,'');
+    assert.equal(edited.customerId,'');
+    assert.equal(edited.workspaceId,'');
+    assert.equal(edited.amount,1200);
+    assert.equal(edited.visitCaptionReview,true);
+    assert.match(Parking.validate([edited]),/見直し/);
+});

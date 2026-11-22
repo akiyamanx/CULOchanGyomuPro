@@ -21,7 +21,7 @@ function load(files, extra = {}) {
 }
 
 test('ルート一覧: 会社名・ルート名・ID・色がエスケープされ、onclickの引数から抜け出せない', () => {
-    const { context, el } = load(['expense/expense-import.js', 'map/route-manager.js'], {
+    const { context, el } = load(['expense/expense-import.js', 'map/route-pin-style.js', 'map/route-manager.js'], {
         DataStorage: {
             getRoutes: () => [{ id: EVIL, name: EVIL, color: 'red;background:url(x)' }],
             getCustomers: () => [{ id: EVIL, company: EVIL, routeId: EVIL }, { id: 'u1', company: EVIL }],

@@ -22,7 +22,6 @@ const MfDedupe = (() => {
     }
     const keyOf = c => { const m = mfOf(c); return m ? m + '|' + jobOf(c) : ''; };
     const done = c => (c && c.status) === 'completed';
-    const day = v => String(v || '').slice(0, 10);
     const validMonthDate = (v, ws) => MONTH.test(ws) && /^\d{4}-\d{2}-\d{2}/.test(String(v || '')) && String(v).slice(0, 7) === ws;
     // lists: [{ws, customers}] → Map(「MF|作業」→ {ws, c})。終わっていない訪問先だけを代表にする。
     // 完了済みは「MF|作業@月」で引けるようにする(同じ月の取り込み直しだけ止める)。idx.units はMF番号の集合。
@@ -59,10 +58,30 @@ const MfDedupe = (() => {
         return patch;
     }
     const userScore = (c, ws) => (ws !== UNSCHEDULED && c.appoDate ? 4 : 0) + (c.routeId ? 2 : 0) + ((c.status || 'pending') !== 'pending' ? 2 : 0) + (c.appoDate ? 1 : 0);
-    // 消してよい重複か: ルート・状態・別の日時など、利用者が入れたかもしれない情報を持っていないこと。
-    // 完了済みを残す側にしたときは、まだ終わっていない新しい依頼を消さない。
-    const removable = (d, keep) => !done(keep) && !d.routeId && (d.status || 'pending') === 'pending' && (!d.appoDate || day(d.appoDate) === day(keep.appoDate));
-    const noteLines = s => String(s || '').split('\n').map(x => x.trim()).filter(Boolean);
+    // MF番号は機械の識別子。日時や入力が食い違う場合は訪問そのものが同じとは断定しない。
+    const SAME_VISIT_FIELDS = [
+        'appoDate', 'appoEndDate', 'note', 'scheduleKind', 'dateNeedsReview', 'company', 'address'
+    ];
+    const visitValue = value => value == null ? '' : String(value).replace(/\r\n?/g, '\n').trim();
+    function visitGroupConflicts(visits) {
+        return SAME_VISIT_FIELDS.some(field => {
+            const distinct = new Set(visits.map(c => visitValue(c[field])).filter(Boolean));
+            return distinct.size > 1;
+        });
+    }
+    // 空欄を安全に補う。同じ開始が確認できなければ終了時刻を別の予定に付けない。
+    function mergeVisitBlanks(keep, other) {
+        const fields = ['note', 'scheduleKind', 'dateNeedsReview'];
+        if (visitValue(other.appoDate) && visitValue(keep.appoDate) === visitValue(other.appoDate)) fields.push('appoEndDate');
+        const changes = {};
+        for (const field of fields) if (!visitValue(keep[field]) && visitValue(other[field])) changes[field] = other[field];
+        return changes;
+    }
+    function removableVisit(other, keep) {
+        if (done(keep) || other.routeId || (other.status || 'pending') !== 'pending') return false;
+        const start = visitValue(other.appoDate), end = visitValue(other.appoEndDate);
+        return !(end && !start) && (!start || start === visitValue(keep.appoDate));
+    }
     // 掃除の計画(書き込みはしない)。戻り値 {groups, remove:[{ws,id}], patch:[{ws,id,changes}], kept: 消さずに残した件数}
     function plan(lists) {
         const groups = new Map();
@@ -77,16 +96,15 @@ const MfDedupe = (() => {
             dupGroups++;
             const sorted = [...members].sort((a, b) => userScore(b.c, b.ws) - userScore(a.c, a.ws)
                 || String(a.c.createdAt || '').localeCompare(String(b.c.createdAt || '')) || a.order - b.order);
+            if (visitGroupConflicts(sorted.map(x => x.c))) { kept += sorted.length - 1; continue; }
             const keep = sorted[0];
-            const changes = {}; const lines = noteLines(keep.c.note);
+            const changes = {};
             for (const d of sorted.slice(1)) {
-                if (!removable(d.c, keep.c)) { kept++; continue; }
+                const current = { ...keep.c, ...changes };
+                if (!removableVisit(d.c, current)) { kept++; continue; }
                 remove.push({ ws: d.ws, id: d.c.id });
-                Object.assign(changes, fillBlanks({ ...keep.c, ...changes }, d.c));
-                for (const l of noteLines(d.c.note)) if (!lines.includes(l)) lines.push(l);
+                Object.assign(changes, fillBlanks(current, d.c), mergeVisitBlanks(current, d.c));
             }
-            const note = lines.join('\n');
-            if (note !== String(keep.c.note || '').split('\n').map(x => x.trim()).filter(Boolean).join('\n')) changes.note = note.slice(0, 4000);
             if (Object.keys(changes).length) patch.push({ ws: keep.ws, id: keep.c.id, changes });
         }
         return { groups: dupGroups, remove, patch, kept };
@@ -113,6 +131,6 @@ const MfDedupe = (() => {
         storage.setItem(FLAG, nowIso || new Date().toISOString());
         return { ran: true, removed: p.remove.length, merged: p.patch.length, kept: p.kept, groups: p.groups };
     }
-    return Object.freeze({ mfOf, jobOf, keyOf, remember, index, decide, fillBlanks, plan, runOnce, FLAG, BACKUP });
+    return Object.freeze({ mfOf, jobOf, keyOf, remember, index, decide, fillBlanks, visitGroupConflicts, mergeVisitBlanks, removableVisit, plan, runOnce, FLAG, BACKUP });
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = MfDedupe;

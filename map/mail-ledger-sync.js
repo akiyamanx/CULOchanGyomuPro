@@ -93,10 +93,15 @@ const MailLedgerSync = (() => {
 
         // ---- 本体(読む → 合わせる → 出す) ----
         async function core(run, warn, state) {
-            const guard = () => { if (run.aborted) throw fail('timeout'); };
+            const connection = adapter?.available?.();
+            const guard = () => {
+                if (run.aborted) throw fail('timeout');
+                const current = adapter?.available?.();
+                if (!current?.connected || current.session !== connection?.session) throw fail('not_connected');
+            };
             const own = mailBox.ownLedger();
             if (!own.ok) return { ok: false, code: own.code || 'ledger_corrupt', stage: 'local' };
-            if (!isConnected()) return { ok: false, code: 'not_connected', stage: 'connect' };
+            if (!connection?.connected) return { ok: false, code: 'not_connected', stage: 'connect' };
 
             // 1) 読む
             let listed;
@@ -116,6 +121,7 @@ const MailLedgerSync = (() => {
             }
             const byDevice = new Map(), rowsByDevice = new Map(); let ownReadOk = true, expired = 0;
             for (const f of kept) {
+                guard();
                 const isOwn = f.deviceId === state.deviceId;
                 if (f.size > MAX_FILE_BYTES) { warn('file_too_large'); continue; }
                 let text;

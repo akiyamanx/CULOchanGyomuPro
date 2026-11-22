@@ -66,8 +66,7 @@ const MapExpenseForm = (() => {
             if (!selected.date || !selected.members.length) throw new Error('利用日と訪問先のあるルートを選択してください');
             const result = RouteManager.getDistance(selected.routeId, selected.date);
             if (!result) throw new Error('先にこの日の走行距離を計算してください');
-            ExpenseManager.applyRoute(selected.date, result.totalKm, RouteManager.buildDestinationText(selected.members));
-            const parking = ExpenseManager.syncParking(selected.date);
+            const parking = ExpenseManager.reflectRouteAndParking(selected.date, result.totalKm, RouteManager.buildDestinationText(selected.members));
             openExpenseTab();
             alert('行先・距離・駐車場代を ' + selected.date + ' の明細へ反映しました。'
                 + (parking.invalid ? '\n日付・金額が未確認の駐車場明細が ' + parking.invalid + '件あります。' : ''));

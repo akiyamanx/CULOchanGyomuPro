@@ -10,7 +10,9 @@
 
 const ExpenseManager = (() => {
     let _rowCount = 0;
+    const acceptedDates = new WeakMap();
     let _draftBusy = false, _draftRenderVersion = 0, _parkingBusy = false;
+    let _activeDraft = null;
 
     // ==========================================
     // 初期化
@@ -40,7 +42,12 @@ const ExpenseManager = (() => {
             + '<span class="exp-row-num">' + _rowCount + '</span>'
             + '<button class="exp-row-del" aria-label="この日の明細を削除" onclick="ExpenseManager.deleteRow(' + _rowCount + ')">削除</button>'
             + '</div>'
-            + '<div class="exp-fg"><label>利用日</label><input type="date" class="exp-input exp-date" onchange="ExpenseManager.onRowDateChange(this)"></div>'
+            + '<div class="exp-fg"><label>利用日</label><input type="date" class="exp-input exp-date" aria-describedby="' + row.id + '-date-review" onchange="ExpenseManager.onRowDateChange(this)"></div>'
+            + '<div class="exp-date-review" hidden><p class="exp-date-review-text" role="status" id="' + row.id + '-date-review"></p>'
+            + '<div class="exp-date-review-links"><button type="button" class="btn btn-secondary exp-date-review-parking" onclick="ExpenseManager.reviewRowImports(this,\'parking\')">駐車場明細を確認</button>'
+            + '<button type="button" class="btn btn-secondary exp-date-review-etc" onclick="ExpenseManager.reviewRowImports(this,\'etc\')">ETC CSV・Excelを確認</button>'
+            + '<button type="button" class="btn btn-secondary exp-date-review-pdf" onclick="ExpenseManager.reviewRowImports(this,\'pdf\')">ETC PDFを確認</button>'
+            + '<button type="button" class="btn btn-secondary" onclick="this.closest(\'.exp-date-review\').hidden=true">閉じる</button></div></div>'
             + '<div class="exp-form-row">'
             + '<div class="exp-fg exp-fg-sm" hidden><label>月</label>'
             + '<input type="number" class="exp-input exp-month" placeholder="4" min="1" max="12"></div>'
@@ -160,6 +167,7 @@ const ExpenseManager = (() => {
         });
         const grandEl = document.getElementById('expGrandTotal');
         if (grandEl) grandEl.textContent = '¥' + grandTotal.toLocaleString();
+        if (typeof ExpenseDraftReceipts !== 'undefined') ExpenseDraftReceipts.updateHint?.();
     }
 
     // ==========================================
@@ -185,6 +193,7 @@ const ExpenseManager = (() => {
                 destCompany: row.querySelector('.exp-dest-company').value,
                 destAddress: row.querySelector('.exp-dest-address').value,
                 etcKeys: _metadata(row, 'etcKeys', []),
+                etcEntries: _metadata(row, 'etcEntries', []),
                 etcPdfFingerprint: row.dataset.etcPdfFingerprint || '',
                 parkingImports: _metadata(row, 'parkingImports', {}),
                 month: row.querySelector('.exp-month').value,
@@ -213,18 +222,83 @@ const ExpenseManager = (() => {
     }
 
     function _rowDate(row) {
+        if (acceptedDates.has(row)) return acceptedDates.get(row);
         const fullDate = row.querySelector('.exp-date').value;
         if (fullDate) return ExpenseImport.normalizeDate(fullDate);
+        return legacyRowDate(row);
+    }
+
+    function legacyRowDate(row) {
         // 旧下書きの月・日は提出年を使用する。
         const year = getHeaderData().submitDate.slice(0, 4);
         return ExpenseImport.normalizeDate(year + '-' + row.querySelector('.exp-month').value + '-' + row.querySelector('.exp-day').value);
     }
 
-    function onRowDateChange(input) {
-        const date = ExpenseImport.normalizeDate(input.value);
-        const row = input.closest('.exp-row');
+    function setRowDate(row, date) {
+        acceptedDates.set(row,date);
+        row.querySelector('.exp-date').value = date;
         row.querySelector('.exp-month').value = date ? Number(date.slice(5, 7)) : '';
         row.querySelector('.exp-day').value = date ? Number(date.slice(8, 10)) : '';
+    }
+
+    function importedSources(row) {
+        try {
+            const parking = _metadata(row,'parkingImports',{});
+            const keys = _metadata(row,'etcKeys',[]), entries = _metadata(row,'etcEntries',[]);
+            if (!parking || typeof parking !== 'object' || Array.isArray(parking) || !Array.isArray(keys) || !Array.isArray(entries))
+                return {unknown:true};
+            return {parking:Object.keys(parking).length > 0, etc:keys.length > 0 || entries.length > 0, pdf:Boolean(row.dataset.etcPdfFingerprint)};
+        } catch { return {unknown:true}; }
+    }
+
+    function onRowDateChange(input) {
+        const row = input.closest('.exp-row');
+        if (!row) return;
+        const date = ExpenseImport.normalizeDate(input.value);
+        const before = acceptedDates.has(row) ? acceptedDates.get(row) : legacyRowDate(row);
+        const sources = importedSources(row);
+        const panel = row.querySelector('.exp-date-review');
+        if (date !== before && Object.values(sources).some(Boolean)) {
+            setRowDate(row,before);
+            if (panel) {
+                const names = [sources.parking && '駐車場',sources.etc && 'ETC（CSV・Excel）',sources.pdf && 'ETC PDF'].filter(Boolean).join('・');
+                row.querySelector('.exp-date-review-text').textContent = sources.unknown
+                    ? '取込履歴を確認できないため、利用日と金額は変えていません。下書きと元の明細を確認してください。'
+                    : (before || '日付未設定') + ' → ' + (date || '日付なし') + '：' + names + 'を取り込んだ行なので、利用日と金額は元のままです。日付を直す場合は、元の明細を確認してから正しい日に反映してください。';
+                for (const key of ['parking','etc','pdf']) row.querySelector('.exp-date-review-'+key).hidden = !sources[key];
+                panel.hidden = false;
+            }
+            return;
+        }
+        setRowDate(row,date);
+        if (panel) panel.hidden = true;
+        if (typeof ExpenseDraftReceipts !== 'undefined') ExpenseDraftReceipts.updateHint?.();
+    }
+
+    function reviewRowImports(button, source) {
+        const row = button.closest('.exp-row');
+        if (!row) return;
+        const day = _rowDate(row);
+        if (source === 'parking') {
+            const monthField = document.getElementById('parkingFilterMonth');
+            const dayField = document.getElementById('parkingFilterDay');
+            if (day && monthField && dayField) {
+                monthField.value = day.slice(0,7);
+                dayField.value = day;
+                const status = document.getElementById('parkingReflectStatus');
+                if (status) status.textContent = '';
+            }
+            WorkflowUI.openParking();
+            ParkingManager.renderParkingList();
+        } else if (source === 'etc') {
+            WorkflowUI.jumpExpense('importTitle');
+        } else if (source === 'pdf') {
+            const section = document.getElementById('etcSection');
+            if (!section) return;
+            section.open = true;
+            section.querySelector('summary')?.focus({preventScroll:true});
+            section.scrollIntoView({block:'start',behavior:'instant'});
+        }
     }
 
     function _assertUniqueDates(dates) {
@@ -241,37 +315,83 @@ const ExpenseManager = (() => {
         _assertUniqueDates([date]);
         const rows = Array.from(document.querySelectorAll('#expenseRows .exp-row'));
         let row = rows.find(item => _rowDate(item) === date);
-        if (!row) row = rows.find(item => Array.from(item.querySelectorAll('input')).every(input => !input.value));
+        if (!row) row = rows.find(item => !Object.values(importedSources(item)).some(Boolean) && Array.from(item.querySelectorAll('input')).every(input => !input.value));
         if (!row) row = addRow();
-        row.querySelector('.exp-date').value = date;
-        onRowDateChange(row.querySelector('.exp-date'));
+        setRowDate(row,date);
         return row;
+    }
+
+    function _etcRowState() {
+        return Array.from(document.querySelectorAll('#expenseRows .exp-row')).map(row => {
+            const dates = _rowDate(row), keys = _metadata(row, 'etcKeys', []), records=_metadata(row,'etcEntries',[]);
+            if(!Array.isArray(keys)||!Array.isArray(records)||records.some(r=>!r||!keys.includes(r.key)||!Array.isArray(r.aliases||[])))
+                throw new Error('保存済みETCの情報を確認してください。');
+            return {row, date:dates, entries:keys.map(key=>records.find(r=>r.key===key)||{key}), changed:false};
+        });
+    }
+
+    function reviewEtcRecords(records) {
+        const prior = _etcRowState().flatMap(s=>s.entries);
+        return records.map((record, i)=>{
+            const known=prior.concat(records.slice(0,i));
+            const duplicate=known.some(r=>r.key===record.key||r.aliases?.includes(record.key));
+            const candidates=duplicate ? [] : known.filter(r=>ExpenseImport.etcCandidate(r,record))
+                .map(r=>{
+                    const old=ExpenseImport.etcStoredDetails(r);
+                    return {key:r.key,date:old.date,time:old.time,entry:old.entry,exit:old.exit,amount:old.amount,
+                        reference:old.reference};
+                });
+            return {duplicate,candidates};
+        });
     }
 
     function applyEtcRecords(records) {
         _assertUniqueDates(records.map(record => record.date));
-        const rows = Array.from(document.querySelectorAll('#expenseRows .exp-row'));
-        if (rows.some(row => row.dataset.etcPdfFingerprint && records.some(r => r.date === _rowDate(row))))
+        const rows=_etcRowState();
+        if (rows.some(s => s.row.dataset.etcPdfFingerprint && records.some(r => r.date === s.date)))
             throw new Error('同じ日のETC PDFが反映済みです。二重計上を防ぐため、その日は「ETC PDF・寄り道」で確認してください。');
-        const imported = new Set(rows.flatMap(row => _metadata(row, 'etcKeys', [])));
-        let count = 0, amount = 0;
+        let count=0, amount=0, replaced=0;
         for (const record of records) {
-            if (imported.has(record.key)) continue;
-            const row = getOrCreateDateRow(record.date);
-            const highway = row.querySelector('.exp-highway');
-            highway.value = _parseHighway(highway.value) + record.amount;
-            const counter = row.querySelector('.exp-highway-count');
-            counter.value = (parseInt(counter.value) || 0) + 1;
-            const keys = _metadata(row, 'etcKeys', []);
-            keys.push(record.key);
-            row.dataset.etcKeys = JSON.stringify(keys);
-            imported.add(record.key);
-            const transport = row.querySelector('.exp-transport');
-            if (!transport.value) transport.value = '自家用車';
-            count++; amount += record.amount;
+            const all=rows.flatMap(s=>s.entries.map(r=>({s,r})));
+            if (all.some(({r})=>r.key===record.key||r.aliases?.includes(record.key))) continue;
+            const candidates=all.filter(({r})=>ExpenseImport.etcCandidate(r,record));
+            const decision=record.review;
+            const old=decision?.replace ? candidates.find(({r})=>r.key===decision.replace) : null;
+            if (decision?.replace && !old || candidates.length && !old && decision?.distinct!==true)
+                throw new Error('同じ通行の候補を確認し、差し替えか別の通行かを選び直してください。');
+            if (!Number.isSafeInteger(record.amount)||record.amount<=0) throw new Error('通行料金を確認してください。');
+            let s=rows.find(x=>x.date===record.date);
+            if(!s){s={row:null,date:record.date,entries:[],changed:false};rows.push(s);}
+            if (s.total == null) {
+                s.total=s.row ? _parseHighway(String(s.row.querySelector('.exp-highway').value || '')) : 0;
+                s.count=s.row ? parseInt(s.row.querySelector('.exp-highway-count').value)||0 : 0;
+            }
+            const clean={...record};delete clean.review;
+            if(old) {
+                const previous=ExpenseImport.etcStoredDetails(old.r).amount;
+                if (previous == null)
+                    throw new Error('元のETC料金が記録されていないため差し替えできません。元の明細を確認してください。');
+                const minimum=s.entries.reduce((sum,r)=>sum+(r===old.r?previous:Number.isSafeInteger(r.amount)?r.amount:0),0);
+                if (old.s!==s || s.total<minimum || s.count<s.entries.length)
+                    throw new Error('元の通行が別の日付にあるか、手修正された高速代です。精算行を確認してください。');
+                s.entries.splice(s.entries.indexOf(old.r),1,{...clean,aliases:[...(old.r.aliases||[]),old.r.key]});
+                s.total+=record.amount-previous;amount+=record.amount-previous;replaced++;
+            } else {
+                s.entries.push(clean);s.total+=record.amount;s.count++;amount+=record.amount;
+            }
+            s.changed=true;count++;
+        }
+        for (const s of rows.filter(r=>r.changed)) {
+            const row=s.row || getOrCreateDateRow(s.date);
+            row.querySelector('.exp-highway').value=String(s.total);
+            row.querySelector('.exp-highway-count').value=String(s.count);
+            row.dataset.etcKeys=JSON.stringify(s.entries.map(r=>r.key));
+            row.dataset.etcEntries=JSON.stringify(s.entries.filter(r=>Number.isSafeInteger(r.amount)));
+            const transport=row.querySelector('.exp-transport');
+            if(!transport.value)transport.value='自家用車';
         }
         recalculate();
-        return { count, amount, skipped: records.length - count };
+        return {count,amount,replaced,skipped:records.length-count};
     }
 
     // Preview and application use the same eligible records, independent of PDF photo selection.
@@ -296,7 +416,7 @@ const ExpenseManager = (() => {
     }
 
     // 選んだ期間は再集計し、移動した同じ領収書だけを期間外の旧行から除く。
-    function syncParking(period) {
+    function planParking(period) {
         const {byDate,count,invalid,amountTotal} = collectParking(period);
         const existing = Array.from(document.querySelectorAll('#expenseRows .exp-row'));
         const selectedIds = new Map();
@@ -324,16 +444,28 @@ const ExpenseManager = (() => {
             plans.push({row, date, previous, next});
         }
         _assertUniqueDates(new Set([...byDate.keys(), ...plans.filter(p=>p.date).map(p=>p.date)]));
-        for (const date of missing) plans.push({row:getOrCreateDateRow(date), previous:{}, next:byDate.get(date)});
-        for (const {row,previous,next} of plans) {
-            const input = row.querySelector('.exp-parking');
-            const sum = imports => Object.values(imports).reduce((total,value)=>total+Number(value),0);
-            const manual = Math.max(0, (parseInt(input.value) || 0) - sum(previous));
-            input.value = (manual + sum(next)) || '';
-            row.dataset.parkingImports = JSON.stringify(next);
+        for (const date of missing) plans.push({date, previous:{}, next:byDate.get(date)});
+        const sum = imports => Object.values(imports).reduce((total,value)=>total+Number(value),0);
+        const updates = plans.map(({row,date,previous,next}) => {
+            const manual = Math.max(0, (parseInt(row?.querySelector('.exp-parking').value) || 0) - sum(previous));
+            return {row,date,value:(manual + sum(next)) || '',metadata:JSON.stringify(next)};
+        });
+        return {updates,result:{count, invalid, amountTotal, dates:[...updated].sort()}};
+    }
+
+    function commitParking(plan) {
+        for (const {row:existing,date,value,metadata} of plan.updates) {
+            const row = existing || getOrCreateDateRow(date);
+            row.querySelector('.exp-parking').value = value;
+            row.dataset.parkingImports = metadata;
         }
+        return plan.result;
+    }
+
+    function syncParking(period) {
+        const result = commitParking(planParking(period));
         recalculate();
-        return {count, invalid, amountTotal, dates:[...updated].sort()};
+        return result;
     }
 
     let lastParkingReflection = null;
@@ -396,20 +528,40 @@ const ExpenseManager = (() => {
         finally { _parkingBusy = false; previewParkingReflection(); }
     }
 
-    function applyRoute(date, totalKm, destination, options = {}) {
+    function validateRoute(date, options = {}) {
         if (!options.fromEtc && typeof EtcWorkflow !== 'undefined' && EtcWorkflow.isManaged(date))
             throw new Error('この日はETC・寄り道の訪問順を確認中です。「ETC PDF・寄り道」の区間距離を確認して、そこから精算書へ反映してください。');
+        _assertUniqueDates([date]);
+    }
+
+    function commitRoute(date, totalKm, destination) {
         const row = getOrCreateDateRow(date);
         row.querySelector('.exp-dest-company').value = destination.company || '';
         row.querySelector('.exp-dest-address').value = destination.address || '';
         if (Number.isFinite(totalKm)) {
             const input = row.querySelector('.exp-distance');
             input.value = totalKm;
-            onDistanceChange(input);
+            row.querySelector('.exp-gas').value = calcGasCost(totalKm) || '';
         }
         if (!row.querySelector('.exp-transport').value) row.querySelector('.exp-transport').value = '自家用車';
+    }
+
+    function applyRoute(date, totalKm, destination, options = {}) {
+        validateRoute(date, options);
+        commitRoute(date, totalKm, destination);
         _refreshHeaderDestinations();
         recalculate();
+    }
+
+    function reflectRouteAndParking(date, totalKm, destination) {
+        // Validate both sides before touching any rows, including parking's original date.
+        validateRoute(date);
+        const parking = planParking(date);
+        commitRoute(date, totalKm, destination);
+        const result = commitParking(parking);
+        _refreshHeaderDestinations();
+        recalculate();
+        return result;
     }
 
     function applyEtcDay(day, totals, km, fingerprint) {
@@ -422,6 +574,7 @@ const ExpenseManager = (() => {
         row.querySelector('.exp-highway').value = totals.amount || '';
         row.querySelector('.exp-highway-count').value = totals.accepted.length || '';
         row.dataset.etcKeys = '[]';
+        row.dataset.etcEntries = '[]';
         row.dataset.etcPdfFingerprint = fingerprint;
         recalculate();
         alert(day.date + ' の本部提出分 ' + totals.accepted.length + '件・' + totals.amount.toLocaleString() + '円、距離 ' + km + 'kmを反映しました。下書きを保存してください。');
@@ -431,23 +584,38 @@ const ExpenseManager = (() => {
     // ==========================================
     // 下書き保存・読込・削除
     // ==========================================
-    async function saveDraft() {
+    function selectDraftForEditing(draft) {
+        _activeDraft = draft && {id:draft.id, createdAt:draft.createdAt || Number(draft.id) || 0, updatedAt:draft.updatedAt || 0};
+        const save = document.getElementById('expDraftSave');
+        const copy = document.getElementById('expDraftCopy');
+        const hint = document.getElementById('expDraftSaveHint');
+        if (save) save.textContent = _activeDraft ? 'この下書きを更新' : '下書きを新規保存';
+        if (copy) copy.hidden = !_activeDraft;
+        if (hint) hint.textContent = _activeDraft
+            ? '「この下書きを更新」では件数は増えません。元の内容も残したいときだけ、別の下書きとして保存できます。'
+            : '精算書と選んだ領収書・ETCの確認内容をまとめて保存します。';
+    }
+    async function saveDraft(options = {}) {
         if (_draftBusy) return;
         _draftBusy = true;
         try {
+            const etcEvidence = typeof EtcWorkflow !== 'undefined' ? await EtcWorkflow.captureForDraft() : null;
             const parkingReceipts = await ExpenseDraftReceipts.capture();
-            const etcEvidence = typeof EtcWorkflow !== 'undefined' ? await EtcWorkflow.capture() : null;
             const header = getHeaderData();
+            const previous = options.asCopy ? null : _activeDraft;
+            const now = Math.max(Date.now(), (previous?.updatedAt || 0) + 1);
             const draft = {
-                id: 'draft_' + Date.now() + '_' + Math.random().toString(36).slice(2,9),
-                createdAt: Date.now(), version: 2, date: new Date().toLocaleString('ja-JP'),
+                id: previous?.id ?? ('draft_' + now + '_' + Math.random().toString(36).slice(2,9)),
+                createdAt: previous?.createdAt || now, updatedAt: now, version: 2, date: new Date(now).toLocaleString('ja-JP'),
                 ...header, destination: header.destCompany || header.destAddress,
                 rows: getRowsData(), parkingReceipts, etcEvidence
             };
-            await ExpenseDraftStore.save(draft);
+            await ExpenseDraftStore.save(draft, previous);
+            selectDraftForEditing(draft);
+            if (typeof EtcWorkflow !== 'undefined') EtcWorkflow.markDraftSaved(etcEvidence);
             ExpenseDraftReceipts.load(parkingReceipts);
             await renderDraftList();
-            alert('✅ 精算書と領収書 ' + parkingReceipts.items.length + '枚' + (etcEvidence?.records?.length ? '・ETC ' + etcEvidence.records.length + '件' : '') + 'を下書きに保存しました。');
+            alert('✅ 精算書と領収書 ' + parkingReceipts.items.length + '枚' + (etcEvidence?.records?.length ? '・ETC ' + etcEvidence.records.length + '件' : '') + (previous ? 'で、この下書きを更新しました。' : 'を下書きに保存しました。'));
             return draft.id;
         } catch(error) { alert('下書きを保存できませんでした。入力内容は画面に残っています。\n' + error.message); }
         finally { _draftBusy = false; }
@@ -471,8 +639,11 @@ const ExpenseManager = (() => {
             container.onclick = event => {
                 const button = event.target.closest('[data-draft-action]');
                 if (!button) return;
-                const id = drafts[Number(button.dataset.index)]?.id;
-                if (id !== undefined) ({open:loadDraft,pdf:previewDraftReceipts,delete:deleteDraft})[button.dataset.draftAction]?.(id);
+                const draft = drafts[Number(button.dataset.index)];
+                if (!draft) return;
+                const action = button.dataset.draftAction;
+                if (action === 'delete') deleteDraft(draft.id, draft);
+                else ({open:loadDraft,pdf:previewDraftReceipts})[action]?.(draft.id);
             };
         } catch(error) { if (version === _draftRenderVersion) container.textContent = '下書きを読み込めませんでした。ブラウザの保存設定を確認してください。'; }
     }
@@ -493,6 +664,7 @@ const ExpenseManager = (() => {
         if (!draft) { alert('下書きが見つかりません'); return; }
         if (!confirm('現在の入力を破棄して下書きを読み込みますか？')) return;
         if (typeof EtcWorkflow !== 'undefined') await EtcWorkflow.beforeLoad();
+        selectDraftForEditing(null);
         _setVal('expSubmitDate', draft.submitDate || new Date().toLocaleDateString('sv-SE'));
         _setVal('expSSName', draft.ssName || '千葉西SS');
         _setVal('expEmployeeName', draft.employeeName || '小出晃也');
@@ -506,16 +678,19 @@ const ExpenseManager = (() => {
                 addRow();
                 const row = document.getElementById('expRow-' + _rowCount);
                 if (!row) return;
-                row.querySelector('.exp-date').value = ExpenseImport.normalizeDate(rd.date || (draft.submitDate || '').slice(0, 4) + '-' + rd.month + '-' + rd.day);
+                const date = ExpenseImport.normalizeDate(rd.date || (draft.submitDate || '').slice(0, 4) + '-' + rd.month + '-' + rd.day);
+                setRowDate(row,date);
                 row.querySelector('.exp-parking').value = rd.parking || '';
                 row.querySelector('.exp-dest-company').value = rd.destCompany || '';
                 row.querySelector('.exp-dest-address').value = rd.destAddress || '';
                 row.dataset.etcKeys = JSON.stringify(rd.etcKeys || []);
+                row.dataset.etcEntries = JSON.stringify(rd.etcEntries || []);
                 row.dataset.etcPdfFingerprint = rd.etcPdfFingerprint || '';
                 row.dataset.parkingImports = JSON.stringify(rd.parkingImports || {});
-                row.querySelector('.exp-month').value = rd.month || '';
-                row.querySelector('.exp-day').value = rd.day || '';
-                if (row.querySelector('.exp-date').value) onRowDateChange(row.querySelector('.exp-date'));
+                if (!date) {
+                    row.querySelector('.exp-month').value = rd.month || '';
+                    row.querySelector('.exp-day').value = rd.day || '';
+                }
                 row.querySelector('.exp-transport').value = rd.transport || '';
                 row.querySelector('.exp-distance').value = rd.distance || '';
                 row.querySelector('.exp-gas').value = rd.gasCost || '';
@@ -535,6 +710,7 @@ const ExpenseManager = (() => {
         recalculate();
         ExpenseDraftReceipts.load(draft.parkingReceipts || null);
         if (typeof EtcWorkflow !== 'undefined') EtcWorkflow.load(draft.etcEvidence || null);
+        selectDraftForEditing(draft);
         alert(draft.etcEvidence?.records?.length ? '✅ 精算書とETC ' + draft.etcEvidence.records.length + '件を読み込みました。「ETC PDF・寄り道」で日付を選び、確認・修正・PDF出力ができます。' : (draft.parkingReceipts ? '✅ 精算書と領収書 ' + draft.parkingReceipts.items.length + '枚を読み込みました。下の「この下書きの領収書」で確認・修正できます。' : '✅ 精算書を読み込みました。この旧下書きには領収書が保存されていません。必要な写真は駐車場欄で選び直してから保存してください。'));
         if (draft.etcEvidence?.records?.length) { document.getElementById('etcSection').open = true; document.getElementById('etcSection').scrollIntoView({block:'start'}); }
         else document.getElementById('loadedDraftReceipts')?.scrollIntoView({block:'start'});
@@ -542,18 +718,41 @@ const ExpenseManager = (() => {
         finally { _draftBusy = false; }
     }
 
-    async function deleteDraft(id) {
-        if (_draftBusy || !confirm('この下書きと、下書きに保存した領収書を削除しますか？通常の駐車場明細は残ります。')) return;
-        try { await ExpenseDraftStore.remove(id); await renderDraftList(); }
-        catch(error) { alert('下書きを削除できませんでした。' + error.message); }
+    async function deleteDraft(id, listed) {
+        if (_draftBusy) return;
+        const active = _activeDraft?.id === id;
+        if (!confirm('この下書きと、下書きに保存した領収書・ETCを削除しますか？'
+            + (active ? '\n編集中の入力もクリアします。' : '')
+            + '\n通常の駐車場・ETC明細は残ります。')) return;
+        _draftBusy = true;
+        try {
+            await ExpenseDraftStore.remove(id, active ? _activeDraft : listed);
+            if (active) resetForm({afterDelete:true});
+        } catch(error) { alert('下書きを削除できませんでした。' + error.message); }
+        finally {
+            await renderDraftList();
+            _draftBusy = false;
+        }
     }
 
     // ==========================================
     // クリア
     // ==========================================
     function clearAll() {
-        if (!confirm('すべての入力をクリアしますか？')) return;
-        ExpenseDraftReceipts.reset();
+        if (_draftBusy || !confirm('すべての入力をクリアしますか？ 保存した下書きは残ります。')) return;
+        resetForm();
+    }
+    function resetForm({afterDelete = false} = {}) {
+        selectDraftForEditing(null);
+        if (afterDelete) {
+            ExpenseDraftReceipts.load(null);
+            _setVal('expSubmitDate', new Date().toLocaleDateString('sv-SE'));
+            for (const id of ['expSSName', 'expEmployeeName']) {
+                const field = document.getElementById(id);
+                if (field && typeof field.defaultValue === 'string') field.value = field.defaultValue;
+            }
+        } else ExpenseDraftReceipts.reset();
+        if (typeof EtcWorkflow !== 'undefined') EtcWorkflow.leaveDraft();
         _setVal('expDestCompany', '');
         _setVal('expDestAddress', '');
         const container = document.getElementById('expenseRows');
@@ -667,7 +866,7 @@ const ExpenseManager = (() => {
 
     return {
         init, addRow, deleteRow, onDistanceChange, recalculate, isBusy:()=>_draftBusy,
-        onRowDateChange, getOrCreateDateRow, applyEtcRecords, syncParking, reflectParkingMonth, previewParkingReflection, showReflectedParking, applyRoute, applyEtcDay,
+        onRowDateChange, reviewRowImports, getOrCreateDateRow, reviewEtcRecords, applyEtcRecords, syncParking, reflectParkingMonth, previewParkingReflection, showReflectedParking, applyRoute, reflectRouteAndParking, applyEtcDay,
         getHeaderData, getRowsData, parseHighway, calcGasCost,
         saveDraft, loadDraft, deleteDraft, renderDraftList, previewDraftReceipts, clearAll,
         trimToCity: _trimToCity,

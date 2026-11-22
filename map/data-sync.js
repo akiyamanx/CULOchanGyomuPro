@@ -6,7 +6,7 @@
 //   ・この端末で何をどう変えたかは、前回同期時の各項目の要約(ハッシュ)と見比べて見つける(保存の場所ごとに手を入れない)。
 //   ・初回(両端末ともデータあり)は置き換えずに合わせる。初回の時刻は「不明(1)」とし、以後の本当の編集が必ず勝つ。
 //   ・同じMF番号が別IDで両端末にある(各端末で取り込んだ)場合は、利用者の入力が無い方だけをまとめる(mf-dedupe と同じ基準)。
-// 同期しないもの(端末ごと): APIキー・接続設定、表示中の月、地図の座標キャッシュ、メール取り込みの差出人設定、
+// 同期しないもの(端末ごと): APIキー・接続設定、表示中の月、地図の座標キャッシュ、
 //   写真を含むもの(レシート・駐車場・下書き・ETC)。写真入りは「送る/受け取る」で。
 // トークンは扱わない(通信は差し替え可能な adapter に任せる)。ログに中身は出さない(コードだけ)。
 const DataSync = (() => {
@@ -211,17 +211,16 @@ const DataSync = (() => {
         // MF番号が同じで別IDの訪問先(両端末でそれぞれ取り込んだもの)。利用者の入力が無い方だけをまとめる。
         const UNSCH = 'unscheduled';
         const val = (r, n) => r.f[n] ? r.f[n].v : undefined;
-        const day = v => String(v || '').slice(0, 10);
         const score = r => (val(r, '_ws') !== UNSCH && val(r, 'appoDate') ? 4 : 0) + (val(r, 'routeId') ? 2 : 0) + ((val(r, 'status') || 'pending') !== 'pending' ? 2 : 0) + (val(r, 'appoDate') ? 1 : 0);
-        const removable = (d, keep) => val(keep, 'status') !== 'completed' && !val(d, 'routeId') && (val(d, 'status') || 'pending') === 'pending' && (!val(d, 'appoDate') || day(val(d, 'appoDate')) === day(val(keep, 'appoDate')));
-        const FILL = ['phone', 'contact', 'branch', 'equipType', 'filter', 'purpose', 'address', 'note'];
+        const visit = r => Object.fromEntries(Object.entries(r.f).map(([name, field]) => [name, field.v]));
+        const FILL = ['phone', 'contact', 'branch', 'equipType', 'filter', 'purpose', 'address'];
         function mfMerge(view, fromRemote, now) {
-            if (typeof MfDedupe === 'undefined' || !MfDedupe.mfOf) return 0;
+            if (typeof MfDedupe === 'undefined' || !MfDedupe.visitGroupConflicts || !MfDedupe.removableVisit || !MfDedupe.mergeVisitBlanks) return 0;
             const groups = new Map();
             for (const [key, r] of view.cust) {
                 if (!alive(r)) continue;
                 // 同じ本体でも作業(修理・メンテなど)が違えば別の訪問先なので、まとめない。
-                const mf = MfDedupe.keyOf ? MfDedupe.keyOf({ managementNo: val(r, 'managementNo'), purpose: val(r, 'purpose') }) : MfDedupe.mfOf({ managementNo: val(r, 'managementNo') });
+                const mf = MfDedupe.keyOf({ managementNo: val(r, 'managementNo'), purpose: val(r, 'purpose') });
                 if (!mf) continue;
                 if (!groups.has(mf)) groups.set(mf, []);
                 groups.get(mf).push({ key, r });
@@ -230,10 +229,14 @@ const DataSync = (() => {
             for (const list of groups.values()) {
                 if (list.length < 2 || !list.some(x => fromRemote.has(x.key)) || !list.some(x => !fromRemote.has(x.key))) continue;
                 list.sort((p, q) => score(q.r) - score(p.r) || String(val(p.r, 'createdAt') || '').localeCompare(String(val(q.r, 'createdAt') || '')) || (p.key < q.key ? -1 : 1));
+                // 一件でも明示的な違いがある組では、未入力の控えもどの訪問か確定できないので残す。
+                if (MfDedupe.visitGroupConflicts(list.map(x => visit(x.r)))) continue;
                 const keep = list[0];
                 for (const d of list.slice(1)) {
-                    if (!removable(d.r, keep.r)) continue;
-                    for (const n of FILL) if (empty(val(keep.r, n)) && !empty(val(d.r, n))) keep.r.f[n] = { ...d.r.f[n] };
+                    const target = visit(keep.r), other = visit(d.r);
+                    if (!MfDedupe.removableVisit(other, target)) continue;
+                    const fill = Object.keys(MfDedupe.mergeVisitBlanks(target, other));
+                    for (const n of [...FILL.filter(n => empty(target[n]) && !empty(other[n])), ...fill]) keep.r.f[n] = { ...d.r.f[n] };
                     d.r.d = Math.max(now, maxT(d.r) + 1); merged++;
                 }
             }
@@ -258,6 +261,16 @@ const DataSync = (() => {
             const ordered = (list, ord) => { const pos = new Map((ord || []).map((k, i) => [k, i])); return list.sort((p, q) => (pos.has(p.key) ? pos.get(p.key) : 1e9) - (pos.has(q.key) ? pos.get(q.key) : 1e9) || String(p.c.createdAt || '').localeCompare(String(q.c.createdAt || '')) || (p.key < q.key ? -1 : 1)); };
             const group = coll => { const by = {}; for (const [key, r] of view[coll]) { if (!alive(r)) continue; const c = plain(r); const ws = key.split('|')[0]; delete c._ws; (by[ws] = by[ws] || []).push({ key, c }); } return by; };
             const routeBy = group('route'), expBy = group('exp');
+            // 最後の1件が消えると生存グループが無くなる。削除の印がある既知の行だけ取り除く。
+            function applyEmptyCollection(coll, storageKey, ws) {
+                const removed = new Set((local.order[coll][ws] || []).filter(key => {
+                    const r = view[coll].get(key);
+                    return r && r.d && !alive(r);
+                }));
+                if (!removed.size) return 0;
+                return write(storageKey, readJson(storageKey, []).filter(row =>
+                    !isObj(row) || row.id == null || !removed.has(ws + '|' + row.id)));
+            }
             for (const ws of Object.keys(routeBy).concat(Object.keys(expBy))) if (!aliveWs.has(ws) && (custBy[ws] || []).length) aliveWs.set(ws, { name: ws });
             const wsIds = [...aliveWs.keys()].sort();
             writes += write('mm_workspaces', wsIds.map(id => ({ id, ...aliveWs.get(id) })));
@@ -271,7 +284,9 @@ const DataSync = (() => {
                 const cs = ordered(custBy[ws] || [], local.order.cust[ws]).map(x => x.c);
                 if (cs.length || S.getItem('mm_customers_' + ws) !== null) writes += write('mm_customers_' + ws, cs);
                 if (routeBy[ws]) writes += write('mm_routes_' + ws, ordered(routeBy[ws], local.order.route[ws]).map(x => x.c));
+                else writes += applyEmptyCollection('route', 'mm_routes_' + ws, ws);
                 if (expBy[ws]) writes += write('mm_expenses_' + ws, expBy[ws].sort((p, q) => String(q.c.createdAt || '').localeCompare(String(p.c.createdAt || '')) || (p.key < q.key ? -1 : 1)).map(x => x.c));
+                else writes += applyEmptyCollection('exp', 'mm_expenses_' + ws, ws);
                 const sg = view.seg.get(ws);
                 if (sg && alive(sg) && sg.f.v && sg.f.v.v !== undefined) writes += write('mm_segments_' + ws, sg.f.v.v);
             }
@@ -327,6 +342,8 @@ const DataSync = (() => {
         // massDelete: 'ask'(既定。多くの削除は止めて確認) / 'allow'(伝える) / 'restore'(消えた分を他端末から戻す)
         async function syncOnce(opt) {
             const op = opt || {};
+            const allowed = () => !op.stillAllowed || op.stillAllowed();
+            if (!allowed()) return { ok: false, code: 'not_connected' };
             if (!adapter || !adapter.available || !adapter.available().connected) return { ok: false, code: 'not_connected' };
             const now = nowMs();
             let st, local;
@@ -336,6 +353,7 @@ const DataSync = (() => {
             if (first || op.massDelete === 'restore') {
                 if (typeof o.backup === 'function' && !st.backupAt) {
                     try { await o.backup(); } catch (e) { return { ok: false, code: 'backup_failed' }; }
+                    if (!allowed()) return { ok: false, code: 'not_connected' };
                     st.backupAt = new Date(now).toISOString(); saveState(st);
                 }
             }
@@ -347,12 +365,14 @@ const DataSync = (() => {
             // 他の端末のファイル
             let files;
             try { files = await withTimeout(adapter.list()); } catch (e) { return { ok: false, code: errCode(e) }; }
+            if (!allowed()) return { ok: false, code: 'not_connected' };
             const mine = files.filter(f => f.deviceId === st.deviceId);
             const others = files.filter(f => f.deviceId !== st.deviceId && DEVICE_RE.test(String(f.deviceId))).slice(0, MAX_FILES);
             const warnings = []; let dropped = 0;
             const conflicts = { n: 0 }; const fromRemote = new Set();
             let added = 0, changed = 0;
             for (const f of others) {
+                if (!allowed()) return { ok: false, code: 'not_connected' };
                 let doc;
                 try { doc = parseDoc(await withTimeout(adapter.read(f)), f.deviceId, now); } catch (e) { warnings.push('file_unreadable'); continue; }
                 if (!doc.ok) { warnings.push(doc.code === 'newer_version' ? 'newer_version' : 'file_invalid'); continue; }
@@ -365,6 +385,7 @@ const DataSync = (() => {
                     view[coll].set(key, m);
                 }
             }
+            if (!allowed()) return { ok: false, code: 'not_connected' };
             if (dropped) warnings.push('records_dropped');
             const mfMerged = mfMerge(view, fromRemote, now);
             // 書く前にもう一度、手元が変わっていないか(同期中の編集を消さない)
@@ -388,6 +409,7 @@ const DataSync = (() => {
                 try {
                     const fileId = (mine.find(f => f.id === st.fileId) || mine[0] || {}).id || null;
                     const res = await withTimeout(adapter.write({ fileId, deviceId: st.deviceId, savedAt: new Date(now).toISOString(), text: docText }));
+                    if (!allowed()) return { ok: false, code: 'not_connected' };
                     const st2 = loadState(); st2.fileId = res && res.id || fileId; st2.pushHash = ph; saveState(st2); pushed = true;
                 } catch (e) { warnings.push('push_failed'); }
             }

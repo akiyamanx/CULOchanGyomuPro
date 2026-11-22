@@ -9,7 +9,7 @@
 // ==========================================
 
 const ExpenseEtc = (() => {
-    let _records = [];
+    let _records = [], _review = [];
 
     // ==========================================
     // ファイル選択ハンドラ
@@ -56,6 +56,7 @@ const ExpenseEtc = (() => {
     // ==========================================
     function _showEtcModal(records) {
         _records = records;
+        _review = ExpenseManager.reviewEtcRecords(records);
         const byDate = {};
         records.forEach((r, i) => {
             const d = r.date || '日付不明';
@@ -67,7 +68,8 @@ const ExpenseEtc = (() => {
 
         let html = '<div class="exp-picker-header">'
             + '<h3>🛣️ ETC利用明細</h3>'
-            + '<p>' + records.length + '件 合計 ¥' + total.toLocaleString() + '</p>'
+            + '<p>ファイル内 ' + records.length + '件 ／ ¥' + total.toLocaleString() + '（反映前）</p>'
+            + '<p>同じ通行の可能性がある明細は、差し替え・別の通行のどちらかを選ぶまで反映しません。</p>'
             + '<button class="exp-picker-select-all" onclick="ExpenseEtc.toggleAll()">全選択/解除</button>'
             + '</div><div class="exp-picker-list">';
 
@@ -78,12 +80,27 @@ const ExpenseEtc = (() => {
                 + ' <span style="font-weight:normal;font-size:0.75rem;">（¥' + dayTotal.toLocaleString() + '）</span></div>';
             byDate[date].forEach(r => {
                 const route = (r.entry || '—') + ' → ' + (r.exit || '—');
-                html += '<label class="exp-picker-item">'
-                    + '<input type="checkbox" class="etc-exp-cb" data-idx="' + r.idx + '" checked>'
-                    + '<span class="exp-picker-label">' + ExpenseImport.escapeHtml(route) + '</span>'
-                    + '<span style="margin-left:auto;font-weight:bold;color:var(--accent-light);">'
-                    + '¥' + r.amount.toLocaleString() + '</span>'
-                    + '</label>';
+                const check=_review[r.idx], label=ExpenseImport.escapeHtml([r.time,route].filter(Boolean).join(' '));
+                if(check.duplicate){
+                    html+='<p class="exp-picker-item">'+label+'　反映済み・差し替え済み（追加なし）</p>';
+                } else if(check.candidates.length) {
+                    const missingAmount=check.candidates.some(old=>old.amount==null);
+                    html+='<div class="exp-picker-item"><label><strong>要確認 '+label+' ¥'+r.amount.toLocaleString()+'</strong><br>'
+                        +'<select class="etc-review-choice" data-idx="'+r.idx+'"><option value="">今回反映しない</option>'
+                        +check.candidates.map((old,i)=>old.amount==null ? '<option disabled>差し替え不可（元料金の記録なし）</option>' : '<option value="'+i+'">差し替え '+(i+1)+'：旧 ¥'+old.amount.toLocaleString()
+                            +'｜'+ExpenseImport.escapeHtml([old.date,old.time,(old.entry||'—')+' → '+(old.exit||'—'),
+                                old.reference && '番号 '+old.reference].filter(Boolean).join(' '))+'</option>').join('')
+                        +'<option value="distinct">別の通行として追加</option></select></label>'
+                        +(missingAmount ? '<small style="display:block">元のETC料金が記録されていない候補は差し替えできません。同じ通行か判断できないときは「今回反映しない」のまま、元の明細を確認してください。</small>' : '')
+                        +'</div>';
+                } else {
+                    html += '<label class="exp-picker-item">'
+                        + '<input type="checkbox" class="etc-exp-cb" data-idx="' + r.idx + '" checked>'
+                        + '<span class="exp-picker-label">' + label + '</span>'
+                        + '<span style="margin-left:auto;font-weight:bold;color:var(--accent-light);">'
+                        + '¥' + r.amount.toLocaleString() + '</span>'
+                        + '</label>';
+                }
             });
             html += '</div>';
         });
@@ -119,13 +136,22 @@ const ExpenseEtc = (() => {
     function applyToExpense() {
         const selected = Array.from(document.querySelectorAll('.etc-exp-cb:checked'))
             .map(check => _records[Number(check.dataset.idx)]).filter(Boolean);
-        if (!selected.length) { alert('反映するデータを選択してください'); return; }
+        for (const control of document.querySelectorAll('.etc-review-choice')) {
+            if (!control.value) continue;
+            const idx=Number(control.dataset.idx), record=_records[idx];
+            const choice=control.value==='distinct' ? {distinct:true} : {replace:_review[idx]?.candidates[Number(control.value)]?.key};
+            if (record && (choice.distinct || choice.replace)) selected.push({...record,review:choice});
+        }
+        if (!selected.length) { alert('新たに反映する明細は選択されていません。'); return; }
+        selected.sort((a,b)=>_records.findIndex(r=>r.key===a.key)-_records.findIndex(r=>r.key===b.key));
+        const pending = document.querySelectorAll('.etc-review-choice').length - selected.filter(r=>r.review).length;
         try {
             const result = ExpenseManager.applyEtcRecords(selected);
             closeModal();
             AppCore.switchTab('expense');
-            alert('ETC ' + result.count + '件（¥' + result.amount.toLocaleString() + '）を利用日ごとに反映しました。'
-                + (result.skipped ? '\n反映済み ' + result.skipped + '件は追加していません。' : ''));
+            alert('ETC ' + result.count + '件を利用日ごとに反映しました。差し替え '+result.replaced+'件。金額の増減：'+result.amount.toLocaleString()+'円。'
+                + (result.skipped ? '\n反映済み ' + result.skipped + '件は追加していません。' : '')
+                + (pending ? '\n要確認 ' + pending + '件は今回反映していません。' : ''));
         } catch (error) { alert('反映できません\n' + error.message); }
     }
 

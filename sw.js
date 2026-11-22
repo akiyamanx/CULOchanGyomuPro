@@ -13,7 +13,8 @@
 // v7.0 2026-11-04 - 本番リリース(release-20261104)。リストタップで地図へ、地図なし情報カード、担当者・フィルター表示、途中から/途中まで高速(IC指定)
 // v88 2026-11-20 - スキャンPDF取り込み、四隅・辺のトリミング、会社名候補
 // v89 - 駐車場の入口と精算画面の区切りを整理
-const CACHE_NAME = 'gyomupro-v90';
+// v91 - 訪問日アイコンと完了表示、精算・同期・添付の保護
+const CACHE_NAME = 'gyomupro-v91';
 // 本番の古いキャッシュだけ消す。同じオリジンのお試し版のキャッシュ(gyomupro-stg-)は消さない
 function ownCache(name) {
     return name.startsWith('gyomupro-') && !name.startsWith('gyomupro-stg-');
@@ -86,6 +87,7 @@ const ASSETS = [
     './map/mail-box-ui.js',
     './map/request-import.js',
     './map/geocode-guard.js',
+    './map/route-pin-style.js',
     './map/map-core.js',
     './map/google-calendar-data.js',
     './map/google-visit-calendar.js',

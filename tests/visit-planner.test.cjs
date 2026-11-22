@@ -35,11 +35,12 @@ test('ピンを押すと安全な会社名・別々の電話リンク・日時�
     let content='',click;
     const nodes=new Map();
     const context=vm.createContext({console,GeocodeGuard:require('../map/geocode-guard'),VisitPlanner:Planner,ExpenseImport:require('../expense/expense-import'),
-        document:{getElementById:id=>{if(!nodes.has(id))nodes.set(id,{textContent:'',innerHTML:'',hidden:false});return nodes.get(id);}},
+        document:{getElementById:id=>{if(!nodes.has(id))nodes.set(id,{textContent:'',innerHTML:'',hidden:false,setAttribute(){}});return nodes.get(id);}},
         DataStorage:{getSettings:()=>({}),getCustomers:()=>[],getRoutes:()=>[]},RouteManager:{updateRoutePanel:()=>{}},
         google:{maps:{Map:class{},Geocoder:class{},InfoWindow:class{setContent(html){content=html;}open(){}},
-            SymbolPath:{BACKWARD_CLOSED_ARROW:1},Point:class{},Marker:class{addListener(name,callback){click=callback;}}}}
+            Point:class{},Size:class{},Marker:class{addListener(name,callback){click=callback;}}}}
     });
+    vm.runInContext(fs.readFileSync(require.resolve('../map/route-pin-style'),'utf8'),context);
     vm.runInContext(fs.readFileSync(require.resolve('../map/map-core'),'utf8'),context);
     vm.runInContext('MapCore.initMap(); MapCore.createMarker({id:"test",company:"<script>bad</script>",address:"東京都架空区1",phone:"03-0000-0000 / 090-0000-0000",status:"pending"},{lat:35,lng:139})',context);
     click();assert.match(content,/&lt;script&gt;bad&lt;\/script&gt;/);

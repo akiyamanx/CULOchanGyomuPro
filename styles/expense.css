@@ -373,7 +373,7 @@
 }
 
 /* 下書きの写真は通常の駐車場明細と独立して表示する。 */
-#loadedDraftReceipts[hidden] { display: none; }
+#loadedDraftReceipts[hidden], #expDraftCopy[hidden] { display: none; }
 .draft-choice { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; font-size: 14px; font-weight: 600; }
 .draft-choice select { width: 100%; min-width: 0; min-height: 44px; padding: 8px; color: #16324a; background: #fff; border: 1px solid var(--border); border-radius: 6px; font-size: 16px; }
 #expDraftList .exp-draft-item { display: block; }
@@ -384,3 +384,20 @@
 .draft-receipt-note { font-size: 13px; margin: 6px 0; color: #455e72; }
 .draft-receipt-card { margin-bottom: 16px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; }
 .draft-receipt-card img { width: 100%; height: 200px; object-fit: contain; background: #fff; margin-bottom: 10px; }
+
+/* 長い入口・出口名でも、スマホで差し替えの選択を横にはみ出させない。 */
+.exp-picker-item:has(.etc-review-choice) label { width: 100%; min-width: 0; overflow-wrap: anywhere; }
+.etc-review-choice { display: block; width: 100%; margin-top: .4rem; min-height: 44px; }
+
+.exp-date-review { border: 1px solid var(--accent); border-radius: var(--radius-sm); padding: .65rem; margin: 0 0 .6rem; }
+.exp-date-review[hidden] { display: none; }
+.exp-date-review-text { margin: 0 0 .45rem; font-size: .9rem; line-height: 1.45; }
+.exp-date-review-links { display: flex; flex-wrap: wrap; gap: .4rem; }
+.exp-date-review-links button { min-height: 44px; }
+
+/* 保存ボタンのすぐ上で、日付の違う領収書を確認する。 */
+.draft-review-list { display:grid; gap:.45rem; list-style:none; margin:.35rem 0 .65rem; padding:0; }
+.draft-review-list li { background:var(--surface, #fff); border:1px solid #b9c9de; border-radius:.55rem; padding:.5rem .65rem; overflow-wrap:anywhere; }
+.draft-review-list small { display:block; margin-top:.15rem; }
+.draft-review-list .draft-review-warning { border-inline-start:4px solid #9b6300; }
+.draft-review-list select { display:block; width:100%; min-height:44px; max-width:100%; margin-top:.35rem; font:inherit; }

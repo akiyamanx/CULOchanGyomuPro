@@ -14,7 +14,6 @@ const RouteManager = (() => {
     // 画面に出す文字列は必ずエスケープする(会社名・ルート名は取込データ由来)
     const esc = value => ExpenseImport.escapeHtml(value);
     const jsArg = value => esc(JSON.stringify(String(value)));
-    const safeColor = color => /^#[0-9a-fA-F]{3,8}$/.test(String(color || '')) ? color : '#9e9e9e';
 
     // ルートの訪問日（各訪問先のアポ日・作業予定日から）。全部同じ日ならその日、違えば最初〜最後、無ければ日付未定
     const WD = ['日', '月', '火', '水', '木', '金', '土'];
@@ -51,15 +50,21 @@ const RouteManager = (() => {
     function updateRoutePanel() {
         const routeEl = document.getElementById('routeManager');
         if (typeof DataStorage.isUndatedCombinedView === 'function' && DataStorage.isUndatedCombinedView()) {
+            updateLegend(DataStorage.getViewCustomers?.() || []);
             routeEl.innerHTML = '<p class="empty-msg">日付が決まっていない訪問を全部の月から見ています。月をまたぐため、ここではルート作成・距離計算はできません。ルートを組むときは、対象月でその月を選んでください。</p>';
             return;
         }
         const routes = DataStorage.getRoutes();
         const customers = DataStorage.getCustomers();
-        let html = '';
+        let html = '', unused = '', unusedCount = 0;
 
         for (const route of routes) {
             const members = customers.filter(c => c.routeId === route.id);
+            if (!members.length) {
+                unusedCount++;
+                unused += '<li>'+RoutePinStyle.swatch(RoutePinStyle.routeStyle(route,routes))+' '+esc(route.name)+'</li>';
+                continue;
+            }
             if (route.order && route.order.length > 0) {
                 members.sort((a, b) => {
                     const ai = route.order.indexOf(a.id);
@@ -69,7 +74,7 @@ const RouteManager = (() => {
             }
             html += `<div class="route-section">`;
             html += `<div class="route-header" onclick="RouteManager.toggleRouteSection(this)">`;
-            html += `<span class="route-color-dot" style="background:${safeColor(route.color)}"></span>`;
+            html += RoutePinStyle.swatch(RoutePinStyle.routeStyle(route,routes));
             html += `<span class="route-name">${esc(route.name)}</span>`;
             html += routeDateHtml(members);
             html += `<span class="route-count">${members.length}件</span>`;
@@ -109,8 +114,9 @@ const RouteManager = (() => {
             html += `</div></div>`;
         }
 
+        if(unusedCount)html+='<details class="unused-routes"><summary>未使用のルート（'+unusedCount+'）</summary><p>訪問先の編集画面で割り当てられます。</p><ul>'+unused+'</ul></details>';
         routeEl.innerHTML = html || '<p class="empty-msg">まだルートが設定されていません</p>';
-        updateLegend(routes, customers);
+        updateLegend(customers);
     }
 
     function toggleRouteSection(header) {
@@ -118,25 +124,22 @@ const RouteManager = (() => {
         if (stops) { stops.style.display = stops.style.display === 'none' ? 'block' : 'none'; }
     }
 
-    function updateLegend(routes, customers) {
-        const legendEl = document.getElementById('legend');
+    function updateLegend(customers) {
         const itemsEl = document.getElementById('legendItems');
-        const activeRoutes = routes.filter(r => customers.some(c => c.routeId === r.id));
-        if (activeRoutes.length === 0) { legendEl.style.display = 'none'; return; }
-
-        let html = '';
-        activeRoutes.forEach(r => {
-            const count = customers.filter(c => c.routeId === r.id).length;
-            html += `<div class="legend-item">`;
-            html += `<span class="legend-color" style="background:${safeColor(r.color)}"></span>`;
-            html += `<span>${esc(r.name)}（${count}件）</span>`;
-            html += `</div>`;
-        });
-        html += `<div style="border-top:1px solid #e2e8f0;margin:6px 0;"></div>`;
-        html += `<div class="legend-item"><span class="legend-color" style="background:#b57b17"></span><span>未アポ</span></div>`;
-        html += `<div class="legend-item"><span class="legend-color" style="background:#1765aa"></span><span>アポ済み</span></div>`;
-        html += `<div class="legend-item"><span class="legend-color" style="background:#177050"></span><span>訪問完了</span></div>`;
-        itemsEl.innerHTML = html;
+        if (!itemsEl) return;
+        const item=(style,label)=>`<div class="legend-item">${RoutePinStyle.swatch(style)}<span>${esc(label)}</span></div>`;
+        const status = item(RoutePinStyle.statusStyle('pending'),'未アポ（添えた数字はルート番号）')
+            + item(RoutePinStyle.statusStyle('appointed'),'アポ済み・日付なし（R付きはルート番号）')
+            + item(RoutePinStyle.statusStyle('completed'),'訪問完了（完了表示のみ）');
+        const month=DataStorage.getCurrentWorkspaceId?.();
+        const dates=new Map();
+        for(const c of customers) {
+            const date=c.status==='appointed' && RoutePinStyle.visitDay(c);
+            if(date)dates.set(date.iso,c);
+        }
+        const samples=[...dates].sort(([a],[b])=>a.localeCompare(b)).map(([iso,c])=>item(RoutePinStyle.visitStyle(c,[],month),iso.slice(5).replace('-','/')));
+        itemsEl.innerHTML=status+'<hr class="legend-divider"><p class="legend-help">数字は訪問開始日。対象月と違う日は「月/日」で表示します。</p>'
+            +(samples.length ? '<div class="legend-date-grid">'+samples.join('')+'</div>' : item(RoutePinStyle.dayStyle(3),'例：3日'));
     }
 
     function drawRouteLines() {
@@ -187,7 +190,7 @@ const RouteManager = (() => {
         const pending = customers.filter(c => c.status === 'pending' || !c.status).length;
         html += `<div class="summary-card"><h3>📊 全体集計</h3>`;
         html += `<div class="summary-row"><span>総件数</span><span class="summary-value">${customers.length}件</span></div>`;
-        html += `<div class="summary-row"><span>🔴 未アポ</span><span class="summary-value">${pending}件</span></div>`;
+        html += `<div class="summary-row"><span>🏴 未アポ</span><span class="summary-value">${pending}件</span></div>`;
         html += `<div class="summary-row"><span>🟢 アポ済み</span><span class="summary-value">${appointed}件</span></div>`;
         html += `<div class="summary-row"><span>⚪ 完了</span><span class="summary-value">${completed}件</span></div></div>`;
         if (combined) {
@@ -201,7 +204,7 @@ const RouteManager = (() => {
             if (members.length === 0) continue;
             const rAppointed = members.filter(c => c.status === 'appointed').length;
             const rCompleted = members.filter(c => c.status === 'completed').length;
-            html += `<div class="summary-card"><h3><span style="color:${safeColor(route.color)}">●</span> ${esc(route.name)}</h3>`;
+            html += `<div class="summary-card"><h3>${RoutePinStyle.swatch(RoutePinStyle.routeStyle(route,routes))} ${esc(route.name)}</h3>`;
             html += `<div class="summary-row"><span>件数</span><span class="summary-value">${members.length}件</span></div>`;
             html += `<div class="summary-row"><span>アポ済み</span><span class="summary-value">${rAppointed}件</span></div>`;
             html += `<div class="summary-row"><span>完了</span><span class="summary-value">${rCompleted}件</span></div></div>`;
