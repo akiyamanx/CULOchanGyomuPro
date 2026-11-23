@@ -14,7 +14,8 @@
 // v88 2026-11-20 - スキャンPDF取り込み、四隅・辺のトリミング、会社名候補
 // v89 - 駐車場の入口と精算画面の区切りを整理
 // v91 - 訪問日アイコンと完了表示、精算・同期・添付の保護
-const CACHE_NAME = 'gyomupro-v91';
+// v92 - 今日の訪問、同期表示、機番の履歴、現場単位のピン
+const CACHE_NAME = 'gyomupro-v92';
 // 本番の古いキャッシュだけ消す。同じオリジンのお試し版のキャッシュ(gyomupro-stg-)は消さない
 function ownCache(name) {
     return name.startsWith('gyomupro-') && !name.startsWith('gyomupro-stg-');
@@ -72,6 +73,8 @@ const ASSETS = [
     './map/request-month.js',
     './map/request-classifier.js',
     './map/mf-dedupe.js',
+    './map/equipment-history.js',
+    './map/equipment-history-ui.js',
     './map/mail-box.js',
     './map/mail-ledger-sync.js',
     './map/mail-ledger-drive.js',
@@ -88,6 +91,8 @@ const ASSETS = [
     './map/request-import.js',
     './map/geocode-guard.js',
     './map/route-pin-style.js',
+    './map/today-visits.js',
+    './map/site-pins.js',
     './map/map-core.js',
     './map/google-calendar-data.js',
     './map/google-visit-calendar.js',

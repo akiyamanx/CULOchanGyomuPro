@@ -8,7 +8,7 @@ const DataSyncUI = (() => {
     //   失敗が続くと 40→80→…最大5分 と間隔を延ばす。入力中は反映を待ち、入力が終わったらすぐ反映する。
     function createPoller(o) {
         const base = o.baseMs || 20000, max = o.maxMs || 300000;
-        let lastSig = null, pendingSig = null, interval = base, deferred = false, running = false, version = 0;
+        let lastSig = null, interval = base, deferred = false, running = false, version = 0;
         async function check() {
             if (running) return 'busy';
             if (!o.isVisible() || !o.isConnected()) return 'paused';
@@ -16,23 +16,24 @@ const DataSyncUI = (() => {
             running = true;
             const own = version;
             try {
-                if (deferred) { if (o.isEditing()) return 'deferred'; lastSig = pendingSig; }
-                else {
-                    const r = await o.core.remoteSignature();
-                    if (own !== version || !o.isConnected()) return 'paused';
-                    if (!r || !r.ok) { interval = Math.min(interval * 2, max); return 'error'; }
-                    interval = base;
-                    if (r.sig === lastSig) return 'same';
-                    if (o.isEditing()) { deferred = true; pendingSig = r.sig; return 'deferred'; }
-                    lastSig = r.sig;
-                }
+                if (deferred && o.isEditing()) return 'deferred';
+                const r = await o.core.remoteSignature();
+                if (own !== version || !o.isConnected()) return 'paused';
+                if (!r || !r.ok) { interval = Math.min(interval * 2, max); return 'error'; }
+                if (r.sig === lastSig && !o.needsRetry?.()) { interval = base; deferred = false; return 'same'; }
+                if (o.isEditing()) { deferred = true; return 'deferred'; }
                 deferred = false;
                 const res = await o.runSync();
-                if (!res || !res.ok) { lastSig = null; if (res && /timeout|network|http_error|forbidden/.test(res.code || '')) interval = Math.min(interval * 2, max); return 'sync_failed'; }
+                if (own !== version || !o.isConnected()) return 'paused';
+                if (!res || !res.ok || res.warnings?.length) {
+                    interval = Math.min(interval * 2, max); return 'sync_failed';
+                }
+                lastSig = r.sig;
+                interval = base;
                 return 'synced';
             } finally { running = false; }
         }
-        return { check, delay: () => interval, isDeferred: () => deferred, reset: () => { version++; lastSig = pendingSig = null; deferred = false; interval = base; } };
+        return { check, delay: () => interval, isDeferred: () => deferred, reset: () => { version++; lastSig = null; deferred = false; interval = base; } };
     }
 
     let core = null, bar, textEl, btn, lastFp = '', approvedSession = null, starting = false, debounce = null, hiddenByUser = false, lastMsg = '';
@@ -43,7 +44,7 @@ const DataSyncUI = (() => {
         timeout: '通信に時間がかかっています。', auth_expired: 'Googleの許可が切れました。もう一度接続してください。', forbidden: 'Google Driveを利用できません。',
         network: '通信できませんでした。', http_error: '通信できませんでした。', unexpected: '同期できませんでした。', busy: ''
     };
-    const WARN = { too_large: 'データが大きすぎて、この端末の変更を送れません。', push_failed: 'この端末の変更を送れませんでした(次に再送します)。', newer_version: '新しい版のアプリのデータがあります。アプリを更新してください。', file_invalid: '読めないファイルがありました(その分は使っていません)。', file_unreadable: '一部のファイルを読めませんでした。', records_dropped: '形式の正しくない記録を使いませんでした。' };
+    const WARN = { device_limit: '接続した端末が多く、一部のデータが未確認です。', too_large: 'データが大きすぎて、この端末の変更を送れません。', push_failed: 'この端末の変更を送れませんでした(次に再送します)。', newer_version: '新しい版のアプリのデータがあります。アプリを更新してください。', file_invalid: '読めないファイルがありました(その分は使っていません)。', file_unreadable: '一部のファイルを読めませんでした。', records_dropped: '形式の正しくない記録を使いませんでした。' };
     const driveState = () => { try { return typeof DriveTransfer !== 'undefined' ? DriveTransfer.state() : null; } catch (e) { return null; } };
     const isAllowed = session => {
         const state = driveState();
@@ -52,17 +53,25 @@ const DataSyncUI = (() => {
     const enabled = () => isAllowed(approvedSession);
     const offText = '自動同期はオフです。バックアップの共有先につないだだけでは始まりません。';
     const busyElsewhere = () => (typeof TransferUI !== 'undefined' && TransferUI.isBusy && TransferUI.isBusy());
-    const hm = ms => { const d = new Date(ms); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+    function scope() { return driveState()?.email?.trim().toLowerCase() || ''; }
+    function statusLine(r, account) {
+        const st = core.status(account), local = st.localState;
+        const last = st.lastSuccessAt ? '前回の同期成功: ' + new Intl.DateTimeFormat('ja-JP',{timeZone:'Asia/Tokyo',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(st.lastSuccessAt)
+            : 'この接続での同期成功は未確認';
+        if (r && !r.ok && r.code === 'write_failed') return last;
+        return (local === 'pending' ? 'この端末に保存済み・未同期。' : local === 'unknown' ? 'この端末の保存データ。' : '') + last;
+    }
     function show(text, kind) {
         if (!bar) return;
         lastMsg = text;
         textEl.textContent = text; bar.dataset.kind = kind || '';
         btn.textContent = enabled() ? '今すぐ同期' : '自動同期を始める';
-        bar.hidden = hiddenByUser && kind !== 'error';
+        bar.hidden = hiddenByUser && !['error','warn'].includes(kind);
     }
     // 入力中か(文字を打っている・訪問先の編集画面などが開いている)。このときは他端末の変更を書き込まない。
     function isEditing() {
         if (typeof document === 'undefined') return false;
+        if (document.getElementById('siteCompletionDialog')?.open) return true;
         const a = document.activeElement;
         if (a && !(bar && bar.contains(a))) {
             const tag = a.tagName;
@@ -100,22 +109,24 @@ const DataSyncUI = (() => {
     }
     let deferredLocal = false;
     async function syncNow(opt, how) {
-        const session = approvedSession, stillAllowed = () => isAllowed(session);
+        const session = approvedSession, account = scope(), stillAllowed = () => isAllowed(session);
         if (!core || busyElsewhere() || !stillAllowed()) return null;
         if (how && how.auto && isEditing()) { deferredLocal = true; return { ok: false, code: 'editing' }; }
         deferredLocal = false;
-        show('同期中…', '');
-        let r = await core.sync({ ...opt, stillAllowed });
+        show('同期中… ' + statusLine(null, account), '');
+        let r = await core.sync({ ...opt, stillAllowed, statusScope: account });
         if (!stillAllowed()) return null;
         if (!r.ok && r.code === 'mass_delete') {
             const yes = confirm(`この端末で訪問先が${r.count}件まとめて消えています。\n\nOK: もう1台からも消す\nキャンセル: 消さずに、もう1台から戻す`);
             if (!stillAllowed()) return null;
-            r = await core.sync({ massDelete: yes ? 'allow' : 'restore', stillAllowed });
+            r = await core.sync({ massDelete: yes ? 'allow' : 'restore', stillAllowed, statusScope: account });
             if (!stillAllowed()) return null;
         }
         if (r.code === 'busy_local') { schedule(); }
-        if (r.ok && poller) poller.reset();
-        lastFp = core.fingerprint();
+        const fp = core.fingerprint();
+        const edited = core.status(account).localState === 'pending' && !r.warnings?.length && r.ok;
+        lastFp = fp;
+        if (edited) schedule();
         if (r.ok) {
             const s = r.stats; const bits = [];
             if (s.first) bits.push('初回の突き合わせをしました(同期前の控えあり)');
@@ -124,9 +135,10 @@ const DataSyncUI = (() => {
             if (s.mfMerged) bits.push(`同じMF番号の重複${s.mfMerged}件をまとめました`);
             if (s.conflicts) bits.push(`食い違い${s.conflicts}項目は空欄でない方を採用`);
             const w = (r.warnings || []).map(x => WARN[x]).filter(Boolean);
-            show(`同期済み ${hm(Date.now())}` + (bits.length ? ' — ' + bits.join('・') : '') + (w.length ? ' ⚠ ' + w.join(' ') : ''), w.length ? 'warn' : 'ok');
+            show(w.length ? '同期は未完了。' + w.join(' ') + ' ' + statusLine(r, account)
+                : (edited ? '' : '同期済み。') + statusLine(r, account) + (bits.length ? ' — ' + bits.join('・') : ''), w.length || edited ? 'warn' : 'ok');
             if (s.writes) { refreshApp(); if (how && how.auto && (s.added || s.changed || s.deletedHere || s.mfMerged)) toast('他の端末の変更を反映しました'); }
-        } else if (r.code !== 'busy') show('同期できませんでした: ' + (MSG[r.code] || MSG.unexpected), 'error');
+        } else if (r.code !== 'busy') show('同期できませんでした: ' + (MSG[r.code] || MSG.unexpected) + ' ' + statusLine(r, account), 'error');
         return r;
     }
     async function onButton() {
@@ -162,7 +174,7 @@ const DataSyncUI = (() => {
             approvedSession = null;
             deferredLocal = false;
             clearTimeout(debounce); debounce = null; poller?.reset();
-            show('接続が切れました。' + offText, 'warn');
+            show('接続が切れました。' + offText + ' ' + statusLine(null, scope()), 'warn');
         }
         if (deferredLocal && c && !isEditing()) { syncNow(null, { auto: true }); return; }
         if (c && poller && poller.isDeferred() && !isEditing()) { poller.check(); }
@@ -171,6 +183,7 @@ const DataSyncUI = (() => {
         lastFp = fp;
         const cp = core.checkpoint();   // 通信なしで「いつ変えたか」を記録
         if (cp && cp.code === 'mass_delete' && !c) show(`訪問先が${cp.count}件まとめて消えています。次に同期するときに確認します。`, 'warn');
+        else if (cp?.code !== 'busy') show(statusLine(null, scope()) + (c ? '' : '。' + offText), c ? 'warn' : '');
         if (c) schedule();
     }
     let poller = null, loopTimer = null;
@@ -216,10 +229,10 @@ const DataSyncUI = (() => {
             const b2 = document.createElement('button'); b2.type = 'button'; b2.className = 'btn btn-secondary'; b2.id = 'beforeSyncDownload'; b2.textContent = '初回の自動同期の前の記録を書き出す'; b2.onclick = downloadBeforeSync;
             prev.insertAdjacentElement('afterend', b2);
         }
-        show(offText, 'warn');
-        lastFp = '';
+        show(offText + ' ' + statusLine(null, scope()), '');
+        lastFp = core.fingerprint();
         setInterval(tick, 3000);
-        poller = createPoller({ core, isVisible: () => document.visibilityState === 'visible', isConnected: enabled, isEditing, isBusy: busyElsewhere, runSync: () => syncNow(null, { auto: true }) });
+        poller = createPoller({ core, isVisible: () => document.visibilityState === 'visible', isConnected: enabled, isEditing, isBusy: busyElsewhere, needsRetry: () => { const s = core.status(scope()); return s.localState === 'pending' || !!s.warnings?.length || s.ok === false; }, runSync: () => syncNow(null, { auto: true }) });
         loop();
         document.addEventListener('focusout', () => setTimeout(() => { if (!isEditing()) { if (deferredLocal) syncNow(null, { auto: true }); else if (poller.isDeferred()) poller.check(); } }, 300));
         document.addEventListener('visibilitychange', () => {

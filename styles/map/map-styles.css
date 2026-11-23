@@ -265,3 +265,47 @@
 .unused-routes p { font-size:12px; }
 .unused-routes ul { display:grid; grid-template-columns:repeat(auto-fit,minmax(90px,1fr)); gap:6px; margin:.4rem 0; padding:0; list-style:none; }
 .unused-routes li { display:flex; align-items:center; gap:4px; font-size:12px; }
+
+#tab-map .map-today-btn { min-height:44px; }
+#tab-map .map-today-btn[aria-pressed="true"] { background:#e3eefc;color:#193b61;border-color:#21568c;font-weight:700; }
+.map-today-card:not([hidden]) { padding:8px 12px; background:#f4f8fd; border-top:1px solid #bfccdb; border-bottom:1px solid #bfccdb; }
+.today-next,.today-quick { display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px; }
+.today-next { justify-content:space-between; }
+.today-next strong,.today-kicker { display:block; overflow-wrap:anywhere; }
+.today-kicker,.today-empty,.today-warning { font-size:12px; line-height:1.45; }
+.today-kicker,.today-row-time { color:#21476c; }
+.today-warning { color:#704a05;background:#fff3d7;border-radius:4px;padding:4px 8px;margin:0 0 4px; }
+.today-empty { color:#3b5269; margin:0; }
+#tab-map .today-quick .btn { width:auto;min-height:44px;text-decoration:none;display:inline-flex;align-items:center; }
+.today-list-link { display:inline-flex;align-items:center;min-height:34px;margin-top:2px;font-size:13px;color:#21476c; }
+body.map-focus .today-list-link { display:none; }
+#customerList { scroll-margin-top:72px; }
+
+/* 機番検索: 結果の区分が色なしでも分かり、小さい画面で横にはみ出さない。 */
+.equipment-history-dialog { box-sizing:border-box; width:min(calc(100% - 24px),560px); max-height:88dvh; border:1px solid #cad8e5; border-radius:14px; padding:16px; color:#17314d; background:#fff; overflow:auto; }
+.equipment-history-dialog::backdrop { background:rgba(16,31,48,.58); }
+.equipment-history-dialog header, .equipment-history-dialog form div { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.equipment-history-dialog h2 { font-size:1.15rem; margin:0; }
+.equipment-history-dialog h3 { font-size:1rem; margin:12px 0 6px; }
+.equipment-history-dialog p { margin:6px 0; overflow-wrap:anywhere; }
+.equipment-history-dialog input { min-width:0; flex:1; padding:8px; min-height:44px; font-size:16px; }
+.equipment-history-dialog button { width:auto; flex:none; min-height:44px; }
+.equipment-history-section { border-top:2px solid #bdcde0; margin-top:12px; }
+.equipment-history-card { padding:10px; margin:6px 0; border-radius:8px; background:#eef4fb; overflow-wrap:anywhere; white-space:pre-wrap; }
+
+/* ナビを開く前に、訪問先と受付・設置階を文字で確認できる。 */
+.today-location { margin:2px 0; overflow-wrap:anywhere; white-space:pre-line; }
+.today-quick button.btn { min-height:44px; width:auto; }
+
+/* 現場を1ピンにまとめても、機番は個々の訪問行で確認できる。 */
+.customer-unit-no { display:block; font-size:.8em; color:#35536b; overflow-wrap:anywhere; }
+.info-btn-nav,.info-btn-complete { display:inline-flex; align-items:center; min-height:44px; text-decoration:none; }
+.info-btn-nav { background:#e4eef9; color:#174775; }
+.info-btn-complete { background:#e5f3ea; color:#145134; }
+.pin-site-units { flex-basis:100%; margin-block:5px; }
+.pin-site-units ul { padding-inline-start:20px; }
+.pin-site-units button { min-height:40px; margin-block:3px; }
+.site-completion label { display:flex; gap:10px; align-items:center; min-height:44px; padding:5px 2px; border-bottom:1px solid #d5e1eb; }
+.site-completion input[type=checkbox] { min-height:0; width:20px; height:20px; flex:0 0 20px; }
+.site-completion label span { overflow-wrap:anywhere; }
+.site-completion #siteCompletionError:not(:empty) { color:#9b2924; font-weight:700; }

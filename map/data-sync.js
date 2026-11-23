@@ -367,8 +367,9 @@ const DataSync = (() => {
             try { files = await withTimeout(adapter.list()); } catch (e) { return { ok: false, code: errCode(e) }; }
             if (!allowed()) return { ok: false, code: 'not_connected' };
             const mine = files.filter(f => f.deviceId === st.deviceId);
-            const others = files.filter(f => f.deviceId !== st.deviceId && DEVICE_RE.test(String(f.deviceId))).slice(0, MAX_FILES);
-            const warnings = []; let dropped = 0;
+            const candidates = files.filter(f => f.deviceId !== st.deviceId && DEVICE_RE.test(String(f.deviceId)));
+            const others = candidates.slice(0, MAX_FILES);
+            const warnings = candidates.length > MAX_FILES ? ['device_limit'] : []; let dropped = 0;
             const conflicts = { n: 0 }; const fromRemote = new Set();
             let added = 0, changed = 0;
             for (const f of others) {
@@ -402,6 +403,7 @@ const DataSync = (() => {
             saveState(st);
             // 自分のファイルを出す
             let pushed = false;
+            const appliedFingerprint = fingerprint();
             const docText = JSON.stringify(docOf(view, st.deviceId, new Date(now).toISOString(), now));
             const ph = hashOf(docText.replace(/"savedAt":"[^"]*"/, ''));
             if (docText.length > MAX_FILE_BYTES) warnings.push('too_large');
@@ -412,6 +414,11 @@ const DataSync = (() => {
                     if (!allowed()) return { ok: false, code: 'not_connected' };
                     const st2 = loadState(); st2.fileId = res && res.id || fileId; st2.pushHash = ph; saveState(st2); pushed = true;
                 } catch (e) { warnings.push('push_failed'); }
+            }
+            if (!warnings.length && op.statusScope && allowed()) {
+                const snapshot = loadState();
+                snapshot.confirmed = { scope: hashOf(op.statusScope), at: nowMs(), fingerprint: appliedFingerprint };
+                saveState(snapshot);
             }
             const stats = { added, changed, deletedHere: deleted.cust.length, mfMerged, writes, pushed, devices: others.length, conflicts: conflicts.n, first };
             return { ok: true, stats, warnings: [...new Set(warnings)] };
@@ -452,8 +459,19 @@ const DataSync = (() => {
             } catch (e) { return { ok: false, code: 'local_corrupt' }; }
         }
         // 「受け取る」で丸ごと入れ替えた後: 次の同期を初回扱いにする(消えた分を削除として伝えない)
-        function rebase() { try { const st = loadState(); st.clocks = null; saveState(st); return true; } catch (e) { return false; } }
-        function status() { let st = null; try { st = JSON.parse(S.getItem(STATE_KEY) || 'null'); } catch (e) { st = null; } return { ...last, running: !!running, everSynced: !!(st && st.clocks), backupAt: st && st.backupAt || '' }; }
+        function rebase() { try { const st = loadState(); st.clocks = null; delete st.confirmed; saveState(st); return true; } catch (e) { return false; } }
+        function status(scope) {
+            let st = null, localState = 'unknown', lastSuccessAt = 0;
+            try {
+                st = JSON.parse(S.getItem(STATE_KEY) || 'null');
+                const c = st?.confirmed;
+                if (c && (!scope || c.scope === hashOf(scope)) && Number.isFinite(c.at) && c.at > 0) {
+                    lastSuccessAt = c.at;
+                    localState = c.fingerprint === fingerprint() ? 'matched' : 'pending';
+                }
+            } catch { localState = 'unknown'; lastSuccessAt = 0; }
+            return { ...last, running: !!running, everSynced: !!st?.clocks, backupAt: st?.backupAt || '', lastSuccessAt, localState };
+        }
         return { sync, status, fingerprint, rebase, checkpoint, remoteSignature };
     }
     return { create, parseDoc, APP, STATE_KEY, MAX_FILE_BYTES };

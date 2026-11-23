@@ -321,10 +321,19 @@ function saveEdit() {
         appoEndDate: appoEndDate || null,
         purpose: document.getElementById('editPurpose').value
     };
+    const serialField = document.getElementById('editManagementNo');
+    if (serialField) updates.managementNo = serialField.value.trim();
+    if (typeof EquipmentHistoryUI !== 'undefined' && document.getElementById('workActualDay'))
+        updates.workActual = EquipmentHistory.actual(EquipmentHistoryUI.input());
+    for (const key of ['buildingName','receptionFloor','equipmentFloor']) {
+        const field = document.getElementById('visitSite-'+key);
+        if (field) updates[key] = field.value.trim();
+    }
     if (scheduleField) updates.scheduleKind = scheduleKind;
     if (dateWarning && !dateWarning.hidden && appoDate) updates.dateNeedsReview = false;
-    if (!(typeof DataStorage.isUndatedCombinedView === 'function' && DataStorage.isUndatedCombinedView())) {
-        updates.routeId = document.getElementById('editRoute').value || null;
+    const routeField = document.getElementById('editRoute');
+    if (routeField && !routeField.disabled && !DataStorage.isUndatedCombinedView?.()) {
+        updates.routeId = routeField.value || null;
     }
     var result = DataStorage.saveCustomerWithAppoDate
         ? DataStorage.saveCustomerWithAppoDate(id, updates)
@@ -342,7 +351,7 @@ function saveEdit() {
         showVisitToast((lab && lab.month) ? lab.month + 'に移しました' : 'その月に移しました');
     }
     // 希望日時を確定予定のようにカレンダーへ案内しない。
-    if (appoDate && scheduleKind !== 'preferred') {
+    if (appoDate && scheduleKind !== 'preferred' && updates.status !== 'completed') {
         var company = document.getElementById('editCompany').value.trim();
         var address = document.getElementById('editAddress').value.trim();
         var contact = document.getElementById('editContact').value.trim();

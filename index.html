@@ -17,7 +17,7 @@
     <link rel="stylesheet" href="styles/parking.css">
     <link rel="stylesheet" href="styles/parking-workflow.css?v=20261121-3">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600&display=swap">
-    <link rel="stylesheet" href="styles/map/map-styles.css?v=20261122-route-pins-2">
+    <link rel="stylesheet" href="styles/map/map-styles.css?v=20261123-sites-1">
     <link rel="stylesheet" href="styles/map/map-expense-styles.css">
     <link rel="stylesheet" href="styles/map/route-order-styles.css">
     <link rel="stylesheet" href="styles/map/workspace-styles.css?v=20261117-1">
@@ -294,7 +294,8 @@
                     </div>
                 </section>
                 <section class="map-region" aria-label="訪問先の地図">
-                    <div class="map-region-header"><div><h3>地図から訪問先を選ぶ</h3><p class="visit-help">ピン → 電話・日時・備考 → ルートへ</p><p class="map-visit-view" id="mapVisitView" role="status">未完了</p></div><div class="map-view-actions"><button class="btn btn-secondary" id="mapListButton" aria-expanded="false" aria-controls="bottomPanel" hidden>訪問先・ルート</button><button type="button" class="btn btn-secondary map-completed-btn" id="mapCompletedButton" aria-pressed="false" aria-controls="map customerList" onclick="MapCore.toggleCompleted()">完了した訪問を見る（0）</button><button class="compact-legend-btn" onclick="toggleLegend()">ピンの説明</button><button class="btn btn-primary" id="mapExpandButton" aria-expanded="false" aria-controls="visitLayout">地図を大きく</button></div></div>
+                    <div class="map-region-header"><div><h3>地図から訪問先を選ぶ</h3><p class="visit-help">ピン → 電話・日時・備考 → ルートへ</p><p id="siteCompletionNotice" class="visit-help" role="status" hidden></p><p class="map-visit-view" id="mapVisitView" role="status">未完了</p></div><div class="map-view-actions"><button class="btn btn-secondary" id="mapListButton" aria-expanded="false" aria-controls="bottomPanel" hidden>訪問先・ルート</button><button type="button" class="btn btn-secondary map-today-btn" id="mapTodayButton" aria-pressed="false" aria-controls="map customerList mapTodayCard" onclick="MapCore.toggleToday()">今日だけ</button><button type="button" class="btn btn-secondary" id="equipmentHistoryOpen">機番の履歴</button><button type="button" class="btn btn-secondary map-completed-btn" id="mapCompletedButton" aria-pressed="false" aria-controls="map customerList" onclick="MapCore.toggleCompleted()">完了した訪問を見る（0）</button><button class="compact-legend-btn" onclick="toggleLegend()">ピンの説明</button><button class="btn btn-primary" id="mapExpandButton" aria-expanded="false" aria-controls="visitLayout">地図を大きく</button></div></div>
+                    <div id="mapTodayCard" class="map-today-card" hidden></div>
                     <div class="map-canvas"><div id="map"></div><div class="map-setup" id="mapSetup"><span class="map-placeholder-icon" aria-hidden="true">⌖</span><h4>地図を使う準備</h4><p id="mapSetupMessage">設定でGoogle Maps APIキーと会社住所を登録すると、地図と距離計算が使えます。</p><button class="btn btn-secondary compact-action" onclick="AppCore.openSettings('maps')">地図の設定を開く</button><p class="map-setup-hint">訪問先の登録・編集は、先に進められます。</p></div></div>
                     <div class="legend" id="legend" style="display:none;"><div class="legend-title">ピンの色・形・日付 <button class="legend-close" onclick="toggleLegend()" aria-label="ピンの説明を閉じる">✕</button></div><div id="legendItems"></div></div>
                 </section>
@@ -303,7 +304,7 @@
             <div class="modal-overlay" id="addModal" style="display:none;"><div class="modal"><h2>訪問先を追加</h2><div class="modal-row"><label for="addCompany">会社名 *</label><input type="text" id="addCompany" placeholder="例：㈱サンプル会社"></div><div class="modal-row"><label for="addAddress">住所 *</label><input type="text" id="addAddress" placeholder="例：東京都港区虎ノ門1-1-1"></div><div class="modal-row"><label for="addPhone">電話番号</label><input type="tel" id="addPhone" placeholder="例：03-1234-5678"></div><div class="modal-row"><label for="addContact">担当者</label><input type="text" id="addContact" placeholder="例：山田様"></div><div class="modal-row"><label for="addPurpose">目的</label><select id="addPurpose"><option value="">未設定</option><option value="メンテナンス">メンテナンス</option><option value="修理">修理</option><option value="本体設置">本体設置</option><option value="その他">その他</option></select></div><div class="modal-row"><label for="addNote">備考</label><textarea id="addNote" placeholder="台数や機種、駐車場情報など..."></textarea></div><div class="modal-buttons"><button class="modal-cancel" onclick="hideAddModal()">キャンセル</button><button class="modal-submit" onclick="addNewLocation()">追加する</button></div></div></div>
             <div class="modal-overlay" id="editModal" style="display:none;"><div class="modal visit-editor">
                 <header class="visit-editor-header"><div><h2>電話・訪問予定を登録</h2><strong id="visitEditorName"></strong><p id="visitEditorAddress" class="visit-help"></p></div><button type="button" class="modal-cancel" onclick="hideEditModal()" aria-label="訪問先の編集を閉じる">閉じる</button></header>
-                <div class="visit-editor-actions"><div id="visitPhoneActions"></div><div id="visitCallInfo" class="visit-call-info" aria-label="電話中に見る情報"></div><p id="visitFilterInfo" class="visit-filter-info" hidden></p><a class="btn btn-secondary" href="https://calendar.google.com" target="_blank" rel="noopener">Googleカレンダーを開く ↗</a></div>
+                <div class="visit-editor-actions"><div id="visitPhoneActions"></div><div id="visitCallInfo" class="visit-call-info" aria-label="電話中に見る情報"></div><p id="visitFilterInfo" class="visit-filter-info" hidden></p><button type="button" class="btn btn-secondary" id="equipmentHistoryFromVisit" hidden>この機番の履歴</button><a class="btn btn-secondary" href="https://calendar.google.com" target="_blank" rel="noopener">Googleカレンダーを開く ↗</a></div>
                 <div class="visit-editor-grid"><section aria-label="訪問先の編集">
                     <div class="visit-date-fields"><div class="modal-row"><label for="visitScheduleDay">開始日</label><input type="date" id="visitScheduleDay"></div><div class="modal-row"><label for="visitScheduleTime">開始時刻</label><input type="time" id="visitScheduleTime"></div></div><input type="hidden" id="editAppoDate">
                     <details id="visitScheduleEndDetails" class="visit-schedule-end"><summary>終了日時を指定（泊まり・複数日）</summary>
@@ -317,7 +318,13 @@
                     <div class="visit-date-fields"><div class="modal-row"><label for="editStatus">アポの状態</label><select id="editStatus"><option value="pending">未アポ</option><option value="appointed">アポ済み</option><option value="completed">完了</option></select></div><div class="modal-row"><label for="editRoute">ルート</label><select id="editRoute"></select></div></div>
                     <div class="modal-row"><label for="editNote">備考・電話で確認したこと</label><textarea id="editNote" rows="4"></textarea></div>
                     <div class="modal-row"><label for="editPurpose">作業内容</label><select id="editPurpose"><option value="">未設定</option><option value="メンテナンス">メンテナンス</option><option value="修理">修理</option><option value="本体設置">本体設置</option><option value="その他">その他</option></select></div>
-                    <details class="visit-contact-details"><summary>会社名・住所・連絡先を編集</summary><div class="modal-row"><label for="editCompany">会社名</label><input type="text" id="editCompany"></div><div class="modal-row"><label for="editAddress">住所</label><input type="text" id="editAddress"></div><div class="modal-row"><label for="editPhone">電話番号</label><input type="tel" id="editPhone"></div><div class="modal-row"><label for="editContact">担当者</label><input type="text" id="editContact"></div></details>
+                    <details class="visit-contact-details" id="workActualDetails"><summary>作業実績を控える（任意）</summary>
+                        <p class="visit-help">支給タブレットの報告書とは別の控えです。ここから提出や更新はしません。</p>
+                        <div class="modal-row"><label for="workActualDay">実際の作業日</label><input type="date" id="workActualDay"></div>
+                        <div class="visit-date-fields"><div class="modal-row"><label for="workActualStart">実際の開始時刻</label><input type="time" id="workActualStart"></div><div class="modal-row"><label for="workActualEnd">実際の終了時刻（同日）</label><input type="time" id="workActualEnd"></div></div>
+                        <div class="modal-row"><label for="workActualSummary">実際に行った作業・交換部材</label><textarea id="workActualSummary" rows="3" maxlength="1000"></textarea></div>
+                    </details>
+                    <details class="visit-contact-details"><summary>会社名・住所・連絡先を編集</summary><div class="modal-row"><label for="editManagementNo">機番（MF番号など）</label><input type="text" id="editManagementNo" maxlength="80" autocapitalize="characters"></div><div class="modal-row"><label for="editCompany">会社名</label><input type="text" id="editCompany"></div><div class="modal-row"><label for="editAddress">住所</label><input type="text" id="editAddress"></div><div class="modal-row"><label for="visitSite-buildingName">建物名（住所と別に控える場合）</label><input type="text" id="visitSite-buildingName" maxlength="100"></div><div class="modal-row"><label for="visitSite-receptionFloor">受付階</label><input type="text" id="visitSite-receptionFloor" maxlength="24"></div><div class="modal-row"><label for="visitSite-equipmentFloor">機械の設置階</label><input type="text" id="visitSite-equipmentFloor" maxlength="24"></div><div class="modal-row"><label for="editPhone">電話番号</label><input type="tel" id="editPhone"></div><div class="modal-row"><label for="editContact">担当者</label><input type="text" id="editContact"></div></details>
                 </section><section class="visit-calendar" aria-label="Googleカレンダーと訪問予定">
                     <h3>予定を見ながら日時を決める</h3>
                     <div class="google-calendar-actions"><button type="button" class="btn btn-secondary" id="googleCalendarRefresh" hidden>更新</button><button type="button" class="text-link" id="googleCalendarSettings" onclick="AppCore.openSettings('google')">連携設定</button></div>
@@ -449,11 +456,26 @@
     <script src="map/request-reader.js?v=20261030-3"></script>
     <script src="map/request-month.js?v=20261028-1"></script>
     <script src="map/request-classifier.js?v=20261030-3"></script>
+    <dialog id="siteCompletionDialog" class="equipment-history-dialog site-completion" aria-labelledby="siteCompletionTitle">
+        <header><h2 id="siteCompletionTitle">作業完了を記録</h2><button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">閉じる</button></header>
+        <p id="siteCompletionScope"></p>
+        <p><strong>作業できなかった機体だけにチェックしてください。</strong> チェックした機体は未完了のまま残ります。</p>
+        <div id="siteCompletionRows"></div>
+        <p id="siteCompletionError" role="alert"></p>
+        <button type="button" class="btn btn-primary" onclick="MapCore.confirmCompletion()">チェックしていない機体を完了</button>
+    </dialog>
+    <dialog id="equipmentHistoryDialog" class="equipment-history-dialog" aria-labelledby="equipmentHistoryTitle">
+        <header><h2 id="equipmentHistoryTitle">機番の履歴</h2><button class="btn btn-secondary" type="button" id="equipmentHistoryClose">閉じる</button></header>
+        <p>業務プロに保存した訪問を、月をまたいで確認できます。支給タブレットのデータやメールを自動取得する機能ではありません。</p>
+        <form id="equipmentHistoryForm"><label for="equipmentHistorySerial">機番（MF番号）</label><div><input id="equipmentHistorySerial" type="text" maxlength="30" autocapitalize="characters" placeholder="MF123456" autofocus><button type="submit" class="btn btn-primary">検索</button></div></form>
+        <p id="equipmentHistoryStatus" role="status"></p>
+        <div id="equipmentHistoryResults"></div>
+    </dialog>
     <script src="map/mf-dedupe.js?v=20261122-visit-conflict-1"></script>
     <script src="map/mail-box.js?v=20261119-date-review-1"></script>
     <script src="map/mail-ledger-sync.js?v=20261122-safety-1"></script>
     <script src="map/mail-ledger-drive.js?v=20261122-safety-1"></script>
-    <script src="map/data-sync.js?v=20261122-empty-sync-1"></script>
+    <script src="map/data-sync.js?v=20261123-status-1"></script>
     <script src="map/gmail-transport.js?v=20261117-3"></script>
     <script src="map/gmail-source.js?v=20261120-gmail-partial-1"></script>
     <script src="map/gmail-import.js?v=20261120-gmail-partial-1"></script>
@@ -465,10 +487,14 @@
     <script src="map/request-import.js?v=20261119-date-review-1"></script>
     <script src="map/geocode-guard.js?v=20261104-3"></script>
     <script src="map/route-pin-style.js?v=20261122-route-pins-2"></script>
-    <script src="map/map-core.js?v=20261122-route-pins-2"></script>
+    <script src="map/today-visits.js?v=20261123-next-2"></script>
+    <script src="map/site-pins.js?v=20261123-sites-2"></script>
+    <script src="map/map-core.js?v=20261123-sites-1"></script>
     <script src="map/google-calendar-data.js?v=20261019-13"></script>
     <script src="map/google-visit-calendar.js?v=20261019-14"></script>
-    <script src="map/visit-planner.js?v=20261121-5"></script>
+    <script src="map/equipment-history.js?v=20261123-next-2"></script>
+    <script src="map/equipment-history-ui.js?v=20261123-next-2"></script>
+    <script src="map/visit-planner.js?v=20261123-next-2"></script>
     <script src="map/map-workspace.js?v=20261019-11"></script>
     <script src="map/route-list-pdf.js"></script>
     <script src="map/result-map.js?v=20261105-3"></script>
@@ -479,7 +505,7 @@
     <script src="map/highway-segments.js?v=20261105-2"></script>
     <script src="map/segment-dialog.js?v=20261105-1"></script>
     <script src="map/distance-calc.js?v=20261105-3"></script>
-    <script src="map/ui-actions.js?v=20261121-5"></script>
+    <script src="map/ui-actions.js?v=20261123-next-2"></script>
     <script src="map/gcal-panel.js?v=20261019-13"></script>
     <script src="expense/parking-matcher.js?v=20261014-4"></script>
     <script src="expense/etc-document.js?v=20261019-7"></script>
@@ -494,7 +520,7 @@
     <script src="shared/drive-graph.js?v=20261019-15"></script>
     <script src="shared/drive-transfer.js?v=20261122-safety-1"></script>
     <script src="shared/transfer-ui.js?v=20261122-safety-1"></script>
-    <script src="map/data-sync-ui.js?v=20261122-safety-1"></script>
+    <script src="map/data-sync-ui.js?v=20261123-sites-1"></script>
     <script>
         (function() {
             var KEY = 'culo_migration_notice_20261028';

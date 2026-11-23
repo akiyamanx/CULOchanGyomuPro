@@ -30,7 +30,7 @@ function device(deviceId, drive, seed = {}, hooks = {}) {
     const put = (k, v) => store.set(k, JSON.stringify(v));
     const all = () => [...store.keys()].filter(k => /^mm_customers_/.test(k)).flatMap(k => get(k).map(c => ({ ...c, _ws: k.slice(13) })));
     return {
-        store, backups, sync: async o => JSON.parse(JSON.stringify(await s.sync(o))), tick: m => { now += m * MIN; }, status: () => s.status(), cp: () => JSON.parse(JSON.stringify(s.checkpoint())), sig: async () => JSON.parse(JSON.stringify(await s.remoteSignature())), rebase: () => s.rebase(), fp: () => s.fingerprint(),
+        store, backups, sync: async o => JSON.parse(JSON.stringify(await s.sync(o))), tick: m => { now += m * MIN; }, status: scope => s.status(scope), cp: () => JSON.parse(JSON.stringify(s.checkpoint())), sig: async () => JSON.parse(JSON.stringify(await s.remoteSignature())), rebase: () => s.rebase(), fp: () => s.fingerprint(),
         get, put, all, find: id => all().find(c => c.id === id),
         edit: (wsId, id, patch) => put('mm_customers_' + wsId, get('mm_customers_' + wsId).map(c => c.id === id ? { ...c, ...patch } : c)),
         add: (wsId, c) => { if (!get('mm_workspaces').some(w => w.id === wsId)) put('mm_workspaces', [...get('mm_workspaces'), { id: wsId, name: wsId }]); put('mm_customers_' + wsId, [...(get('mm_customers_' + wsId) || []), c]); },
@@ -410,4 +410,44 @@ test('0件になった端末と同じ月に新規追加した端末: 新規の�
         assert.deepEqual(d.get(route), [newRoute]);
         assert.deepEqual(d.get(exp), [newExpense]);
     }
+});
+
+test('成功した同期の時刻はアップロード失敗で進まず、再起動後も端末側の変更が残る', async () => {
+    const drive = makeDrive(), hooks = {};
+    let a = device(ID_A, drive, seedOf({ '2026-10': [cust('audit')] }), hooks);
+    const scope = { statusScope: 'test-account' };
+    await a.sync(scope);
+    const first = a.status('test-account');
+    assert.equal(first.lastSuccessAt, T0);
+    assert.equal(first.localState, 'matched');
+    assert.equal(a.status('different-account').lastSuccessAt, 0);
+    a.tick(1); a.edit('2026-10', 'audit', { note: '保存済みの変更' });
+    hooks.writeError = true;
+    const failed = await a.sync(scope);
+    assert.ok(failed.warnings.includes('push_failed'));
+    a = device(ID_A, drive, Object.fromEntries(a.store), hooks);
+    assert.equal(a.find('audit').note, '保存済みの変更');
+    assert.equal(a.status('test-account').lastSuccessAt, T0);
+    assert.equal(a.status('test-account').localState, 'pending');
+    hooks.writeError = false; a.tick(2); await a.sync(scope);
+    assert.equal(a.status('test-account').lastSuccessAt, T0 + 2 * MIN);
+    assert.equal(a.status('test-account').localState, 'matched');
+    const b = device(ID_B, drive, seedOf({})); await b.sync(scope);
+    assert.equal(b.find('audit').note, '保存済みの変更');
+});
+
+test('一覧の変更がなくても不完全な同期は再試行し、成功後の無変化では再同期しない', async () => {
+    const {createPoller} = require('../map/data-sync-ui.js');
+    let writes = 0, pending = false, warning = false;
+    const p = createPoller({baseMs:20,maxMs:100,core:{remoteSignature:async()=>({ok:true,sig:'same'})},
+        isVisible:()=>true,isConnected:()=>true,isEditing:()=>false,needsRetry:()=>pending,
+        runSync:async()=>{ writes++; return {ok:true,warnings:warning ? ['file_unreadable'] : []}; }});
+    assert.equal(await p.check(), 'synced');
+    assert.equal(await p.check(), 'same');
+    pending = true; warning = true;
+    assert.equal(await p.check(),'sync_failed'); assert.equal(p.delay(),40);
+    warning = false;
+    assert.equal(await p.check(),'synced');
+    pending = false; assert.equal(await p.check(),'same');
+    assert.equal(writes,3);
 });

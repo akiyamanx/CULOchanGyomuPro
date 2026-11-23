@@ -5,7 +5,7 @@ const VisitPlanner = (() => {
     const esc = value => ExpenseImport.escapeHtml(String(value ?? ''));
     const byId = id => document.getElementById(id);
     let month = '', selectedDay = '', appointments = [], readFailed = false, baseline = '';
-    const fields = ['editCompany','editAddress','editPhone','editContact','editRoute','editStatus','editScheduleKind','editPurpose','editNote','visitScheduleDay','visitScheduleTime','visitScheduleEndDay','visitScheduleEndTime'];
+    const fields = ['editCompany','editAddress','editPhone','editContact','editRoute','editStatus','editScheduleKind','editPurpose','editNote','visitScheduleDay','visitScheduleTime','visitScheduleEndDay','visitScheduleEndTime','editManagementNo','workActualDay','workActualStart','workActualEnd','workActualSummary','visitSite-buildingName','visitSite-receptionFloor','visitSite-equipmentFloor'];
     function combine(day,time) {
         if (!day && !time) return '';
         if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return null;
@@ -103,6 +103,7 @@ const VisitPlanner = (() => {
         loadGoogleMonth();renderCalendar();
     }
     function begin(customer) {
+        if (typeof EquipmentHistoryUI !== 'undefined') EquipmentHistoryUI.begin(customer);
         byId('visitEditorName').textContent=customer.company||'訪問先';
         byId('visitEditorAddress').textContent=customer.address||'';
         { const info=byId('visitCallInfo'); if(info){ const rows=[]; if(customer.contact)rows.push(`<p>👤 ${esc(customer.contact)}</p>`); info.innerHTML=rows.join(''); info.hidden=!rows.length; } const fi=byId('visitFilterInfo'); if(fi){ fi.textContent=customer.filter?'🔧 フィルター: '+customer.filter:''; fi.hidden=!customer.filter; } }
@@ -127,6 +128,13 @@ const VisitPlanner = (() => {
         else if (end===null) message='終了日と終了時刻を両方入力してください。終了を指定しない場合は両方を空欄にします。';
         else if (end && !value) message='終了日時を指定するには、開始日と開始時刻が必要です。';
         else if (end && scheduleEnd(value,endDay,endTime)===null) message='終了日時は開始日時より後にしてください。';
+        if (!message && typeof EquipmentHistoryUI !== 'undefined' && byId('workActualDay')) {
+            const draft = EquipmentHistoryUI.input();
+            if (Object.values(draft).some(Boolean)) {
+                if (byId('editStatus').value !== 'completed') message='作業実績を控える場合は、アポの状態を「完了」にしてください。';
+                else if (!EquipmentHistory.actual(draft)) message='実際の作業日を入力してください。終了時刻を入れる場合は、同日の開始時刻より後にしてください。';
+            }
+        }
         byId('visitEditError').textContent=message;
         if(message){byId('visitEditError').focus();return false;}
         byId('editAppoDate').value=value;return true;
