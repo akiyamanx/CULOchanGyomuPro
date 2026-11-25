@@ -62,3 +62,19 @@ test('PDF業務依頼書: 特記事項を備考へ残し、住所・電話など
     assert.match(item.note,/架空の注意書き/);
     assert.ok(item.warnings.every(w => !/架空商事|試験1-2-3|000-0000/.test(w)));
 });
+
+test('スキャンOCR(〒なし・所在地行は電話だけ)でも住所・電話・特記事項を読む。電話を住所にしない', () => {
+    const [item] = Parser.parsePdfText(fx.ocrScan, '業務依頼書_架空商事.pdf · 1ページ');
+    assert.equal(item.company, '架空商事(株) テスト店');
+    assert.equal(item.address, '東京都架空区試験1-2-3');
+    assert.equal(item.phone, '000-0000-0000');
+    assert.equal(item.equipType, 'XX-00ZZ0');
+    assert.ok(!/000-0000/.test(item.address));
+    assert.match(item.note, /架空の注意書き/);
+    assert.equal(item.purpose, '');
+});
+test('スキャンOCRでチェック欄が口に化けても、ファイル名の（修理）から作業内容を推定する', () => {
+    const [item] = Parser.parsePdfText(fx.ocrScan, '業務依頼書_架空商事（修理）_2026.10.21.pdf · 1ページ');
+    assert.equal(item.purpose, '修理');
+    assert.ok(item.warnings.some(w => /ファイル名/.test(w)));
+});

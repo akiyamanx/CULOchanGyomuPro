@@ -198,19 +198,39 @@ const RequestParser = (() => {
     }
     // 作業内容として扱う■の語彙。ここに無い■(ポンプ有無・住居形態・代金回収など)は読まない。
     const WORK_ITEM = /設置工事|取外し?工事|クレーム|フィルター交換|移設|取付|修理|現地(?:調査|確認)|点検|メンテ|入替|交換/;
-    // 所在地の値は見出し行の隣の「〒」付きの行に来る。見出し(または顧客名)に最も近い行を使う。
+    // 所在地の値は見出しの近くの郵便番号行(「〒」が落ちたOCRでも可)か、都道府県から始まる行。
+    // 電話番号の 0xx-xxxx を郵便番号と取り違えない。
     function formAddress(joined) {
         const lines = joined.split('\n');
-        const zip = /〒\s*\d{3}[-ー]?\d{4}/;
+        const pref = /東京都|北海道|(?:京都|大阪)府|[^\s]{2,3}県/;
+        const zipRe = /(?:〒\s*)?\d{3}[-ー]\d{4}/;
+        const withoutPhone = line => line.replace(/(?:TEL|電話|携帯)[:：]?\s*0[\d() \-]{8,18}\d/gi, '').replace(/0\d[\d() \-]{8,18}\d/g, '');
+        const hasZip = line => zipRe.test(withoutPhone(line)) || (zipRe.test(line) && pref.test(line));
         const anchorOf = re => lines.findIndex(line => re.test(line));
         let anchor = anchorOf(/所\s*在\s*地/);
         if (anchor < 0) anchor = anchorOf(/顧\s*客\s*名/);
-        let best = -1;
+        let best = -1, prefBest = -1;
         lines.forEach((line, index) => {
-            if (zip.test(line) && (best < 0 || Math.abs(index - anchor) < Math.abs(best - anchor))) best = index;
+            const near = anchor < 0 || Math.abs(index - anchor) <= 3;
+            if (!near) return;
+            if (hasZip(line) && (best < 0 || Math.abs(index - anchor) < Math.abs(best - anchor))) best = index;
+            if (pref.test(line) && (prefBest < 0 || Math.abs(index - anchor) < Math.abs(prefBest - anchor))) prefBest = index;
         });
-        if (best < 0 || (anchor >= 0 && Math.abs(best - anchor) > 3)) return '';
-        return clean(lines[best].replace(/^.*?〒\s*\d{3}[-ー]?\d{4}\s*/, '').split(/TEL|電話|携帯/i)[0]);
+        const idx = best >= 0 ? best : prefBest;
+        if (idx < 0) return '';
+        const line = lines[idx];
+        const afterZip = line.replace(/^.*?(?:〒\s*)?\d{3}[-ー]\d{4}\s*/, '');
+        const fromPref = (line.match(/((?:東京都|北海道|(?:京都|大阪)府|[^\s]{2,3}県)\s*\S*)/) || ['', afterZip])[1];
+        return clean((zipRe.test(withoutPhone(line)) ? afterZip : fromPref).split(/TEL|電話|携帯/i)[0]);
+    }
+    // 特記事項。見出しが「過去の履歴/特記事項」だったり、OCRで見出しが欠けて電話の次に本文が来る場合もある。
+    function formNotes(joined) {
+        const stop = '(?:\\(?\\s*JRO|受付年月日|受付者名|依頼SS名|備\\s*考|$)';
+        const tagged = joined.match(new RegExp('(?:特\\s*記\\s*事\\s*項|過\\s*去\\s*の\\s*履\\s*歴)[\\s※＊*/／・詳細記入]*' + '([\\s\\S]*?)(?=' + stop + ')', 'i'));
+        if (tagged && tagged[1].trim()) return tagged[1].replace(/\n?（[^）\n]*）\s*$/, '').trim();
+        const afterPhone = joined.match(new RegExp('(?:電話|TEL)[^\\n]*\\n([\\s\\S]*?)(?=' + stop + ')', 'i'));
+        const body = afterPhone ? afterPhone[1].trim() : '';
+        return body.length >= 8 ? body.replace(/\n?（[^）\n]*）\s*$/, '').trim() : '';
     }
     // PDFのページが「業務依頼書」かを判定する。精算書・納品書・調査票・コスト試算などの参考資料は取り込まない。
     // 通す条件(上から順に判定):
@@ -285,7 +305,7 @@ const RequestParser = (() => {
         setSchedule(item, dateText, dateLabel);
         item.workDateText = dateText;
         const noteIndex = joined.search(/備\s*考|【\s*(?:物置|本体|電気)/);
-        const special = customerForm ? (joined.match(/特\s*記\s*事\s*項\s*([\s\S]*?)(?=受付年月日|受付者名|依頼SS名|備\s*考|$)/) || ['',''])[1].replace(/\n?（[^）\n]*）\s*$/,'').trim() : '';
+        const special = customerForm ? formNotes(joined) : '';
         item.note = unique([dateText && `設置・予定日（原文）: ${dateText}`, special, noteIndex >= 0 ? joined.slice(noteIndex).trim() : '']).join('\n');
         item.warnings.push('PDFの読取結果です。会社名・住所・電話・日程を原本と照合してください。');
         return [item]; // 読めない項目も空欄で表示し、確認画面で補える。

@@ -86,6 +86,18 @@ const RequestReader = (() => {
                     if (signal.aborted) throw new Error('読取を中止しました。');
                     await worker.setParameters({tessedit_pageseg_mode:'6'});
                     text = (await worker.recognize(canvas)).data.text;
+                    // 会社名や住所が空なら、帳票向きの分割(PSM 4)でもう一度読む(同じTesseract、追加の外部サービスは使わない)。
+                    const source = `${file.name} · ${pageNumber}ページ`;
+                    let parsed = RequestParser.parsePdfText(text, source);
+                    const weak = !parsed.length || parsed.some(item => !String(item.company || '').trim() || !String(item.address || '').trim());
+                    if (weak && !signal.aborted) {
+                        progress(`PDF ${pageNumber}/${doc.numPages}ページの文字読取をやり直しています…`);
+                        await worker.setParameters({tessedit_pageseg_mode:'4'});
+                        const alt = (await worker.recognize(canvas)).data.text;
+                        const altParsed = RequestParser.parsePdfText(alt, source);
+                        const fill = items => items.reduce((n, item) => n + [item.company, item.address, item.phone, item.equipType, item.purpose].filter(v => String(v || '').trim()).length, 0);
+                        if (fill(altParsed) > fill(parsed)) text = alt;
+                    }
                 }
                 if (signal.aborted) throw new Error('読取を中止しました。');
                 const items = RequestParser.parsePdfText(text, `${file.name} · ${pageNumber}ページ`);

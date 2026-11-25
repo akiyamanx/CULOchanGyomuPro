@@ -56,4 +56,23 @@ const referenceFiles = [
     ['調査票_架空店.pdf', 'survey', 3], ['調査票_架空2.pdf', 'survey', 2],
     ['コスト試算_A.pdf', 'cost', 4], ['コスト試算_B.pdf', 'cost', 2], ['精算書_架空3.pdf', 'settlement', 2]
 ];
-module.exports = {embedded, ocr, work, reference, referenceFiles};
+
+// 複合機でスキャンした画像PDFをOCRした形(架空)。「〒」が落ち、所在地の行は電話だけ、
+// 特記事項の見出しが欠け、チェック記号は口やロに化けている。
+const ocrScan = [
+    'MFD→JRO 業務依頼書',
+    '依頼日 2026/10/20',
+    '型式   XX-00ZZ0            台数               1 台',
+    '住居形態 ロ一戸建て ロマンション 口団地・アパート ロ店舗(事務所)',
+    '内容',
+    '口設置工事 口取外し工事 移設(取付) 口修理 口現地調査',
+    '顧客名                    架空商事(株) テスト店',
+    '100-0001 東京都架空区試験1-2-3',
+    '所在地            電話: 000-0000-0000',
+    '10月20日から架空の注意書きが連続して出ております。',
+    '部材を持参し、対応のほどよろしくお願いいたします。',
+    '(JRO本部) 受付年月日 2026/10/21',
+    '依頼SS名 架空SS',
+    '備考欄'
+].join('\n');
+module.exports = {embedded, ocr, ocrScan, work, reference, referenceFiles};
