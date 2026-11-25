@@ -119,11 +119,12 @@ const MailBoxUI = (() => {
         consent_timeout: 'Googleでの許可が時間内に終わりませんでした。「Googleにつなぐ」からやり直してください。',
         scope_missing: 'Gmailの読み取りが許可されていません。「Googleにつなぐ」からやり直し、許可の画面でGmailの読み取りにチェックを入れてください。',
         not_connected: 'Googleにつながっていません。「Googleにつなぐ」を押してください。',
-        auth_expired: '許可の有効期限が切れました。「Googleにつなぐ」からもう一度つないでください。',
+        auth_expired: 'Googleとの接続が切れました。もう一度「Googleにつなぐ」を押してから、「読み込む」を押してください。',
         rate_limited: 'Gmailの利用回数の上限に達しました。しばらく(数分〜)待ってから、もう一度お試しください。',
         forbidden: 'Gmailへのアクセスが許可されていません(アカウントや組織の設定の可能性)。',
         api_disabled: 'Googleの設定で Gmail API がまだ有効になっていません。手順書の「Gmail APIを有効にする」を確認してください。',
-        network: '通信に失敗しました。電波の良い場所で、もう一度お試しください。',
+        network: 'Googleとの通信に失敗しました。電波を確認し、アプリを再読み込みしてから「Googleにつなぐ」をもう一度試してください。',
+        unexpected: '取り込みの途中で問題が起きました。アプリを再読み込みし、「Googleにつなぐ」をもう一度試してから、「読み込む」を押してください。',
         timeout: 'Googleからの返事が時間内にありませんでした。もう一度お試しください。',
         server_error: 'Google側で一時的な問題が起きています。しばらく待ってからお試しください。',
         bad_response: 'Googleから想定外の返事が返りました。取り込みを止めました。',
@@ -288,7 +289,10 @@ const MailBoxUI = (() => {
                 if (!gProgressEl) return;
                 gProgressEl.textContent = p.stage === 'list' ? 'メールを探しています…' : p.stage === 'fetch' ? `メールを確認中 ${p.done}/${p.total}` : p.stage === 'ingest' ? 'BOXに登録中…' : '';
             } });
-        } catch (e) { r = { ok: false, code: 'network', stage: 'fetch', attachments: {}, mails: 0 }; }
+        } catch (e) {
+            const code = (e && typeof e.code === 'string' && GMAIL_MSG[e.code]) ? e.code : 'unexpected';
+            r = { ok: false, code, stage: 'fetch', attachments: {}, mails: 0 };
+        }
         gRunning = false; gAbort = null;
         const sum = gmailSummary(r);
         gNote = sum;

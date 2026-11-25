@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const GmailImport = require('../map/gmail-import.js');
 
 const T0 = Date.parse('2026-10-28T12:00:00+09:00');
 const DAY = 24 * 3600 * 1000;
@@ -479,4 +480,62 @@ test('部分検索: 利用者へ残り未確認と明記し、後続エラーは
         assert.ok(html.includes('map/'+name+'.js?v=20261120-gmail-partial-1'), name);
         assert.ok(sw.includes("'./map/"+name+".js'"), name);
     }
+});
+
+test('失敗の分類: 通信切れは network、コード付きはそれを使い、それ以外は unexpected にする', () => {
+    assert.equal(GmailImport.classifyError(coded('auth_expired')), 'auth_expired');
+    assert.equal(GmailImport.classifyError(coded('network')), 'network');
+    assert.equal(GmailImport.classifyError(new TypeError('Failed to fetch')), 'network');
+    const load = new Error('Load failed'); load.name = 'TypeError';
+    assert.equal(GmailImport.classifyError(load), 'network');
+    const aborted = new Error('aborted'); aborted.name = 'AbortError';
+    assert.equal(GmailImport.classifyError(aborted), 'aborted');
+    assert.equal(GmailImport.classifyError(new Error('weird')), 'unexpected');
+    assert.equal(GmailImport.classifyError(null), 'unexpected');
+});
+
+test('一覧取得の原因不明な例外は network にまとめず unexpected にする。Failed to fetch は network', async () => {
+    const g = makeGmail(), dev = device();
+    M(g, IDS(1), '業務依頼書.xlsx', XLSX_MIME, 3000, 'xlsx');
+    g.source.listMessageIds = async () => { throw new Error('weird'); };
+    const unexpected = await plainRun(dev.make(g, makeReader()));
+    assert.equal(unexpected.ok, false);
+    assert.equal(unexpected.code, 'unexpected');
+    const g2 = makeGmail();
+    M(g2, IDS(1), '業務依頼書.xlsx', XLSX_MIME, 3000, 'xlsx');
+    g2.source.listMessageIds = async () => { throw new TypeError('Failed to fetch'); };
+    const net = await plainRun(dev.make(g2, makeReader()));
+    assert.equal(net.ok, false);
+    assert.equal(net.code, 'network');
+});
+
+test('原本の判定や保存が例外でも、依頼の取り込みは止めない', async () => {
+    const g = makeGmail(), dev = device();
+    M(g, IDS(1), '架空SS.xls', 'application/vnd.ms-excel', 3000, 'xls', { subject: '12月 DP-400定期メンテナンスリスト' });
+    M(g, IDS(2), '業務依頼書.xlsx', XLSX_MIME, 3000, 'xlsx');
+    dev.ctx.Dp400Original = {
+        isListMail() { throw new Error('boom'); },
+        save() { throw new Error('boom-save'); }
+    };
+    const r = await plainRun(dev.make(g, makeReader()));
+    assert.equal(r.ok, true);
+    assert.equal(r.code, '');
+    assert.equal(r.mails, 2);
+    assert.equal(r.attachments.downloaded, 2);
+});
+
+test('失敗時の案内は、電波だけにせずつなぎ直しや再読み込みを案内する', () => {
+    const code = fs.readFileSync(require.resolve('../map/mail-box-ui.js'),'utf8').replace('return { init, open, close,','return { gmailSummary, init, open, close,');
+    const summary = vm.runInNewContext(code + ';MailBoxUI.gmailSummary');
+    const network = summary({ ok:false, code:'network', stage:'list', attachments:{}, mails:0 });
+    assert.match(network.lines[0], /Googleにつなぐ/);
+    assert.match(network.lines[0], /再読み込み/);
+    assert.doesNotMatch(network.lines[0], /電波の良い場所で、もう一度お試しください/);
+    const expired = summary({ ok:false, code:'auth_expired', attachments:{}, mails:0 });
+    assert.match(expired.lines[0], /接続が切れました/);
+    assert.match(expired.lines[0], /Googleにつなぐ/);
+    const unexpected = summary({ ok:false, code:'unexpected', attachments:{}, mails:0 });
+    assert.match(unexpected.lines[0], /再読み込み/);
+    assert.match(unexpected.lines[0], /Googleにつなぐ/);
+    assert.match(code, /code === 'unexpected'|GMAIL_MSG\[e\.code\]/);
 });

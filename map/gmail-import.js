@@ -109,6 +109,9 @@ const GmailImport = (() => {
                 }
                 if (batch.length) { progress('ingest', listed.ids.length, listed.ids.length); await flush(); }
                 return finish(out);
+            } catch (e) {
+                if (!out.code) fail(safe(e), out.stage || 'fetch');
+                return finish(out);
             } finally { running = false; progress('done', out.found, out.found); }
         }
 
@@ -180,11 +183,12 @@ const GmailImport = (() => {
             C.downloaded++; local.bytes += Math.max(a.size, bytes.length);
             // 4) 中身の確認(拡張子だけを信じない)
             if (!MAGIC[kind](bytes)) return unread(kind, 'content_mismatch', 'blocked');
-            // 4b) DP-400月次リストの原本を、解析の前に端末へ残す(失敗しても取り込みは続ける)
-            if (typeof Dp400Original !== 'undefined' && Dp400Original.isListMail(msg && msg.subject, name)) {
-                try { await Dp400Original.save({ subject: msg.subject, fileName: name, mime, bytes, messageId: msgId, partKey: key, receivedMs: msg.internalDateMs, kind }); }
-                catch (e) { /* 原本の保存失敗は依頼の取り込みを止めない */ }
-            }
+            // 4b) DP-400月次リストの原本を、解析の前に端末へ残す(判定・保存の失敗でも取り込みは続ける)
+            try {
+                if (typeof Dp400Original !== 'undefined' && typeof Dp400Original.isListMail === 'function' && Dp400Original.isListMail(msg && msg.subject, name) && typeof Dp400Original.save === 'function') {
+                    await Dp400Original.save({ subject: msg.subject, fileName: name, mime, bytes, messageId: msgId, partKey: key, receivedMs: msg.internalDateMs, kind });
+                }
+            } catch (e) { /* 原本の保存失敗は依頼の取り込みを止めない */ }
             // 5) 解析
             let res;
             try { res = await reader.readForMail(makeFile(bytes, name, mime), () => {}, signal); }
@@ -196,7 +200,15 @@ const GmailImport = (() => {
         }
         return { run, limits: L };
     }
-    function safe(e) { const c = e && typeof e.code === 'string' && /^[a-z0-9_]{1,40}$/.test(e.code) ? e.code : 'network'; return c; }
-    return { create, DEFAULT_LIMITS, STOP_CODES };
+    function classifyError(e) {
+        const c = e && typeof e.code === 'string' && /^[a-z0-9_]{1,40}$/.test(e.code) ? e.code : '';
+        if (c) return c;
+        if (e && e.name === 'AbortError') return 'aborted';
+        const msg = e && typeof e.message === 'string' ? e.message : '';
+        if (/Failed to fetch|NetworkError|Load failed|Network request failed/i.test(msg)) return 'network';
+        return 'unexpected';
+    }
+    function safe(e) { return classifyError(e); }
+    return { create, DEFAULT_LIMITS, STOP_CODES, classifyError };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = GmailImport;
