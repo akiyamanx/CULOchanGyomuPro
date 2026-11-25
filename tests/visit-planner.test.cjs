@@ -155,3 +155,89 @@ test('編集画面で月をまたぐ終了日時を保存し、同じIDのまま
     assert.equal(JSON.parse(data.get('mm_customers_2026-11'))[0].appoEndDate,null);
     assert.match(el('visitCalendarDays').innerHTML,/2026-12-01、アプリ0件/);
 });
+
+function workActualHarness() {
+    const nodes=new Map();
+    const el=id=>{if(!nodes.has(id))nodes.set(id,{value:'',textContent:'',innerHTML:'',hidden:false,open:false,focus(){},setAttribute(){},onclick:null});return nodes.get(id)};
+    const context=vm.createContext({console,document:{getElementById:el,addEventListener(){},querySelectorAll:()=>[]},
+        ExpenseImport:{escapeHtml:String},
+        DataStorage:{getWorkspaces:()=>[],getCurrentWorkspaceId:()=>''},
+        GoogleVisitCalendar:{setRange(){},snapshot:()=>({connected:false})}
+    });
+    vm.runInContext(fs.readFileSync(require.resolve('../map/equipment-history'),'utf8'),context);
+    vm.runInContext(fs.readFileSync(require.resolve('../map/equipment-history-ui'),'utf8'),context);
+    vm.runInContext(fs.readFileSync(require.resolve('../map/visit-planner'),'utf8'),context);
+    el('editCompany').value='架空商事'; el('editAddress').value='東京都架空区試験1-2-3';
+    el('editStatus').value='appointed';
+    el('visitScheduleDay').value='2026-11-30'; el('visitScheduleTime').value='11:00';
+    return {el, run:code=>vm.runInContext(code,context)};
+}
+
+test('作業実績が全部空なら、未完了でも予定・備考を保存できる',()=>{
+    const {run,el}=workActualHarness();
+    run('VisitPlanner.begin({})');
+    assert.equal(el('workActualDay').value,'');
+    assert.equal(el('workActualStart').value,'');
+    assert.equal(el('workActualEnd').value,'');
+    assert.equal(el('workActualSummary').value,'');
+    assert.equal(run('VisitPlanner.validate()'),true);
+    assert.equal(el('visitEditError').textContent,'');
+});
+
+test('未完了で実績の日付だけ入っていると保存できず、取り消し案内がある',()=>{
+    const {run,el}=workActualHarness();
+    run('VisitPlanner.begin({})');
+    el('workActualDay').value='2026-11-26';
+    assert.equal(run('VisitPlanner.validate()'),false);
+    assert.match(el('visitEditError').textContent,/完了/);
+    assert.match(el('visitEditError').textContent,/実績の入力を取り消す/);
+});
+
+test('実績の入力を取り消すと、日付・時刻・作業内容が空になり未完了でも保存できる',()=>{
+    const {run,el}=workActualHarness();
+    run('VisitPlanner.begin({})');
+    el('workActualDay').value='2026-11-26';
+    el('workActualStart').value='10:00';
+    el('workActualEnd').value='11:00';
+    el('workActualSummary').value='架空の交換部材';
+    run('VisitPlanner.validate()');
+    run('EquipmentHistoryUI.clear()');
+    assert.equal(el('workActualDay').value,'');
+    assert.equal(el('workActualStart').value,'');
+    assert.equal(el('workActualEnd').value,'');
+    assert.equal(el('workActualSummary').value,'');
+    assert.equal(el('visitEditError').textContent,'');
+    assert.equal(run('VisitPlanner.validate()'),true);
+});
+
+test('各欄の未選択は、その項目だけ空にする',()=>{
+    const {run,el}=workActualHarness();
+    run('VisitPlanner.begin({})');
+    el('workActualDay').value='2026-11-26';
+    el('workActualStart').value='10:00';
+    el('workActualEnd').value='11:00';
+    run('EquipmentHistoryUI.clearField("workActualDay")');
+    assert.equal(el('workActualDay').value,'');
+    assert.equal(el('workActualStart').value,'10:00');
+    assert.equal(el('workActualEnd').value,'11:00');
+});
+
+test('完了で実績が揃っていれば、従来どおり保存できる',()=>{
+    const {run,el}=workActualHarness();
+    run('VisitPlanner.begin({status:"completed",workActual:{day:"2026-11-20",start:"09:00",end:"10:30",summary:"架空の交換"}})');
+    el('editStatus').value='completed';
+    assert.equal(el('workActualDay').value,'2026-11-20');
+    assert.equal(el('workActualStart').value,'09:00');
+    assert.equal(el('workActualEnd').value,'10:30');
+    assert.equal(el('workActualSummary').value,'架空の交換');
+    assert.equal(run('VisitPlanner.validate()'),true);
+    assert.equal(run('JSON.stringify(EquipmentHistory.actual(EquipmentHistoryUI.input()))'),JSON.stringify({day:'2026-11-20',start:'09:00',end:'10:30',summary:'架空の交換'}));
+});
+
+test('保存済みの実績がなければ、編集を開いても作業日に今日の日付を入れない',()=>{
+    const {run,el}=workActualHarness();
+    run('VisitPlanner.begin({company:"架空商事",address:"東京都架空区試験1-2-3",status:"pending"})');
+    assert.equal(el('workActualDay').value,'');
+    assert.equal(el('workActualDetails').open,false);
+    assert.equal(run('VisitPlanner.validate()'),true);
+});

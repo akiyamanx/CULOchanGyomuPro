@@ -14,6 +14,17 @@ const EquipmentHistoryUI = (() => {
         const [day,start,end,summary] = fields.map(id => byId(id)?.value.trim() || '');
         return {day,start,end,summary};
     }
+    function clearField(id) {
+        if (!fields.includes(id)) return;
+        const el = byId(id);
+        if (el) el.value = '';
+        const err = byId('visitEditError');
+        if (err) err.textContent = '';
+        if (typeof restoreEditButtons === 'function') restoreEditButtons();
+    }
+    function clear() {
+        fields.forEach(clearField);
+    }
     function begin(customer) {
         if (!byId('equipmentHistoryFromVisit')) return;
         const v = EquipmentHistory.actual(customer.workActual);
@@ -92,7 +103,11 @@ const EquipmentHistoryUI = (() => {
         byId('equipmentHistoryOpen')?.addEventListener('click', () => open());
         byId('equipmentHistoryClose')?.addEventListener('click', () => byId('equipmentHistoryDialog').close());
         byId('equipmentHistoryForm')?.addEventListener('submit', e => { e.preventDefault(); search(); });
+        byId('workActualClear')?.addEventListener('click', clear);
+        document.querySelectorAll('[data-work-actual-clear]').forEach(button => {
+            button.addEventListener('click', () => clearField(button.getAttribute('data-work-actual-clear') || ''));
+        });
     }
     if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded', init);
-    return { begin, input, open, openForVisit };
+    return { begin, input, clear, clearField, open, openForVisit };
 })();

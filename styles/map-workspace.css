@@ -38,6 +38,16 @@ body.map-focus .workflow-toast { z-index:14000; }
 .visit-schedule-end .text-link { min-height:44px; }
 .visit-contact-details { border-top:1px solid var(--border);padding-top:8px; }
 .visit-contact-details summary { cursor:pointer;padding:8px 0;font-size:14px;color:var(--accent-dark); }
+.work-actual-field { display:flex;gap:8px;align-items:center; }
+.work-actual-field input { flex:1; }
+.work-actual-field .text-link { flex:none;min-height:44px;padding:8px;white-space:nowrap; }
+#editModal #workActualClear {
+    display:flex;align-items:center;justify-content:center;
+    width:100%;min-height:44px;margin:8px 0 12px;padding:10px 14px;
+    border:1px solid #8ca9c0;border-radius:8px;background:#fff;
+    color:var(--accent-dark,#124f88);font-size:14px;font-weight:600;box-sizing:border-box;
+}
+
 .visit-calendar { padding:16px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px; }
 .visit-calendar h3 { font-size:15px;margin:0 0 8px; }
 .visit-calendar h4 { font-size:13px;margin:16px 0 8px; }

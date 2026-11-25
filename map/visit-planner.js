@@ -131,7 +131,7 @@ const VisitPlanner = (() => {
         if (!message && typeof EquipmentHistoryUI !== 'undefined' && byId('workActualDay')) {
             const draft = EquipmentHistoryUI.input();
             if (Object.values(draft).some(Boolean)) {
-                if (byId('editStatus').value !== 'completed') message='作業実績を控える場合は、アポの状態を「完了」にしてください。';
+                if (byId('editStatus').value !== 'completed') message='作業実績を控える場合は、アポの状態を「完了」にしてください。まだ作業前なら「実績の入力を取り消す」で戻せます。';
                 else if (!EquipmentHistory.actual(draft)) message='実際の作業日を入力してください。終了時刻を入れる場合は、同日の開始時刻より後にしてください。';
             }
         }
