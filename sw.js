@@ -15,7 +15,8 @@
 // v89 - 駐車場の入口と精算画面の区切りを整理
 // v91 - 訪問日アイコンと完了表示、精算・同期・添付の保護
 // v92 - 今日の訪問、同期表示、機番の履歴、現場単位のピン
-const CACHE_NAME = 'gyomupro-v92';
+// v93 - DP-400月次リストの原本を端末内に残して「原本を見る」で表示（全体表示・拡大縮小）
+const CACHE_NAME = 'gyomupro-v93';
 // 本番の古いキャッシュだけ消す。同じオリジンのお試し版のキャッシュ(gyomupro-stg-)は消さない
 function ownCache(name) {
     return name.startsWith('gyomupro-') && !name.startsWith('gyomupro-stg-');
@@ -41,6 +42,7 @@ const ASSETS = [
     './styles/settings.css',
     './styles/request-import.css',
     './styles/mail-box.css',
+    './styles/dp400-original.css',
     './styles/etc-workflow.css',
     './shared/settings-panel.js',
     './shared/app-core.js',
@@ -83,6 +85,8 @@ const ASSETS = [
     './map/gmail-transport.js',
     './map/gmail-source.js',
     './map/gmail-import.js',
+    './map/dp400-original.js',
+    './map/dp400-original-ui.js',
     './map/gmail-senders.js',
     './map/mail-box-demo.js',
     './map/mail-gmail-links.js',

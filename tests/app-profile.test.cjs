@@ -40,7 +40,7 @@ test('リリース版: お試し版の名残(stg・バナー・借用)がアプ�
     for (const f of files) assert.doesNotMatch(read(f), /stg:|'stg-'|gyomupro-staging|stagingBanner|AppProfile\.staging/, f);
 });
 test('IndexedDBを開くファイルはすべて AppProfile.dbName を通す', () => {
-    for (const f of ['expense/parking-idb.js', 'expense/etc-store.js', 'expense/expense-draft-store.js', 'shared/backup-store.js']) assert.match(read(f), /AppProfile\.dbName\(/, f);
+    for (const f of ['expense/parking-idb.js', 'expense/etc-store.js', 'expense/expense-draft-store.js', 'shared/backup-store.js', 'map/dp400-original.js']) assert.match(read(f), /AppProfile\.dbName\(/, f);
     assert.match(read('shared/backup-store.js'), /AppProfile\.channel/);
 });
 test('アプリ本体は localStorage を直接さわらない(AppStorage 経由のみ)', () => {
@@ -54,7 +54,7 @@ test('SW: 本番キャッシュ名は新しい版で、お試し版のキャッ�
     const ctx = { self: { location: { pathname: '/CULOchanGyomuPro/sw.js', origin: 'https://akiyamanx.github.io' }, addEventListener() {} } };
     vm.createContext(ctx);
     vm.runInContext(sw + '\nthis.CACHE_NAME=CACHE_NAME;this.ownCache=ownCache;', ctx);
-    assert.equal(ctx.CACHE_NAME, 'gyomupro-v92');
+    assert.equal(ctx.CACHE_NAME, 'gyomupro-v93');
     assert.equal(ctx.ownCache('gyomupro-v44'), true);
     assert.equal(ctx.ownCache('gyomupro-stg-v60'), false);
     assert.doesNotMatch(sw, /caches\.match\(/);

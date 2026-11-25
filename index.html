@@ -30,6 +30,7 @@
     <link rel="stylesheet" href="styles/settings.css?v=20261019-15">
     <link rel="stylesheet" href="styles/request-import.css">
     <link rel="stylesheet" href="styles/mail-box.css?v=20261117-3">
+    <link rel="stylesheet" href="styles/dp400-original.css?v=20261125-2">
     <link rel="stylesheet" href="styles/etc-workflow.css?v=20261122-draft-etc-guard-1">
 </head>
 <body inert>
@@ -244,6 +245,7 @@
             <div class="map-compact-bar">
                 <span class="workspace-label">対象月</span><button class="compact-ws-btn" id="compactWsBtn" onclick="showWorkspaceMenu()" aria-label="対象月を切り替える">--</button>
                 <div class="compact-count" id="compactCount" role="status">0件</div>
+                <button type="button" class="btn btn-secondary compact-action" id="dp400OriginalBtn">原本を見る</button>
                 <label class="btn btn-secondary file-control compact-action">Excel・依頼書を取り込む<input type="file" id="fileInput" accept=".csv,.xlsx,.xls,.pdf" multiple class="file-input"></label>
                 <button class="compact-toggle-btn" id="compactToggleBtn" onclick="toggleMapToolbar()" aria-expanded="false" aria-controls="mapToolbarDropdown">その他 ⋯</button>
             </div>
@@ -276,6 +278,32 @@
                     <div class="modal-row"><label for="addWsMonth">年月</label><input type="month" id="addWsMonth"></div>
                     <div class="modal-row"><label for="addWsName">名前（任意）</label><input type="text" id="addWsName" placeholder="例：3月メンテ"></div>
                     <div class="modal-buttons"><button class="modal-cancel" onclick="hideAddWorkspaceDialog()">キャンセル</button><button class="modal-submit" onclick="addWorkspace()">作成</button></div>
+                </div>
+            </div>
+            <div class="modal-overlay" id="dp400OriginalOverlay" hidden>
+                <div class="modal dp400-original-modal" role="dialog" aria-modal="true" aria-labelledby="dp400OriginalTitle">
+                    <div class="dp400-original-head">
+                        <div class="dp400-original-top">
+                            <h2 id="dp400OriginalTitle" tabindex="-1">DP-400リストの原本</h2>
+                            <div class="dp400-original-toolbar">
+                                <label for="dp400OriginalMonth">対象月</label>
+                                <select id="dp400OriginalMonth"></select>
+                            </div>
+                        </div>
+                        <div id="dp400OriginalFiles"></div>
+                        <div class="dp400-zoom-bar" role="toolbar" aria-label="表示の拡大縮小">
+                            <button type="button" class="btn btn-secondary dp400-zoom-btn" id="dp400ZoomOut" aria-label="縮小">−</button>
+                            <button type="button" class="btn btn-secondary dp400-zoom-btn" id="dp400ZoomIn" aria-label="拡大">＋</button>
+                            <button type="button" class="btn btn-secondary dp400-zoom-fit" id="dp400ZoomFit">全体</button>
+                        </div>
+                    </div>
+                    <div id="dp400OriginalView" class="dp400-original-view"></div>
+                    <p id="dp400OriginalStatus" role="status" aria-live="polite"></p>
+                    <div class="dp400-original-actions">
+                        <button type="button" class="btn btn-primary" id="dp400OriginalFetch">メールから原本を取り込む</button>
+                        <button type="button" class="btn btn-secondary" id="dp400OriginalDownload" disabled>このファイルを保存</button>
+                        <button type="button" class="btn btn-secondary" id="dp400OriginalClose">閉じる</button>
+                    </div>
                 </div>
             </div>
             <div id="menuPanel" style="display:none;"></div>
@@ -478,12 +506,14 @@
     <script src="map/data-sync.js?v=20261123-status-1"></script>
     <script src="map/gmail-transport.js?v=20261117-3"></script>
     <script src="map/gmail-source.js?v=20261120-gmail-partial-1"></script>
-    <script src="map/gmail-import.js?v=20261120-gmail-partial-1"></script>
+    <script src="map/gmail-import.js?v=20261120-gmail-partial-1-20261125-dp400-1"></script>
+    <script src="map/dp400-original.js?v=20261125-2"></script>
+    <script src="map/dp400-original-ui.js?v=20261125-2"></script>
     <script src="map/gmail-senders.js?v=20261117-3"></script>
     <script src="map/mail-box-demo.js?v=20261029-2"></script>
     <script src="map/mail-gmail-links.js?v=20261030-3"></script>
     <script src="shared/google-connect.js?v=20261117-3"></script>
-    <script src="map/mail-box-ui.js?v=20261120-gmail-partial-1-20261122-safety-1"></script>
+    <script src="map/mail-box-ui.js?v=20261120-gmail-partial-1-20261122-safety-1-20261125-dp400-1"></script>
     <script src="map/request-import.js?v=20261119-date-review-1"></script>
     <script src="map/geocode-guard.js?v=20261104-3"></script>
     <script src="map/route-pin-style.js?v=20261122-route-pins-2"></script>
@@ -570,6 +600,7 @@
                 } catch (error) { console.error('mf-dedupe: failed'); }
             }
             try { MailBoxUI.init(); } catch (error) { console.error('mailbox: init_failed'); }
+            try { Dp400OriginalUI.init(); } catch (error) { console.error('dp400-original: init_failed'); }
             if (fi) fi.addEventListener('change', RequestImport.handleFile);
             var bi = document.getElementById('backupInput');
             if (bi) bi.addEventListener('change', function(e) { DataStorage.importBackup(e); });

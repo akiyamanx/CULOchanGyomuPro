@@ -180,6 +180,11 @@ const GmailImport = (() => {
             C.downloaded++; local.bytes += Math.max(a.size, bytes.length);
             // 4) 中身の確認(拡張子だけを信じない)
             if (!MAGIC[kind](bytes)) return unread(kind, 'content_mismatch', 'blocked');
+            // 4b) DP-400月次リストの原本を、解析の前に端末へ残す(失敗しても取り込みは続ける)
+            if (typeof Dp400Original !== 'undefined' && Dp400Original.isListMail(msg && msg.subject, name)) {
+                try { await Dp400Original.save({ subject: msg.subject, fileName: name, mime, bytes, messageId: msgId, partKey: key, receivedMs: msg.internalDateMs, kind }); }
+                catch (e) { /* 原本の保存失敗は依頼の取り込みを止めない */ }
+            }
             // 5) 解析
             let res;
             try { res = await reader.readForMail(makeFile(bytes, name, mime), () => {}, signal); }

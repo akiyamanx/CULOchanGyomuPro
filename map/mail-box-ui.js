@@ -674,5 +674,11 @@ const MailBoxUI = (() => {
     // 自動同期(data-sync-ui)から: 開いている間だけ他端末の台帳を定期的に取り込む
     const isOpen = () => !!(overlay && !overlay.hidden);
     const isSyncing = () => syncing;
-    return { init, open, close, isOpen, isSyncing, syncQuiet: () => syncNow(true) };
+    function gmailIfConnected() {
+        try {
+            if (gTransport && gSource && gTransport.state && gTransport.state().connected) return { transport: gTransport, source: gSource };
+        } catch (e) { /* 未接続として扱う */ }
+        return null;
+    }
+    return { init, open, close, isOpen, isSyncing, syncQuiet: () => syncNow(true), gmailIfConnected };
 })();

@@ -1,0 +1,42 @@
+/* DP-400リスト原本の表示。開いたときは全体を画面に収め、ピンチとボタンで拡大縮小できる。 */
+#dp400OriginalBtn { flex-shrink: 0; }
+#dp400OriginalOverlay { display: none; position: fixed; inset: 0; z-index: 12000; background: rgba(20, 32, 44, 0.55); align-items: stretch; justify-content: stretch; padding: 0; }
+#dp400OriginalOverlay:not([hidden]) { display: flex; }
+.dp400-original-modal { background: #fff; color: #1c2a36; width: 100%; height: 100%; max-width: none; max-height: 100%; overflow: hidden; border-radius: 0; padding: 0; display: flex; flex-direction: column; box-shadow: none; }
+.dp400-original-head { flex-shrink: 0; padding: 8px 10px 6px; display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid #d5e0e8; background: #fff; }
+.dp400-original-top { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.dp400-original-modal h2 { margin: 0; font-size: 16px; line-height: 1.3; flex: 1 1 auto; }
+.dp400-original-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.dp400-original-toolbar label { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+#dp400OriginalMonth { min-height: 44px; font-size: 16px; padding: 6px 10px; border: 1px solid #8fa5b8; border-radius: 8px; background: #fff; }
+#dp400OriginalFiles { display: flex; flex-wrap: wrap; gap: 8px; }
+.dp400-file-tab.is-active { background: var(--accent, #1e6b9a); color: #fff; border-color: var(--accent, #1e6b9a); }
+#dp400OriginalFiles .btn, .dp400-file-tab { width: auto; }
+.dp400-zoom-bar { display: flex; flex-wrap: nowrap; gap: 8px; align-items: stretch; }
+.dp400-zoom-bar .btn { width: auto; flex: 1 1 0; }
+.dp400-zoom-btn, .dp400-zoom-fit { min-width: 48px; min-height: 44px; padding: 0 12px; font-weight: 700; line-height: 1; border-radius: 8px; }
+.dp400-zoom-btn { font-size: 22px; }
+.dp400-zoom-fit { font-size: 15px; }
+.dp400-original-view { flex: 1; min-height: 0; overflow: hidden; border: 0; border-radius: 0; background: #eef3f7; position: relative; }
+.dp400-viewport { position: absolute; inset: 0; overflow: hidden; touch-action: none; cursor: grab; overscroll-behavior: contain; }
+.dp400-viewport.is-panning { cursor: grabbing; }
+.dp400-viewport-surface { transform-origin: 0 0; width: max-content; max-width: none; }
+.dp400-table-wrap { overflow: visible; }
+.dp400-table { border-collapse: collapse; table-layout: fixed; font-size: 12px; background: #fff; }
+.dp400-table th, .dp400-table td { border: 1px solid #c5d3de; padding: 4px 6px; text-align: left; vertical-align: top; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; overflow: visible; }
+.dp400-table th { background: #e8f0f6; font-weight: 700; }
+.dp400-sheet-name { margin: 8px 10px 4px; font-size: 14px; }
+.dp400-empty { margin: 16px; font-size: 14px; line-height: 1.6; }
+.dp400-pdf { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; border: 0; background: #fff; }
+#dp400OriginalStatus { margin: 0; padding: 4px 12px 0; font-size: 13px; flex-shrink: 0; }
+#dp400OriginalStatus:empty { display: none; padding: 0; }
+#dp400OriginalStatus[data-kind="error"] { color: #9b1c1c; }
+#dp400OriginalStatus[data-kind="warn"] { color: #8a5a00; }
+#dp400OriginalStatus[data-kind="ok"] { color: #1b5e3b; }
+.dp400-original-actions { display: flex; flex-wrap: wrap; gap: 8px; flex-shrink: 0; padding: 8px 10px 10px; border-top: 1px solid #d5e0e8; background: #fff; }
+.dp400-original-actions .btn { min-height: 44px; }
+body.dp400-original-open { overflow: hidden; }
+@media (min-width: 900px) {
+    #dp400OriginalOverlay { padding: 0; }
+    .dp400-original-head h2 { font-size: 18px; }
+}
